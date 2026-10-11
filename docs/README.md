@@ -9,9 +9,11 @@
 
 If the two conflict on technical/product rules, the Master Context takes precedence.
 
+Current Master Context version: 0.1-r1 (amended by MCA-001). Earlier versions are recoverable from Git history.
+
 ## Other documentation
 
-- **Decisions:** future architectural decisions are recorded as numbered ADRs under [`decisions/`](decisions/).
+- **Decisions:** architectural decisions are recorded as numbered ADRs, and changes to the Master Context as numbered MCAs, under [`decisions/`](decisions/). The register in that folder's README lists their status.
 - **Environment:** environment facts are recorded under [`environment/`](environment/).
 
 ## Source of truth
@@ -24,3 +26,4 @@ If the two conflict on technical/product rules, the Master Context takes precede
 - Cloud Claude may propose architectural decisions.
 - Local Claude is the source of truth for local facts and performs implementation.
 - User authority remains required for genuine governance, security, privacy, credential, financial, high-impact or irreversible decisions.
+- The authority hierarchy (RK first), the governance-trigger checklist and how approval is recorded are defined in ADR-0001.
