@@ -2,6 +2,7 @@
 
 This file orients Claude sessions to the repository's authoritative documentation. It does not duplicate it.
 
+0. For session recovery and resumption, start with `START HERE.md` at the repository root. It is a non-authoritative navigation aid.
 1. Read `docs/README.md` first.
 2. Treat `docs/spec/JARVIS_CORE_v0.1_MASTER_CONTEXT_UPDATED.md` as the authoritative technical/product specification.
 3. Use `docs/spec/JARVIS_AI_LLM_PROJECT_ORIENTATION.md` for conceptual context.
