@@ -3,8 +3,9 @@
 ### Master Development Context for Claude Code
 
 **Status:** Approved baseline  
-**Version:** 0.1  
-**Date:** 2026-10-06  
+**Version:** 0.1-r1  
+**Date:** 2026-10-11  
+**Amendments:** MCA-001  
 **Owner:** User  
 **Primary developer:** Claude Code  
 **Deployment target:** User's Windows gaming laptop  
@@ -113,13 +114,17 @@ Project Registry
     ↓
 Task Engine
     ↓
-Research
+Manual Worker Bridge
+    ↓
+Local Isolation
     ↓
 Controlled Coding
     ↓
 Testing
     ↓
 Verification
+    ↓
+Research
     ↓
 Memory
     ↓
@@ -1022,7 +1027,7 @@ Do not modify projects during inspection.
 
 Produce an inventory.
 
-### Phase 1 — Minimal Jarvis Core
+### Phase 1 — Deterministic Control Plane
 
 Implement:
 
@@ -1030,25 +1035,38 @@ Implement:
 - Project registry.
 - Task model.
 - Task persistence.
-- Basic planner.
-- Capability registry.
+- Basic planner (deterministic).
+- Capability registry and deterministic evaluator.
 - Audit logging.
 - CLI.
 
-No autonomous code modification yet.
+No model call, no network, no subprocess, no worker execution.
 
-### Phase 2 — Research Engine
+No autonomous code modification.
 
-Implement:
+### Phase 2 — Manual Worker Bridge
 
-- Web research.
-- Source recording.
-- Research notes.
-- Evidence handling.
-- Research task execution.
-- Bounded retries.
+JARVIS produces a bounded task brief.
 
-### Phase 3 — Controlled Coding
+RK runs an external worker manually and relays results.
+
+JARVIS does not invoke the worker.
+
+Relayed results are treated as untrusted input.
+
+Brief rules are defined by ADR.
+
+### Phase 3 — Local Isolation
+
+Establish and test an OS-level boundary between the governance zone, protected projects and any worker.
+
+No automated worker execution until the boundary is attested.
+
+Design is defined by ADR.
+
+### Phase 4 — Controlled Coding and Verification Integration
+
+(Master Context former Phase 3 and former Phase 4.)
 
 Integrate Claude Code.
 
@@ -1063,8 +1081,6 @@ Implement:
 
 Protected repository remains untouched.
 
-### Phase 4 — Verification Integration
-
 Integrate applicable:
 
 - Universal Verification.
@@ -1076,9 +1092,18 @@ Use adapters.
 
 Do not merge implementations.
 
-### Phase 5 — Autonomous R&D
+### Phase 5 — Research Engine and Autonomous R&D
+
+(Master Context former Phase 2 and former Phase 5, without background execution.)
 
 Implement:
+
+- Web research.
+- Source recording.
+- Research notes.
+- Evidence handling.
+- Research task execution.
+- Bounded retries.
 
 ```text
 Question
@@ -1092,15 +1117,14 @@ Question
 → Report
 ```
 
-Add bounded background execution.
-
-### Phase 6 — Scheduler
+### Phase 6 — Scheduler and Background Autonomy
 
 Add:
 
 - Scheduled tasks.
 - Recurring research.
 - Background project work.
+- Bounded background execution.
 - Pause/resume.
 - Runtime limits.
 
