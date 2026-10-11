@@ -58,7 +58,7 @@ Continuity rules that add to it:
 
 - Tag: `phase-0-freeze`
 - Commit: `e919b7a2402a9a2364491e31fe4b25a12866f87e`
-- Phase 0: frozen.
+- Phase 0 baseline: frozen at `phase-0-freeze`.
 - Phase 1: not started.
 - Phase 1 starts on RK's instruction.
 
