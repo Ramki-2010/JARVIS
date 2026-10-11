@@ -1,0 +1,7 @@
+# Governance paths. Routes review requests to the repository owner.
+# "Require review from code owners" is NOT enabled while there is a single
+# account (ADR-0001 D9). This file is a routing and visibility control, not a gate.
+/docs/spec/        @Ramki-2010
+/docs/decisions/   @Ramki-2010
+/policy/           @Ramki-2010
+/.github/          @Ramki-2010
