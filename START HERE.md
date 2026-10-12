@@ -52,6 +52,8 @@ Continuity rules that add to it:
 | MCA records | `docs/decisions/MCA-*.md` | Authoritative once ACCEPTED |
 | Environment snapshot | `docs/environment/phase-0-2026-10-06.md` | Historical evidence |
 | Architecture draft | `docs/architecture/` | DRAFT — NON-AUTHORITATIVE. Not committed to the repository. It may be absent from a fresh clone. |
+| Source repository | `D:\J.A.R.V.I.S AI Assistant\` | Code and version-controlled documentation only |
+| External operational storage | `D:\JARVIS\` (`governance\`, `data\`) | Outside the repository, never a repository folder. Governed by ADR-0007. Creating it is a separate step: verify live whether it exists |
 | Governance controls | `.github/CODEOWNERS` and the GitHub ruleset | Verify live; do not rely on this file |
 
 ## STATE AT LAST GATE
@@ -69,4 +71,4 @@ This records the gate only. Anything after it is discovered with the RESUME PROT
 - Leave the repository in a state the next session can read: no uncommitted work you have not reported, and no unreported branch or open PR.
 - State what you did, what you verified, what you did not verify, and what is UNKNOWN. Name the evidence.
 - Session handoff notes are evidence for the next session, not authority, and they must not be committed as a tracking system.
-- Handoff location: UNRESOLVED. No ignored local location is established by an accepted record. Ask RK where notes should live. Do not invent a directory.
+- Handoff location: UNRESOLVED. No location is established by an accepted record. Ask RK where notes should live. Do not invent a directory, and never create one inside the repository (ADR-0007).
