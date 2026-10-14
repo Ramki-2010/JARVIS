@@ -363,7 +363,7 @@ JARVIS/                          (the repository)
   schemas/                database and record schemas; future
 ```
 
-Deferred until first needed, all as ordinary tracked documentation: `docs/workflows/` (reusable procedures: engineering, research, debugging, verification, recovery), `docs/templates/` (record templates), `docs/lessons/` (sanitised, public-safe lessons), `docs/history/` (version lineage, changelogs). The ADR template, including the dissent field (section 9.2), lives in `docs/decisions/README.md`, so no new folder is needed for it. Tracked sanitised lessons have one home, `docs/lessons/`. Private or raw lessons are Z2 (section 7.2). There is no second tracked home, to keep to one home per fact.
+Deferred until first needed, all as ordinary tracked documentation: `docs/workflows/` (reusable procedures: engineering, research, debugging, verification, recovery), `docs/templates/` (record templates), `docs/lessons/` (sanitised, public-safe lessons), `docs/history/` (version lineage, changelogs). The proposed ADR template, including the dissent field (section 9.2), would live in `docs/decisions/README.md`; adding it remains open under D-6. Tracked sanitised lessons have one home, `docs/lessons/`. Private or raw lessons are Z2 (section 7.2). There is no second tracked home, to keep to one home per fact.
 
 Identity files proposed (the first is the one the settled persona preferences need):
 
@@ -502,7 +502,7 @@ Annotation (Briefing voice, optional, one line):
 
 ### 9.2 Decision (with respectful dissent)
 
-The authoritative decision lives in `docs/decisions/` as an ADR. Any operational index lives in Z2 and only points at the ADR. The ADR template gains one optional field. Settled by the user, 2026-10-11: the dissent field is included.
+The authoritative decision lives in `docs/decisions/` as an ADR. Any operational index lives in Z2 and only points at the ADR. This draft proposes one optional field for the ADR template. RK requested a dissent field on 2026-10-11; adding it to the template remains open under D-6 and requires the recorded approval defined by ADR-0001 D6.
 
 ```text
 Decision:
@@ -617,7 +617,7 @@ Recorded as stated preferences. They become binding only through RK's recorded a
 - Identity, workflows, templates, lessons, the voice and personality specification, and reference material are ordinary `docs/` content. Operational state is defined under `D:\JARVIS\`. (2026-10-14 revision instruction; consistent with accepted ADR-0007)
 - A version-controlled pre-commit privacy hook is accepted in principle (requirements in section 6.2). (2026-10-11)
 - The initial documentation folders are minimal (exact set: decision D-3). (2026-10-11)
-- The ADR template includes a dissent field (schema and process note: section 9.2). (2026-10-11)
+- A dissent field was requested for the ADR template; its proposed schema and process are in section 9.2. Adding it remains open under D-6. (2026-10-11)
 - The character should resemble the film JARVIS as closely as the architecture permits. (2026-10-11)
 
 **Superseded:** the 2026-10-11 preference that the memory directory lives inside the repository as `.jarvis/`, with an ignored `.jarvis/local/`. ADR-0007 (accepted 2026-10-12) names that arrangement as not a valid storage location (D4), and the 2026-10-14 instruction directs compliance. It is no longer part of this draft.
@@ -641,7 +641,7 @@ All `USER AUTHORITY REQUIRED`. IDs D-1 to D-16 are kept from revision 2 so refer
 | D-11 | Default destination of sessions, lessons, project memory and exports: Z2, with deliberate sanitised promotion to Z1 (rules P-1 and P-6) | G-06 | **Open**, now stated against the two zones of ADR-0007 | As proposed |
 | D-12 | Per-project memory location for existing projects: held in the project's own repository (as Swarag's) or in JARVIS Z2 (MC 6.2 lists "Memory location" per project) | G-09 | **Open** | Project-held |
 | D-13 | Audit anchor file path and ref; hook and CODEOWNERS allowlist | G-12 | **Open.** ADR-0007 D6 explicitly leaves it open | Undecided |
-| D-14 | Whether CODEOWNERS covers identity and persona paths | G-12, G-14 | **Open** (`.github/CODEOWNERS` now exists; whether it covers `docs/identity/` is not checked in this revision) | Covered |
+| D-14 | Whether CODEOWNERS covers identity and persona paths | G-12, G-14 | **Open.** The current `.github/CODEOWNERS` covers `/docs/spec/`, `/docs/decisions/`, `/policy/` and `/.github/`; it does not cover `docs/identity/`. Whether to add that coverage remains undecided | Covered |
 | D-15 | Backup of `D:\JARVIS\` (not provided by Git or by ADR-0007) | G-06 | **Open.** ADR-0007 section 10 lists it `UNKNOWN` | None |
 | D-16 | One risk-ID namespace across the gate draft, delivery plan and the CP-0 review (IDs collided) | G-02 | **Open** | Cite the source with every ID |
 | D-17 | **New.** The layout of `data\` beyond what ADR-0004 D2, ADR-0005 D3 and ADR-0007 D3 state: `state\`, `tasks\`, `sessions\`, `evidence\`, `research\`, `memory\`, `local\` (section 7.2), and the location of the hook's real-identifier pattern list. ADR-0007 D3 requires an accepted decision for a new category of file | G-06 | **Open** | Not created. Memory layout stays `UNKNOWN` (ADR-0007 D5) |
@@ -689,3 +689,4 @@ All `USER AUTHORITY REQUIRED`. IDs D-1 to D-16 are kept from revision 2 so refer
 | 1 | 2026-10-11 | First draft |
 | 2 | 2026-10-11 | Aligned to the CP-0 package. Introduced privacy zones Z1 to Z3 and rules P-1 to P-6. Proposed a tracked `.jarvis/` tree with an ignored `local/`. Added hook requirements, memory-writer rule, anchor placement note, persona scope. Aligned provenance with ADR-0005 D8 and proposed `RK_STATED`. Defined two verification vocabularies. Added the dissent field schema. Recorded settled items and decisions D-1 to D-16 |
 | 3 | 2026-10-14 | Complied with accepted ADR-0007. Withdrew the repository `.jarvis/` tree, the in-tree `local/` zone and the `.gitignore` rules. Reduced the zones to two: the repository (Z1) and `D:\JARVIS\` (Z2). Moved the proposed operational layout under `D:\JARVIS\data\` (section 7.2) and marked it as needing a decision (D-17). Kept identity, workflows, templates, lessons, voice specification and the reference table as ordinary `docs/` content. Updated citations from PROPOSED to accepted records. Updated the situation example. Re-stated D-1 to D-16 against ADR-0007 (D-1 resolved, D-4 withdrawn, the rest open) and added D-17. Replaced the superseded in-repository preference in section 12.1. Preserved the persona, "sir", wit and the reference table |
+| 4 | 2026-10-14 | Corrected the dissent-field status: it is proposed, not present in the ADR template, and remains open under D-6. Recorded that the current CODEOWNERS file does not cover `docs/identity/`; D-14 remains open |
