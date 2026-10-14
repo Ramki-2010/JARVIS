@@ -1,6 +1,6 @@
 # JARVIS Information and Memory Architecture v0.1
 
-**Status:** DRAFT FOR REVIEW, revision 3. NON-AUTHORITATIVE. Not approved. Not an ADR. Documentation only; nothing here is implemented.
+**Status:** DRAFT FOR REVIEW, revision 4. NON-AUTHORITATIVE. Not approved. Not an ADR. Documentation only; nothing here is implemented.
 **Date:** 2026-10-14
 **Companion to:** the accepted Phase 0 records (Master Context 0.1-r1, MCA-001, ADR-0001 to ADR-0007; see the register in `docs/decisions/README.md`). This document does not amend any of them.
 **Compliance:** this revision conforms to accepted ADR-0007 (External Operational Storage). It does not amend ADR-0007. Revision 2 proposed a repository-resident `.jarvis/` memory tree; that proposal is withdrawn (section 6.2).
@@ -440,7 +440,7 @@ No theatrical folder names. The character lives in how records behave and how JA
 
 JARVIS orchestrates existing systems and does not absorb them (MC 5, 11). Swarag keeps its `.ai-memory`, datasets and code. JARVIS holds a registry record, a project contract and an index of its own observations about it.
 
-**Ingesting another project's memory.** A project's own memory and instruction files (for example its agent specification, memory folder and hooks) are project-resident files. ADR-0004 D1 treats them as informational and untrusted; Phase 1 does not parse them, and worker briefs are never built from project file contents (CP-0 review F5). If a later phase reads them, what is read is `REPORTED`, never authority, and never copied into JARVIS memory as fact without a source and a date. JARVIS does not modify another project's hooks or memory (MC 11).
+**Ingesting another project's memory.** A project's own memory and instruction files (for example its agent specification, memory folder and hooks) are project-resident files. ADR-0004 D1 treats them as informational and untrusted; Phase 1 does not parse them. Whether worker briefs may be built from project file contents is not decided: the worker-brief rule (CP-0 review F5) is pending RK and `GENERATE_WORKER_BRIEF` is deferred to Phase 2 (ADR-0002; ADR-0003 D12). If a later phase reads them, what is read is `REPORTED`, never authority, and never copied into JARVIS memory as fact without a source and a date. JARVIS does not modify another project's hooks or memory (MC 11).
 
 ---
 
@@ -566,7 +566,7 @@ Project:               JARVIS
 Phase:                 Phase 0 baseline frozen (tag phase-0-freeze, e919b7a);
                        Phase 1 not started. Begins on RK's instruction
 Objective:             Be ready for Phase 1 when RK instructs
-Active task:           Information and memory architecture, revision 3
+Active task:           Information and memory architecture, revision 4
 Blocked on:            RK's decisions D-2, D-3, D-5 to D-17 (section 12.2)
 Pending operational step: Creation of D:\JARVIS\ and its two directories, and
                        the LF-14 re-check, on RK's instruction (ADR-0007 section 9)
