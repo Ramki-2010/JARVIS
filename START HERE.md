@@ -51,7 +51,7 @@ Continuity rules that add to it:
 | Accepted ADRs and register | `docs/decisions/` (start at `README.md`) | Authoritative once ACCEPTED |
 | MCA records | `docs/decisions/MCA-*.md` | Authoritative once ACCEPTED |
 | Environment snapshot | `docs/environment/phase-0-2026-10-06.md` | Historical evidence |
-| Architecture draft | `docs/architecture/` | DRAFT — NON-AUTHORITATIVE. Committed on the feature branch `docs/architecture-memory-draft` and not merged to `main` when this was written. It is absent at `phase-0-freeze` and may be absent from `main` or a fresh clone. Verify with `git branch --all` and `git log`. |
+| Architecture draft | `docs/architecture/` | DRAFT — NON-AUTHORITATIVE. Merged to `main` in PR #5; it is absent at `phase-0-freeze`. Merging it accepted no decision in it. Verify with `git log -- docs/architecture/`. |
 | Source repository | `D:\J.A.R.V.I.S AI Assistant\` | Code and version-controlled documentation only |
 | External operational storage | `D:\JARVIS\` (`governance\`, `data\`) | Outside the repository, never a repository folder. Governed by ADR-0007. Creating it is a separate step: verify live whether it exists |
 | Governance controls | `.github/CODEOWNERS` and the GitHub ruleset | Verify live; do not rely on this file |
