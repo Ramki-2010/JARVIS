@@ -4,6 +4,14 @@
 **Date:** 2026-10-21
 **Depends on:** Master Context 0.1-r1, MCA-001, ADR-0001 to ADR-0007 (accepted), and the draft `JARVIS_INFORMATION_AND_MEMORY_ARCHITECTURE_v0.1.md` (draft, merged in PR #5).
 
+> **Update, later on 2026-10-21.** The text below is unchanged from when it was written. RK approved publishing it; that does not accept the proposals in it. Since it was written:
+> - Python: RK chose option A. CPython 3.14.7 is installed alongside 3.10, and ADR-0006 records the decision (PR #7). Python 3.10's end of life is 2026-10-01 per the Python developer guide.
+> - `D:\JARVIS\governance\` and `D:\JARVIS\data\` were created on RK's instruction and passed the LF-14 check.
+> - `.gitattributes` (LF): decided, and committed on the `phase-1/control-plane` branch, not yet merged.
+> - Phase 1 has started on RK's instruction.
+> - The initial user-secret locations and the build-session permission mode are decided in ADR-0008 (PR #8).
+> - Section 6's first four gates and section 7 questions 1 to 3 are therefore resolved. Questions 4 and 5 remain open.
+
 Labels as in the architecture draft: `VERIFIED`, `UNKNOWN`, `MASTER CONTEXT POLICY`, `PROPOSED`, `USER AUTHORITY REQUIRED`, `LOCAL FACT CHECK REQUIRED`.
 
 ## 1. What RK asked for, and what RK settled
