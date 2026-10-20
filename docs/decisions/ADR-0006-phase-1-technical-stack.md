@@ -29,6 +29,7 @@ Nothing in this document has been implemented. No software was installed and no 
 | Scope | The exact text of this document as added by that pull request. Labels such as PROPOSED inside the body are part of the accepted text and were not rewritten (ADR-0001 D6: approval applies to the exact text accepted) |
 | Accepted text includes | The stack baseline and the test-process structure references (sections 2 to 4, 6), with the exclusions recorded below |
 | Python | No installation or upgrade is authorized by this acceptance |
+| Amendment 2026-10-21 | RK decided the Python option (U-11) on 2026-10-21: option A, Python 3.14 installed alongside 3.10. CPython 3.14.7 was installed per user on that date on RK's instruction. Acceptance condition 1 is therefore met, and RK reinstated the clauses it had excluded: section 2 item 2, the `tomllib` row of section 3.1, and section 5.2. Effective only when RK merges the pull request that adds this row (ADR-0001 D6). No other text of this ADR changes |
 
 ### Acceptance conditions (section 10 of this ADR)
 
