@@ -40,7 +40,7 @@ ADRs are numbered records of architectural decisions. Each ADR records one meani
 | ADR-0003 | Capability Evaluation Model | Accepted | 2026-10-11 | [`ADR-0003-capability-evaluation-model.md`](ADR-0003-capability-evaluation-model.md) |
 | ADR-0005 | Audit Model | Accepted | 2026-10-11 | [`ADR-0005-audit-model.md`](ADR-0005-audit-model.md) |
 | ADR-0002 | Phase 1 Scope and Interpretation | Accepted | 2026-10-11 | [`ADR-0002-phase-1-scope-and-interpretation.md`](ADR-0002-phase-1-scope-and-interpretation.md) |
-| ADR-0006 | Phase 1 Technical Stack and Local Implementation Baseline | Accepted, with the exclusions recorded in the document | 2026-10-11 | [`ADR-0006-phase-1-technical-stack.md`](ADR-0006-phase-1-technical-stack.md) |
+| ADR-0006 | Phase 1 Technical Stack and Local Implementation Baseline | Accepted; exclusions lifted by the 2026-10-21 amendment recorded in the document | 2026-10-11 | [`ADR-0006-phase-1-technical-stack.md`](ADR-0006-phase-1-technical-stack.md) |
 | ADR-0007 | External Operational Storage | Accepted | 2026-10-12 | [`ADR-0007-external-operational-storage.md`](ADR-0007-external-operational-storage.md) |
 
 The order of the rows is the acceptance order. Acceptance takes effect when RK merges the pull request that adds the records (ADR-0001 D6).
