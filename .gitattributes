@@ -1,0 +1,4 @@
+# Repository-controlled text uses LF line endings (ADR-0006 sections 3.4 and 6.2).
+# Committed blobs were already LF; this rule stops core.autocrlf from producing
+# CRLF working copies, so hashes of policy and contract text stay deterministic.
+* text=auto eol=lf
