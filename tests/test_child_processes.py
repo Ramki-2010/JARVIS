@@ -17,6 +17,7 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 
 from jarvis import canonical_json as cj
 from jarvis.store import Store
@@ -139,6 +140,36 @@ class RuntimeGuardChildTests(ChildCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class ChildEnvironmentTests(ChildCase):
+    """Children get an allow-listed environment, not a copy of the parent's."""
+
+    def test_only_allow_listed_names_and_test_settings_are_passed(self):
+        parent = {"Path": "p", "SystemRoot": "C:/Windows", "TEMP": "t", "API_TOKEN": "x",
+                  "CLAUDE_CODE_MESSAGING_TOKEN": "y", "GITHUB_TOKEN": "z", "USERPROFILE": "u"}
+        env = harness.child_environment(parent, marker="m", crash="before_commit")
+        self.assertEqual({n for n in env if n.upper() in harness.CHILD_ENV_ALLOWLIST},
+                         {"SystemRoot", "TEMP"})
+        for secret in ("API_TOKEN", "CLAUDE_CODE_MESSAGING_TOKEN", "GITHUB_TOKEN", "USERPROFILE", "Path"):
+            self.assertNotIn(secret, env)
+        self.assertEqual(env["JARVIS_TEST_CRASH"], "before_commit")
+        self.assertEqual(env["JARVIS_TEST_GUARD_MARKER"], "m")
+        self.assertNotIn("JARVIS_TEST_SYNC_DIR", env)
+
+    def test_a_secret_in_the_parent_does_not_reach_the_child(self):
+        dump = os.path.join(self.tmp, "child-env-names.txt")
+        with mock.patch.dict(os.environ, {"JARVIS_CANARY_TOKEN": "not-a-real-secret"}):
+            result = harness.run_jarvis(["status"], self.cfg, marker=self.marker(), env_dump=dump)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(dump, encoding="utf-8") as fh:
+            names = [n for n in fh.read().splitlines() if n]
+        self.assertNotIn("JARVIS_CANARY_TOKEN", names)
+        allowed = harness.CHILD_ENV_ALLOWLIST | {
+            "PYTHONPATH", "PYTHONDONTWRITEBYTECODE", "PYTHONIOENCODING", "JARVIS_TEST_CHILD",
+            "JARVIS_TEST_GUARD_MARKER", "JARVIS_TEST_ENV_DUMP"}
+        unexpected = [n for n in names if n.upper() not in allowed and not n.startswith("=")]
+        self.assertEqual(unexpected, [], "unexpected variables reached the child")
+
+
 class ConcurrentWriterTests(ChildCase):
     """X-05 (C1): several children write at once; the chain stays linear."""
 
@@ -243,6 +274,12 @@ class CrashRecoveryTests(ChildCase):
         recoveries = [row for row in a if row[1] == "RECOVERY"]
         self.assertGreaterEqual(len(recoveries), committed_before + 1)
         self.assertEqual([seq for seq, _, _ in a], list(range(len(a))))
+
+    @unittest.skip("X-06 NOT COVERED for task creation: the CLI has no task command yet, so a "
+                   "crash inside a state-and-audit commit cannot be driven through "
+                   "`python -m jarvis`. Only the audit-only RECOVERY write is crash-tested.")
+    def test_crash_during_task_creation(self):
+        """Placeholder that keeps the gap visible in every test run."""
 
     def test_crash_before_commit_leaves_no_partial_record(self):
         self.crashed_copy("before_commit", self.lagging_head)
