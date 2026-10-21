@@ -14,7 +14,7 @@ from dataclasses import dataclass
 DEFAULT_CONFIG_PATH = "D:\\JARVIS\\governance\\jarvis.toml"
 SUPPORTED_SCHEMAS = frozenset({1})
 
-REQUIRED_KEYS = frozenset({"schema_version", "data_root", "governance_zone"})
+REQUIRED_KEYS = frozenset({"schema_version", "data_root", "governance_zone", "user_home"})
 OPTIONAL_KEYS = frozenset({"busy_timeout_ms"})
 SECRET_LIKE = re.compile(r"(secret|token|passw|credential|api_?key|private_?key|auth)", re.I)
 
@@ -29,9 +29,13 @@ class ConfigError(ValueError):
 
 @dataclass(frozen=True)
 class Config:
+    """user_home is the <USER_HOME> of ADR-0008 D1. It comes only from this file,
+    never from an environment variable (ADR-0006 3.3)."""
+
     schema_version: int
     data_root: str
     governance_zone: str
+    user_home: str
     busy_timeout_ms: int
     sha256: str
 
@@ -69,15 +73,15 @@ def parse(raw: bytes) -> Config:
     schema = doc["schema_version"]
     if not isinstance(schema, int) or isinstance(schema, bool) or schema not in SUPPORTED_SCHEMAS:
         raise ConfigError("CONFIG_SCHEMA_UNKNOWN")
-    if not (_absolute_windows_path(doc["data_root"]) and _absolute_windows_path(doc["governance_zone"])):
+    if not all(_absolute_windows_path(doc[k]) for k in ("data_root", "governance_zone", "user_home")):
         raise ConfigError("CONFIG_PATH_INVALID")
     timeout = doc.get("busy_timeout_ms", 5000)
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 60000:
         raise ConfigError("CONFIG_VALUE_INVALID")
 
     return Config(schema_version=schema, data_root=doc["data_root"],
-                  governance_zone=doc["governance_zone"], busy_timeout_ms=timeout,
-                  sha256=hashlib.sha256(data).hexdigest())
+                  governance_zone=doc["governance_zone"], user_home=doc["user_home"],
+                  busy_timeout_ms=timeout, sha256=hashlib.sha256(data).hexdigest())
 
 
 def load(path: str) -> Config:

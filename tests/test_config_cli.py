@@ -12,11 +12,13 @@ from jarvis.store import Store
 
 GOOD = (b"schema_version = 1\r\n"
         b"data_root = 'C:\\data'\r\n"
-        b"governance_zone = 'C:\\gov'\r\n")
+        b"governance_zone = 'C:\\gov'\r\n"
+        b"user_home = 'C:\\home'\r\n")
 
 
 def good(**over):
-    lines = {"schema_version": "1", "data_root": "'C:\\data'", "governance_zone": "'C:\\gov'"}
+    lines = {"schema_version": "1", "data_root": "'C:\\data'", "governance_zone": "'C:\\gov'",
+             "user_home": "'C:\\home'"}
     lines.update(over)
     return "\n".join("%s = %s" % kv for kv in lines.items()).encode("utf-8") + b"\n"
 
@@ -52,6 +54,26 @@ class ConfigTests(unittest.TestCase):
             cfg.parse(good(colour="'blue'"))
         with self.assertRaises(cfg.ConfigError):
             cfg.parse(b"schema_version = 1\n")
+        # user_home is required (ADR-0008 consequences) and must be an absolute path.
+        without_home = good().replace(b"user_home = 'C:\\home'\n", b"")
+        with self.assertRaises(cfg.ConfigError) as ctx:
+            cfg.parse(without_home)
+        self.assertEqual(ctx.exception.code, "CONFIG_KEYS_INVALID")
+        with self.assertRaises(cfg.ConfigError) as ctx:
+            cfg.parse(good(user_home="'relative\\home'"))
+        self.assertEqual(ctx.exception.code, "CONFIG_PATH_INVALID")
+
+    def test_user_home_comes_only_from_the_file(self):
+        """ADR-0006 3.3: the environment never supplies it."""
+        saved = os.environ.get("USERPROFILE")
+        os.environ["USERPROFILE"] = "C:\\somebody-else"
+        try:
+            self.assertEqual(cfg.parse(GOOD).user_home, "C:\\home")
+        finally:
+            if saved is None:
+                del os.environ["USERPROFILE"]
+            else:
+                os.environ["USERPROFILE"] = saved
 
     def test_schema_and_values(self):
         with self.assertRaises(cfg.ConfigError) as ctx:
@@ -86,7 +108,7 @@ class CliTests(unittest.TestCase):
         self.config_path = os.path.join(self.gov, "jarvis.toml")
         with open(self.config_path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write("schema_version = 1\ndata_root = '%s'\ngovernance_zone = '%s'\n"
-                     % (self.data, self.gov))
+                     "user_home = '%s'\n" % (self.data, self.gov, root))
 
     def run_cli(self, *args):
         out = io.StringIO()
