@@ -71,4 +71,4 @@ This records the gate only. Anything after it is discovered with the RESUME PROT
 - Leave the repository in a state the next session can read: no uncommitted work you have not reported, and no unreported branch or open PR.
 - State what you did, what you verified, what you did not verify, and what is UNKNOWN. Name the evidence.
 - Session handoff notes are evidence for the next session, not authority, and they must not be committed as a tracking system.
-- Handoff location: UNRESOLVED. No location is established by an accepted record. Ask RK where notes should live. Do not invent a directory, and never create one inside the repository (ADR-0007).
+- Handoff location: Claude Code's per-project memory folder under the user profile, outside the repository (RK's instruction, 2026-10-21). No accepted record establishes it. Do not create a handoff directory, and never create one inside the repository (ADR-0007). Notes there are machine-local, and JARVIS itself cannot read them: that folder is on the policy's secret-location list.
