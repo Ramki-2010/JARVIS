@@ -1,12 +1,17 @@
 """Static guards: X-13a, X-14 (ADR-0002 D5) and explicit text encoding (ADR-0006 3.4).
 
-These catch mistakes. They are not a security boundary (ADR-0006 6.1).
+These catch mistakes. They are NOT a security boundary (ADR-0006 6.1). They read
+parsed syntax only: tests/astguard.py resolves import aliases and a few dynamic
+patterns, and cannot see code built at run time. The runtime guard (X-13b) backs
+them up, but only on the code paths a test executes.
 """
 
 import ast
 import os
 import sys
 import unittest
+
+from tests import astguard
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PRODUCT = os.path.join(REPO, "jarvis")
@@ -69,6 +74,14 @@ class ProductCodeGuardTests(unittest.TestCase):
                     if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "os":
                         self.assertFalse(f.attr.startswith(FORBIDDEN_OS_PREFIXES))
 
+    def test_no_aliased_process_environment_or_dynamic_access(self):
+        """Aliased imports, from-imports, assignment aliases, process executors,
+        _winapi, os.environ and the targeted dynamic patterns (tests/astguard.py)."""
+        for path in python_files(PRODUCT):
+            for finding in astguard.scan(parse(path)):
+                with self.subTest(file=os.path.relpath(path, REPO), line=finding.line):
+                    self.fail("%s: %s" % (finding.rule, finding.name))
+
     def test_text_open_has_explicit_encoding(self):
         for path in python_files(PRODUCT):
             for node in ast.walk(parse(path)):
@@ -116,32 +129,31 @@ class HarnessGuardTests(unittest.TestCase):
                 with self.subTest(file=os.path.relpath(path, REPO), line=node.lineno):
                     self.assertNotIn(root, {"subprocess", "multiprocessing"})
 
-    @staticmethod
-    def process_calls(tree):
-        """Calls that create a process: subprocess.*, multiprocessing.*, and the
-        os.system/popen/spawn*/exec*/fork/startfile families."""
-        for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and isinstance(node.func.value, ast.Name)):
-                continue
-            owner, attr = node.func.value.id, node.func.attr
-            if owner in ("subprocess", "multiprocessing"):
-                yield node, "%s.%s" % (owner, attr)
-            elif owner == "os" and attr.startswith(FORBIDDEN_OS_PREFIXES):
-                yield node, "os.%s" % attr
-
-    def test_no_process_creating_call_anywhere_in_tests_except_one_harness_site(self):
+    def test_exactly_one_process_creating_reference_in_tests(self):
+        """The only one is subprocess.Popen in tests/harness.py. Aliases, from-imports,
+        process executors and _winapi count (tests/astguard.py)."""
         sites = []
         for path in python_files(TESTS):
-            for node, name in self.process_calls(parse(path)):
-                sites.append((os.path.relpath(path, REPO), node.lineno, name))
-        self.assertEqual([(f, n) for f, _, n in sites],
-                         [(os.path.join("tests", "harness.py"), "subprocess.Popen")],
-                         "process-creating calls in tests/: %s" % sites)
+            for finding in astguard.scan(parse(path)):
+                if finding.rule == "process":
+                    sites.append((os.path.relpath(path, REPO), finding.name))
+        self.assertEqual(sites, [(os.path.join("tests", "harness.py"), "subprocess.Popen")],
+                         "process-creating references in tests/: %s" % sites)
+
+    def test_no_dynamic_bypass_or_star_import_in_tests(self):
+        for path in python_files(TESTS):
+            for finding in astguard.scan(parse(path)):
+                if finding.rule in ("dynamic", "star-import"):
+                    with self.subTest(file=os.path.relpath(path, REPO), line=finding.line):
+                        self.fail("%s: %s" % (finding.rule, finding.name))
 
     def test_harness_does_not_use_a_shell(self):
         tree = parse(os.path.join(TESTS, self.ALLOWED_FILE))
-        for node, _name in self.process_calls(tree):
+        resolve = astguard.resolver(tree)
+        calls = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and astguard.is_process(resolve(n.func) or "")]
+        self.assertEqual(len(calls), 1)
+        for node in calls:
             self.assertNotIn("shell", [kw.arg for kw in node.keywords])
 
     def test_product_code_has_no_test_hook(self):
@@ -153,12 +165,17 @@ class HarnessGuardTests(unittest.TestCase):
             for token in ("JARVIS_TEST", "sitecustomize", "childguard"):
                 with self.subTest(file=rel, token=token):
                     self.assertNotIn(token, text)
+            for finding in astguard.scan(parse(path)):
+                if finding.rule == "environment":
+                    with self.subTest(file=rel, line=finding.line):
+                        self.fail("environment access in product code: %s" % finding.name)
+            # Also any attribute or name spelled like an environment accessor, whatever
+            # object it hangs off (the check that PR #17 had before alias resolution).
             for node in ast.walk(parse(path)):
                 name = node.attr if isinstance(node, ast.Attribute) else (
                     node.id if isinstance(node, ast.Name) else None)
                 with self.subTest(file=rel, line=getattr(node, "lineno", 0)):
                     self.assertNotIn(name, {"environ", "environb", "getenv", "putenv"})
-
 
 if __name__ == "__main__":
     unittest.main()
