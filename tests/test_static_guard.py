@@ -116,6 +116,49 @@ class HarnessGuardTests(unittest.TestCase):
                 with self.subTest(file=os.path.relpath(path, REPO), line=node.lineno):
                     self.assertNotIn(root, {"subprocess", "multiprocessing"})
 
+    @staticmethod
+    def process_calls(tree):
+        """Calls that create a process: subprocess.*, multiprocessing.*, and the
+        os.system/popen/spawn*/exec*/fork/startfile families."""
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)):
+                continue
+            owner, attr = node.func.value.id, node.func.attr
+            if owner in ("subprocess", "multiprocessing"):
+                yield node, "%s.%s" % (owner, attr)
+            elif owner == "os" and attr.startswith(FORBIDDEN_OS_PREFIXES):
+                yield node, "os.%s" % attr
+
+    def test_no_process_creating_call_anywhere_in_tests_except_one_harness_site(self):
+        sites = []
+        for path in python_files(TESTS):
+            for node, name in self.process_calls(parse(path)):
+                sites.append((os.path.relpath(path, REPO), node.lineno, name))
+        self.assertEqual([(f, n) for f, _, n in sites],
+                         [(os.path.join("tests", "harness.py"), "subprocess.Popen")],
+                         "process-creating calls in tests/: %s" % sites)
+
+    def test_harness_does_not_use_a_shell(self):
+        tree = parse(os.path.join(TESTS, self.ALLOWED_FILE))
+        for node, _name in self.process_calls(tree):
+            self.assertNotIn("shell", [kw.arg for kw in node.keywords])
+
+    def test_product_code_has_no_test_hook(self):
+        """No test code, test hook or test-only branch is added to jarvis/ (ADR-0002 D5)."""
+        for path in python_files(PRODUCT):
+            with open(path, "r", encoding="utf-8") as fh:
+                text = fh.read()
+            rel = os.path.relpath(path, REPO)
+            for token in ("JARVIS_TEST", "sitecustomize", "childguard"):
+                with self.subTest(file=rel, token=token):
+                    self.assertNotIn(token, text)
+            for node in ast.walk(parse(path)):
+                name = node.attr if isinstance(node, ast.Attribute) else (
+                    node.id if isinstance(node, ast.Name) else None)
+                with self.subTest(file=rel, line=getattr(node, "lineno", 0)):
+                    self.assertNotIn(name, {"environ", "environb", "getenv", "putenv"})
+
 
 if __name__ == "__main__":
     unittest.main()
