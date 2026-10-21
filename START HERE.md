@@ -52,6 +52,7 @@ Continuity rules that add to it:
 | MCA records | `docs/decisions/MCA-*.md` | Authoritative once ACCEPTED |
 | Environment snapshot | `docs/environment/phase-0-2026-10-06.md` | Historical evidence |
 | Architecture draft | `docs/architecture/` | DRAFT — NON-AUTHORITATIVE. Merged to `main` in PR #5; it is absent at `phase-0-freeze`. Merging it accepted no decision in it. Verify with `git log -- docs/architecture/`. |
+| Phase 1 control plane | `jarvis/`, `tests/`, `policy/policy.toml` | Implementation in progress, not complete. Policy changes are RK's decision (G-03). Tests: `py -3.14 -m unittest discover -s tests -t .` |
 | Source repository | `D:\J.A.R.V.I.S AI Assistant\` | Code and version-controlled documentation only |
 | External operational storage | `D:\JARVIS\` (`governance\`, `data\`) | Outside the repository, never a repository folder. Governed by ADR-0007. Creating it is a separate step: verify live whether it exists |
 | Governance controls | `.github/CODEOWNERS` and the GitHub ruleset | Verify live; do not rely on this file |
@@ -61,8 +62,7 @@ Continuity rules that add to it:
 - Tag: `phase-0-freeze`
 - Commit: `e919b7a2402a9a2364491e31fe4b25a12866f87e`
 - Phase 0 baseline: frozen at `phase-0-freeze`.
-- Phase 1: not started.
-- Phase 1 starts on RK's instruction.
+- Phase 1: not started at the gate. It started later, on RK's instruction (2026-10-21), and is not complete. Read its current state from `git log` and the code, not from this file.
 
 This records the gate only. Anything after it is discovered with the RESUME PROTOCOL, not read from here.
 
