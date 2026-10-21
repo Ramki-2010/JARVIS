@@ -1,8 +1,8 @@
 """Store and audit chain: X-04, X-07, X-11, X-15 (ADR-0002 D5), ADR-0005 D1-D6, D12.
 
 Every test uses a temporary data root, never the real one (ADR-0007 D7).
-X-05 (two processes) and X-06 (crash injection) need the child-process harness
-and are not covered here.
+X-05 (two processes) and X-06 (crash injection) need child processes and are in
+test_child_processes.py.
 """
 
 import os
