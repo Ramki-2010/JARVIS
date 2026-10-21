@@ -18,6 +18,10 @@
 
 `rules/branches/main` returned `deletion`, `non_fast_forward`, `pull_request`. The branch reports `protected: true` at commit `63f8d88f34bda188d985dd3fe6b7c7050224b9e5`. The repository is public and its default branch is `main`.
 
+## Ruleset timestamps (baseline for later checks)
+
+Read at 2026-10-21T14:39Z: `created_at` `2026-10-11T23:37:01.177+05:30`, `updated_at` `2026-10-11T23:37:01.214+05:30`, `enforcement: active`, default branch `main`, `main` at `63f8d88f34bda188d985dd3fe6b7c7050224b9e5`. The ruleset has not been edited since it was created. ADR-0009 D5 compares each later `updated_at` with this one.
+
 ## What this does not cover
 
 - **Tags:** no ruleset targets tags (0 tag rulesets). A tag would not be a verified anchor.

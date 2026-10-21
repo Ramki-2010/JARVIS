@@ -52,7 +52,8 @@ All of D1 to D6 are `PROPOSED` `USER AUTHORITY REQUIRED` (G-12, G-06).
 
 ### D3. Who does what
 
-- RK copies the `HEAD` line and merges the pull request (ADR-0005 D7). A Claude session does not author an anchor line, because the anchor is meant to be independent of the sessions whose work it checks.
+- RK copies the `HEAD` line and merges the pull request (ADR-0005 D7). A Claude session should not author an anchor line, so that the anchor stays apart from the sessions whose work it checks.
+- **This separation is procedure. It is not technically enforced.** While sessions use RK's GitHub credentials (ADR-0001 §5), a session can open and merge a pull request, and can edit the ruleset, and GitHub cannot tell it from RK. The ruleset requires a pull request but requires 0 approvals, code-owner review is off, and the account has administrator permission. The anchor therefore detects tampering by an actor that cannot use those credentials. It is not independent of a session or process running as RK.
 - A session may check the format of a line RK has prepared, and may report a mismatch.
 
 ### D4. CODEOWNERS
@@ -63,7 +64,9 @@ All of D1 to D6 are `PROPOSED` `USER AUTHORITY REQUIRED` (G-12, G-06).
 
 - The ADR-0005 D7 check is recorded as a dated note in `docs/environment/`. The first is `anchor-ref-verification-2026-10-21.md`, added with this ADR.
 - This ADR designates `docs/environment/` as the place for the record. `docs/phase0/inventory.md`, which ADR-0005 D7 names, does not exist, and a folder named after a frozen phase is not used. RK's merge of this ADR and the note is the recorded check.
-- The check is repeated if the ruleset or the default branch changes.
+- **The check is repeated live in every anchor pull request.** The pull request description records: the default branch name; the `protect-main` ruleset id, `enforcement`, rule types and bypass list; the SHA of `main`; and the ruleset's `updated_at`.
+- The baseline is the `updated_at` in `anchor-ref-verification-2026-10-21.md` (`2026-10-11T23:37:01.214+05:30`). A later `updated_at` that does not match a change RK made means the ruleset changed, and the anchor does not count as off-machine until the change is explained and the check is recorded again.
+- This is a detective control. It does not stop a ruleset edit.
 
 ### D6. When the first anchor is pushed
 
@@ -76,7 +79,7 @@ All of D1 to D6 are `PROPOSED` `USER AUTHORITY REQUIRED` (G-12, G-06).
 |---|---|
 | A dedicated branch | Needs a new ruleset with the same protections, applied by RK. No gain over a weekly pull request. |
 | A tag | No ruleset covers tags today. Not a verified anchor without a new ruleset. |
-| Keep the anchor off GitHub | Defeats the purpose: ADR-0005 D7 needs a public copy a local attacker cannot rewrite. |
+| Keep the anchor off GitHub | Defeats the purpose: ADR-0005 D7 needs a public copy that an actor without GitHub credentials cannot rewrite. |
 | Put the verification record in `docs/phase0/` | Creates a folder named after a frozen phase for one note. |
 
 ## 4. Evidence
@@ -88,7 +91,8 @@ All of D1 to D6 are `PROPOSED` `USER AUTHORITY REQUIRED` (G-12, G-06).
 ## 5. Security impact
 
 - The anchor proves that a record at or before the anchored sequence number was not rewritten, if the public copy was not also rewritten (ADR-0005 D7, D10). On `main` that needs the ruleset to stay in force. The check is repeated on change (D5).
-- Known limitation (ADR-0001 D9): a build session pushes under RK's credentials, so to GitHub a session's change and RK's look the same. What is real is RK's own merge. D3 keeps anchor lines out of session hands for that reason.
+- Known limitation (ADR-0001 D9, §5): a build session pushes under RK's credentials, so to GitHub a session's change and RK's look the same. Independence of the anchor from sessions is **procedural, not technically enforced**: a session using those credentials can author and merge an anchor pull request, and can change the ruleset. What the ruleset enforces is a required pull request, no force-push, no deletion and an empty bypass list (configuration verified; enforcement not tested).
+- The decision on narrowing or removing session access to RK's GitHub credentials is not made here. It stays open (ADR-0001 §10; G-07, G-12).
 - Records after the last anchor, up to a week of activity, remain rewritable without detection (ADR-0005 D10).
 
 ## 6. Complexity impact
@@ -114,6 +118,7 @@ USER AUTHORITY REQUIRED. Triggers G-12, G-06.
 
 | Item | Label |
 |---|---|
+| Whether to narrow or remove session access to RK's GitHub credentials (the `gh` login and Git credential manager) | `USER AUTHORITY REQUIRED` (G-07, G-12). ADR-0001 §10. Not decided here |
 | The first anchor and the first `HEAD` file | Not before the store holds records |
 | Whether to test enforcement by an attempted force-push on a scratch ref | `UNKNOWN`, `USER AUTHORITY REQUIRED`. Not done: it could damage the protected branch if the ruleset were wrong |
 | Backup of `D:\JARVIS\` | `UNKNOWN`, `USER AUTHORITY REQUIRED` (ADR-0007 §10) |
