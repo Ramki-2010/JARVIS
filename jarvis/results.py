@@ -49,6 +49,7 @@ class ResultRef:
     size: int
     sha256: str
     source: str
+    rel: str = ""      # path under the data root; survives a restore elsewhere
 
 
 def validate_bytes(data: bytes) -> bytes:
@@ -121,7 +122,7 @@ def add(store, cfg, policy_path: str, now_utc: str, actor: str, task_id: str,
             fh.write(data)
         os.replace(temp, path)
         written.update(path=path, sha256=hashlib.sha256(data).hexdigest())
-        return {"kind": "result", "task": task_id, "path": path, "size": len(data),
+        return {"kind": "result", "task": task_id, "path": path, "rel": os.path.relpath(path, cfg.data_root).replace("\\", "/"), "size": len(data),
                 "sha256": written["sha256"], "source": source, "relayed_by": "RK_RELAYED",
                 "label": LABEL, "claims_provenance": "REPORTED"}
 
@@ -135,7 +136,7 @@ def add(store, cfg, policy_path: str, now_utc: str, actor: str, task_id: str,
 def _ref(record: dict) -> ResultRef:
     d = record["detail"]
     return ResultRef(record["seq"], d["task"], record["project"], record["timestamp"],
-                     d["path"], d["size"], d["sha256"], d["source"])
+                     d["path"], d["size"], d["sha256"], d["source"], d.get("rel", ""))
 
 
 def list_results(store, task: Optional[str] = None) -> List[ResultRef]:
@@ -143,13 +144,17 @@ def list_results(store, task: Optional[str] = None) -> List[ResultRef]:
     return [r for r in refs if task is None or r.task == task]
 
 
+def locate(ref: ResultRef, data_root: str) -> str:
+    return os.path.join(data_root, *ref.rel.split("/")) if ref.rel else ref.path
+
+
 def check(ref: ResultRef, data_root: str) -> Optional[str]:
     root = os.path.normcase(os.path.abspath(os.path.join(data_root, RESULTS_DIR)))
-    path = os.path.normcase(os.path.abspath(ref.path))
+    path = os.path.normcase(os.path.abspath(locate(ref, data_root)))
     if os.path.commonpath([root, path]) != root:
         return "RESULT_FILE_CHANGED"
     try:
-        with open(ref.path, "rb") as fh:
+        with open(locate(ref, data_root), "rb") as fh:
             raw = fh.read()
     except OSError:
         return "RESULT_FILE_MISSING"
@@ -166,14 +171,14 @@ def read(store, data_root: str, seq: int):
     problem = check(ref, data_root)
     if problem:
         raise ResultError(problem)
-    with open(ref.path, "rb") as fh:
+    with open(locate(ref, data_root), "rb") as fh:
         return ref, fh.read().decode("utf-8")
 
 
 def audit_files(store, data_root: str) -> List[str]:
     problems, known = [], set()
     for ref in list_results(store):
-        known.add(os.path.normcase(os.path.abspath(ref.path)))
+        known.add(os.path.normcase(os.path.abspath(locate(ref, data_root))))
         found = check(ref, data_root)
         if found:
             problems.append("%s #%d" % (found, ref.seq))

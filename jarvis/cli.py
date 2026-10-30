@@ -483,7 +483,7 @@ def cmd_brief_show(cfg, args, out) -> int:
         if problem:
             _print(out, "brief show: %s" % problem)
             return EXIT_BRIEF
-        with open(brief["path"], "rb") as fh:
+        with open(briefs.locate(brief, cfg.data_root), "rb") as fh:
             out.write(fh.read().decode("utf-8"))
         return EXIT_OK
     finally:

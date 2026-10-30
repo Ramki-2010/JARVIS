@@ -47,6 +47,7 @@ class NoteRef:
     path: str
     size: int
     sha256: str
+    rel: str = ""      # path under the data root; survives a restore elsewhere
 
 
 def memory_root(data_root: str) -> str:
@@ -127,7 +128,7 @@ def add(store, cfg, policy_path: str, now_utc: str, actor: str, *, project: Opti
         path = os.path.join(folder, "%d.txt" % seq)
         _write_atomic(path, data)
         written.update(path=path, size=len(data), sha256=hashlib.sha256(data).hexdigest())
-        return {"kind": kind, "scope": scope, "path": path, "size": len(data),
+        return {"kind": kind, "scope": scope, "path": path, "rel": os.path.relpath(path, cfg.data_root).replace("\\", "/"), "size": len(data),
                 "sha256": written["sha256"], "author": AUTHOR}
 
     seq = store.record_document(EVENT, now_utc, actor, write_file, {
@@ -140,7 +141,8 @@ def add(store, cfg, policy_path: str, now_utc: str, actor: str, *, project: Opti
 def _ref(record: dict) -> NoteRef:
     detail = record["detail"]
     return NoteRef(record["seq"], detail["kind"], detail["scope"], record["project"],
-                   record["timestamp"], detail["path"], detail["size"], detail["sha256"])
+                   record["timestamp"], detail["path"], detail["size"], detail["sha256"],
+                   detail.get("rel", ""))
 
 
 def list_notes(store, *, project: Optional[str] = None, task: Optional[str] = None) -> List[NoteRef]:
@@ -161,20 +163,26 @@ def read(store, data_root: str, seq: int):
     problem = check(ref, data_root)
     if problem:
         raise NoteError(problem)
-    with open(ref.path, "rb") as fh:
+    with open(locate(ref, data_root), "rb") as fh:
         raw = fh.read()
     marker = (SEPARATOR + "\n").encode("utf-8")
     return ref, raw.split(marker, 1)[1].decode("utf-8")
 
 
+def locate(ref: NoteRef, data_root: str) -> str:
+    """Where the note is now: under the current data root when the record has a relative
+    path (so a restored install works), else the recorded absolute path."""
+    return os.path.join(data_root, *ref.rel.split("/")) if ref.rel else ref.path
+
+
 def check(ref: NoteRef, data_root: str) -> Optional[str]:
-    """None if the recorded file is present, inside memory\\ and unchanged."""
+    """None if the recorded file is present, inside memory/ and unchanged."""
     root = os.path.normcase(os.path.abspath(memory_root(data_root)))
-    path = os.path.normcase(os.path.abspath(ref.path))
+    path = os.path.normcase(os.path.abspath(locate(ref, data_root)))
     if os.path.commonpath([root, path]) != root:
         return "NOTE_FILE_CHANGED"
     try:
-        with open(ref.path, "rb") as fh:
+        with open(locate(ref, data_root), "rb") as fh:
             raw = fh.read()
     except OSError:
         return "NOTE_FILE_MISSING"
@@ -188,7 +196,7 @@ def audit_files(store, data_root: str) -> List[str]:
     problems = []
     known = set()
     for ref in list_notes(store):
-        known.add(os.path.normcase(os.path.abspath(ref.path)))
+        known.add(os.path.normcase(os.path.abspath(locate(ref, data_root))))
         found = check(ref, data_root)
         if found:
             problems.append("%s #%d" % (found, ref.seq))
