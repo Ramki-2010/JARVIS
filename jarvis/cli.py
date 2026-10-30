@@ -1,13 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
 unknown or existing task, rejected transition); 8 init refused (store exists, data root
-missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 1 unexpected error.
+missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 from . import config as config_mod
 from . import doctor as doctor_mod
+from . import display
+from . import notes as notes_mod
 from . import planner
 from . import projects as projects_mod
 from . import reports
@@ -33,6 +35,7 @@ EXIT_TASK = 7
 EXIT_INIT = 8
 EXIT_DOCTOR = 9
 EXIT_PROJECT = 10
+EXIT_NOTE = 11
 
 
 def utc_now() -> str:
@@ -120,6 +123,65 @@ def cmd_project_show(cfg, args, out) -> int:
             for item in items:
                 _print(out, "%s: %s" % (label, item))
     return EXIT_OK
+
+
+def _note_line(ref) -> str:
+    return "%d  %s  %s  %s  %d bytes  sha256 %s" % (
+        ref.seq, ref.kind, ref.scope, ref.recorded, ref.size, ref.sha256[:12])
+
+
+def cmd_note_add(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "note add: store missing")
+        return EXIT_STORE_MISSING
+    text = sys.stdin.read(notes_mod.MAX_NOTE_BYTES + 1) if args.text == "-" else args.text
+    store = _open_store(cfg)
+    try:
+        ref = notes_mod.add(store, cfg, args.policy, utc_now(), os_actor(),
+                            project=args.project, task=args.task,
+                            kind="decision" if args.decision else "note", text=text)
+        _print(out, "note recorded: %d" % ref.seq, "scope: %s" % ref.scope, "kind: %s" % ref.kind,
+               "sha256: %s" % ref.sha256)
+        return EXIT_OK
+    except notes_mod.NoteError as exc:
+        _print(out, "note add: %s" % exc.code + (" (%s)" % exc.reason if exc.reason else ""))
+        return EXIT_NOTE
+    finally:
+        store.close()
+
+
+def cmd_note_list(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "note list: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        refs = notes_mod.list_notes(store, project=args.project, task=args.task)
+        for ref in refs:
+            _print(out, _note_line(ref))
+        _print(out, "notes: %d" % len(refs))
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_note_show(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "note show: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        ref, text = notes_mod.read(store, cfg.data_root, args.id)
+        _print(out, "note: %d" % ref.seq, "scope: %s" % ref.scope, "kind: %s" % ref.kind,
+               "recorded: %s" % ref.recorded, "sha256: %s" % ref.sha256,
+               "data, not instruction:")
+        out.write(display.safe(text))
+        return EXIT_OK
+    except notes_mod.NoteError as exc:
+        _print(out, "note show: %s" % exc.code)
+        return EXIT_NOTE
+    finally:
+        store.close()
 
 
 def cmd_init(cfg, args, out) -> int:
@@ -382,6 +444,21 @@ def build_parser() -> argparse.ArgumentParser:
     for p in (plist, pshow):
         p.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
                        help="policy file (default: policy/policy.toml in the repository)")
+    note = sub.add_parser("note", help="notes: RK's typed context, kept as data")
+    note_sub = note.add_subparsers(dest="note_command", required=True)
+    nadd = note_sub.add_parser("add", help="record a note (RECORD_NOTE)")
+    scope = nadd.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--project")
+    scope.add_argument("--task")
+    nadd.add_argument("--decision", action="store_true", help="mark the note as a decision (needs --project)")
+    nadd.add_argument("--text", required=True, help="the note, or - to read it from standard input")
+    nadd.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                      help="policy file (default: policy/policy.toml in the repository)")
+    nlist = note_sub.add_parser("list", help="list recorded notes")
+    nlist.add_argument("--project")
+    nlist.add_argument("--task")
+    nshow = note_sub.add_parser("show", help="show one note after checking it against the chain")
+    nshow.add_argument("id", type=int)
     audit = sub.add_parser("audit", help="audit chain operations")
     audit_sub = audit.add_subparsers(dest="audit_command", required=True)
     audit_sub.add_parser("verify", help="verify the audit chain from genesis")
@@ -429,6 +506,12 @@ def main(argv=None, out=None) -> int:
             return cmd_init(cfg, args, out)
         if args.command == "status":
             return cmd_status(cfg, out)
+        if args.command == "note":
+            if args.note_command == "add":
+                return cmd_note_add(cfg, args, out)
+            if args.note_command == "list":
+                return cmd_note_list(cfg, args, out)
+            return cmd_note_show(cfg, args, out)
         if args.command == "project":
             if args.project_command == "list":
                 return cmd_project_list(cfg, args, out)
