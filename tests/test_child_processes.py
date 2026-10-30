@@ -4,12 +4,14 @@ Every child is `python -m jarvis`, started by tests/harness.py under the runtime
 guard. The parent test process builds fixtures in temporary directories and never
 touches the real data root (ADR-0007 D7).
 
-What the CLI can drive today. There is no task command yet, so the only write a
-child can make through `python -m jarvis` is the RECOVERY record that start-up
-appends when HEAD is missing or lagging (ADR-0005 D6). That is a real
-BEGIN IMMEDIATE ... COMMIT write through the same code path as every later write.
-X-06 is therefore covered for that write only; the task-creating variant of the
-same crash needs the task command and is NOT covered here.
+Two kinds of write are driven through `python -m jarvis`:
+- the RECOVERY record that start-up appends when HEAD is missing or lagging
+  (ADR-0005 D6), an audit-only write; and
+- `task create`, which writes the task row and its TASK_CREATED audit record in
+  one transaction (ADR-0002 D2, ADR-0005 D1). Crash recovery is tested for both.
+Both go through the same BEGIN IMMEDIATE ... COMMIT code path. Writes that need a
+task to reach RUNNING and finish (actions) are not implemented, so they are not
+covered.
 """
 
 import os
@@ -233,7 +235,8 @@ class ConcurrentWriterTests(ChildCase):
 class CrashRecoveryTests(ChildCase):
     """X-06 (C2): a child dies at a chosen side of the COMMIT; the next run recovers.
 
-    Covers the RECOVERY write (an audit-only write). See the module docstring.
+    Covers the RECOVERY write (an audit-only write). Task creation, a state-and-audit
+    write, is in TaskCreationCrashTests.
     """
 
     def crashed_copy(self, mode, make_lag):
@@ -275,12 +278,6 @@ class CrashRecoveryTests(ChildCase):
         self.assertGreaterEqual(len(recoveries), committed_before + 1)
         self.assertEqual([seq for seq, _, _ in a], list(range(len(a))))
 
-    @unittest.skip("X-06 NOT COVERED for task creation: the CLI has no task command yet, so a "
-                   "crash inside a state-and-audit commit cannot be driven through "
-                   "`python -m jarvis`. Only the audit-only RECOVERY write is crash-tested.")
-    def test_crash_during_task_creation(self):
-        """Placeholder that keeps the gap visible in every test run."""
-
     def test_crash_before_commit_leaves_no_partial_record(self):
         self.crashed_copy("before_commit", self.lagging_head)
         events = [rec["event"] for _, rec, _ in self.records()]
@@ -302,6 +299,132 @@ class CrashRecoveryTests(ChildCase):
                 self.crashed_copy(mode, self.missing_head)
                 a, b = self.recover_twice()
                 self.assertEqual(a, b)
+
+
+def create_args(task_id, project="p"):
+    return ["task", "create", "--id", task_id, "--project", project, "--objective", "x",
+            "--request", "CREATE_TASK"]
+
+
+class TaskCreationCrashTests(ChildCase):
+    """X-06 (C2) for a state-and-audit write: `task create` is killed at either side of
+    its COMMIT. The task row and its audit record are committed together or not at all,
+    and the next run recovers the same way every time."""
+
+    def task_rows(self, root=None):
+        conn = sqlite3.connect(Store.db_path(root or self.data))
+        try:
+            return conn.execute("SELECT task_id, state, last_seq FROM tasks ORDER BY task_id").fetchall()
+        finally:
+            conn.close()
+
+    def head(self):
+        with open(self.head_path(), encoding="utf-8") as fh:
+            return fh.read().split()
+
+    def child(self, args, **kw):
+        return harness.run_jarvis(args, self.cfg, marker=self.marker(), **kw)
+
+    def test_crash_before_commit_leaves_no_task_and_no_record(self):
+        self.make_store()
+        result = self.child(create_args("t1"), crash="before_commit")
+        self.assertEqual(result.returncode, CRASH_EXIT, result.stdout + result.stderr)
+        self.assertEqual([rec["event"] for _, rec, _ in self.records()], ["GENESIS"])
+        self.assertEqual(self.task_rows(), [])
+        self.assertEqual(self.head()[0], "0")
+        # Nothing was half-done: the task is unknown, the chain verifies, and the same
+        # command now succeeds.
+        self.assertEqual(self.child(["task", "show", "t1"]).returncode, 7)
+        self.assertEqual(self.child(["audit", "verify"]).returncode, 0)
+        self.assertEqual(self.child(create_args("t1")).returncode, 0)
+        self.assertEqual([r[1] for r in self.task_rows()], ["PENDING"])
+
+    def test_crash_after_commit_leaves_the_task_and_its_record_together(self):
+        self.make_store()
+        result = self.child(create_args("t1"), crash="after_commit")
+        self.assertEqual(result.returncode, CRASH_EXIT, result.stdout + result.stderr)
+        events = [(seq, rec["event"]) for seq, rec, _ in self.records()]
+        self.assertEqual(events, [(0, "GENESIS"), (1, "TASK_CREATED")])
+        rows = self.task_rows()
+        self.assertEqual([(r[0], r[1], r[2]) for r in rows], [("t1", "PENDING", 1)],
+                         "the task row must point at its own audit record")
+        self.assertEqual(self.head()[0], "0", "HEAD cannot have moved: the child died first")
+
+        # Recover twice from identical copies: same chain both times, and it verifies.
+        other = os.path.join(self.tmp, "data-copy")
+        shutil.copytree(self.data, other)
+        other_cfg = harness.write_config(self.tmp, other, self.gov, name="jarvis-copy.toml")
+        first = self.child(["task", "show", "t1"])
+        second = harness.run_jarvis(["task", "show", "t1"], other_cfg, marker=self.marker())
+        self.assertEqual((first.returncode, second.returncode), (0, 0), first.stderr + second.stderr)
+        self.assertIn("state: PENDING", first.stdout)
+        shapes = [[(seq, rec["event"], rec.get("detail")) for seq, rec, _ in self.records(root)]
+                  for root in (self.data, other)]
+        self.assertEqual(shapes[0], shapes[1], "recovery differs between identical runs")
+        self.assertIn("RECOVERY", [event for _, event, _ in shapes[0]])
+        self.assertEqual(self.child(["audit", "verify"]).returncode, 0)
+        # The task exists once; creating it again is refused, not duplicated.
+        self.assertEqual(self.child(create_args("t1")).returncode, 7)
+        self.assertEqual(len(self.task_rows()), 1)
+
+
+class TaskRaceTests(ChildCase):
+    """X-05 (C1) for task creation: children held at the write lock and released together."""
+
+    CHILDREN = 4
+
+    def race(self, ids):
+        self.make_store()
+        sync = os.path.join(self.tmp, "sync")
+        os.mkdir(sync)
+        procs = [harness.spawn_jarvis(create_args(task_id), self.cfg, marker=self.marker(), sync_dir=sync)
+                 for task_id in ids]
+        try:
+            import time
+            deadline = time.monotonic() + 30
+            while len([n for n in os.listdir(sync) if n.startswith("ready.")]) < len(ids):
+                self.assertLess(time.monotonic(), deadline, "children did not all reach the write lock")
+                time.sleep(0.02)
+            open(os.path.join(sync, "go"), "w").close()
+            return [harness.finish(p) for p in procs]
+        finally:
+            for p in procs:
+                if p.poll() is None:
+                    p.kill()
+
+    def assert_linear(self):
+        records = self.records()
+        self.assertEqual([seq for seq, _, _ in records], list(range(len(records))))
+        prevs = [rec["prev_hash"] for _, rec, _ in records]
+        self.assertEqual(len(prevs), len(set(prevs)), "two records share a predecessor")
+        for (_, _, prev_digest), (_, rec, _) in zip(records, records[1:]):
+            self.assertEqual(rec["prev_hash"], prev_digest)
+        verify = harness.run_jarvis(["audit", "verify"], self.cfg, marker=self.marker())
+        self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
+
+    def test_different_tasks_created_at_once_all_succeed_in_a_linear_chain(self):
+        results = self.race(["t%d" % i for i in range(self.CHILDREN)])
+        self.assertEqual([r.returncode for r in results], [0] * self.CHILDREN,
+                         [r.stdout + r.stderr for r in results])
+        events = [rec["event"] for _, rec, _ in self.records()]
+        self.assertEqual(events.count("TASK_CREATED"), self.CHILDREN)
+        self.assert_linear()
+
+    def test_the_same_task_id_created_at_once_succeeds_exactly_once(self):
+        results = self.race(["same"] * self.CHILDREN)
+        codes = sorted(r.returncode for r in results)
+        self.assertEqual(codes, [0] + [7] * (self.CHILDREN - 1), [r.stdout + r.stderr for r in results])
+        for r in results:
+            if r.returncode == 7:
+                self.assertIn("TASK_EXISTS", r.stdout)
+        events = [rec["event"] for _, rec, _ in self.records()]
+        self.assertEqual(events.count("TASK_CREATED"), 1)
+        conn = sqlite3.connect(Store.db_path(self.data))
+        try:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0], 1)
+        finally:
+            conn.close()
+        self.assert_linear()
 
 
 if __name__ == "__main__":

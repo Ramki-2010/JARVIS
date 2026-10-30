@@ -66,9 +66,12 @@ class Evaluation:
     outcome: str
     risk_level: Level
     policy_version: int
-    policy_sha256: str
+    policy_sha256: Optional[str]
     contract_sha256: Optional[str]
     capabilities: tuple
+    # One dict per requested capability (capability, target, risk_level, verdict, reason).
+    # Recorded in the audit detail so a decision can be reconstructed (ADR-0005).
+    decisions: tuple = ()
 
 
 @dataclass
@@ -297,9 +300,15 @@ class Store:
 
     # ---------------------------------------------------------------- tasks
     def create_task(self, task_id: str, project: str, objective: str,
-                    now_utc: str, actor: str) -> int:
+                    now_utc: str, actor: str, request: Optional[dict] = None) -> int:
+        """Create a PENDING task. request, if given, is the structured request
+        (capabilities, targets, constraints) kept in the TASK_CREATED record, which
+        is the source of truth that later evaluations read."""
         _check_ts(now_utc)
         self._require_open_for_work()
+        detail = {"from": None, "to": states.PENDING}
+        if request is not None:
+            detail["request"] = request
 
         def fn():
             if self._conn.execute("SELECT 1 FROM tasks WHERE task_id = ?", (task_id,)).fetchone():
@@ -307,7 +316,7 @@ class Store:
             seq = self._append("TASK_CREATED", now_utc, actor, {
                 "task_id": task_id, "project": project, "objective": objective,
                 "final_status": states.PENDING,
-                "detail": {"from": None, "to": states.PENDING},
+                "detail": detail,
             })
             self._conn.execute(
                 "INSERT INTO tasks VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?)",
@@ -353,7 +362,8 @@ class Store:
                                "outcome": used.outcome,
                                "policy_version": used.policy_version,
                                "policy_sha256": used.policy_sha256,
-                               "contract_sha256": used.contract_sha256},
+                               "contract_sha256": used.contract_sha256,
+                               "decisions": [dict(d) for d in used.decisions]},
                 })
             seq = self._append("TASK_TRANSITION", now_utc, actor, fields)
             if used is not None:
@@ -376,6 +386,46 @@ class Store:
         if row is None:
             return None
         return dict(zip([c[0] for c in cur.description], row))
+
+    def _task_records(self, task_id: str) -> List[dict]:
+        """Every audit record that names the task, oldest first. The SQL filter is
+        a cheap pre-selection on the stored bytes; the parsed task_id decides."""
+        needle = ('"task_id":%s' % cj.dumps(task_id).decode("utf-8")).encode("utf-8")
+        rows = self._conn.execute(
+            "SELECT record FROM audit_log WHERE instr(record, ?) > 0 ORDER BY seq",
+            (needle,)).fetchall()
+        records = [cj.loads(r[0]) for r in rows]
+        return [r for r in records if r.get("task_id") == task_id]
+
+    def task_request(self, task_id: str) -> Optional[dict]:
+        """The structured request recorded when the task was created, or None."""
+        for record in self._task_records(task_id):
+            if record.get("event") == "TASK_CREATED":
+                return (record.get("detail") or {}).get("request")
+        return None
+
+    def task_history(self, task_id: str) -> List[dict]:
+        return self._task_records(task_id)
+
+    def known_policy_hashes(self) -> dict:
+        """policy_version -> SHA-256 already recorded: the policies in force at
+        genesis, then any version a task was evaluated under. A later file with the
+        same version and a different hash is POLICY_HASH_MISMATCH (ADR-0003 D6)."""
+        known: dict = {}
+        genesis = self._conn.execute("SELECT record FROM audit_log WHERE seq = 0").fetchone()
+        if genesis:
+            for entry in cj.loads(genesis[0]).get("policies", ()):
+                known.setdefault(entry["policy_version"], entry["policy_sha256"])
+        for version, digest in self._conn.execute(
+                "SELECT DISTINCT policy_version, policy_sha256 FROM tasks "
+                "WHERE policy_version IS NOT NULL AND policy_sha256 IS NOT NULL ORDER BY policy_version"):
+            known.setdefault(version, digest)
+        return known
+
+    def list_tasks(self) -> List[dict]:
+        cur = self._conn.execute(
+            "SELECT task_id, project, state, risk_level, created_utc FROM tasks ORDER BY created_utc, task_id")
+        return [dict(zip([c[0] for c in cur.description], row)) for row in cur.fetchall()]
 
     def count_by_state(self) -> dict:
         return dict(self._conn.execute("SELECT state, COUNT(*) FROM tasks GROUP BY state").fetchall())
