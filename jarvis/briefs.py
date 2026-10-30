@@ -98,8 +98,14 @@ def build(task: dict, contract: EffectiveContract, results) -> str:
     return text
 
 
+def locate(brief: dict, data_root: str) -> str:
+    """Where the brief is now: under the current data root when the record has a relative
+    path (so a restored install works), else the recorded absolute path."""
+    return os.path.join(data_root, *brief["rel"].split("/")) if brief.get("rel") else brief["path"]
+
+
 def write_brief(data_root: str, task_id: str, text: str) -> dict:
-    """Write the next numbered brief file and return {path, size, sha256}."""
+    """Write the next numbered brief file and return {path, rel, size, sha256}."""
     folder = os.path.join(data_root, BRIEFS_DIR)
     os.makedirs(folder, exist_ok=True)
     number = 1
@@ -111,7 +117,8 @@ def write_brief(data_root: str, task_id: str, text: str) -> dict:
     with open(temp, "wb") as fh:
         fh.write(data)
     os.replace(temp, path)
-    return {"path": path, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    return {"path": path, "rel": os.path.relpath(path, data_root).replace("\\", "/"), "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest()}
 
 
 def recorded(store, task_id: str) -> List[dict]:
@@ -126,11 +133,11 @@ def recorded(store, task_id: str) -> List[dict]:
 
 def check(brief: dict, data_root: str) -> Optional[str]:
     root = os.path.normcase(os.path.abspath(os.path.join(data_root, BRIEFS_DIR)))
-    path = os.path.normcase(os.path.abspath(brief["path"]))
+    path = os.path.normcase(os.path.abspath(locate(brief, data_root)))
     if os.path.commonpath([root, path]) != root:
         return "BRIEF_FILE_CHANGED"
     try:
-        with open(brief["path"], "rb") as fh:
+        with open(locate(brief, data_root), "rb") as fh:
             raw = fh.read()
     except OSError:
         return "BRIEF_FILE_MISSING"
@@ -144,7 +151,7 @@ def audit_files(store, data_root: str) -> List[str]:
     for record in store.records_of("TASK_TRANSITION"):
         brief = (record.get("detail") or {}).get("brief")
         if brief:
-            known.add(os.path.normcase(os.path.abspath(brief["path"])))
+            known.add(os.path.normcase(os.path.abspath(locate(brief, data_root))))
             found = check(brief, data_root)
             if found:
                 problems.append("%s task %s" % (found, record.get("task_id")))
