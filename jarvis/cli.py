@@ -1,12 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
-This milestone implements `status`, `audit verify`, `task create`, `task evaluate`,
+This milestone implements `init`, `status`, `audit verify`, `task create`, `task evaluate`,
 `task show`, `task list` and `cancel`. `report` and the actions that move a RUNNING
 task to COMPLETED_UNVERIFIED are not implemented yet.
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
-unknown or existing task, rejected transition); 1 unexpected error.
+unknown or existing task, rejected transition); 8 init refused (store exists, data root
+missing, policy invalid); 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -16,13 +17,16 @@ import sys
 from datetime import datetime, timezone
 
 from . import config as config_mod
+from . import policy as policy_mod
 from . import states
 from . import tasks as tasks_mod
+from .model import PolicyFailure
 from .store import Store, StoreError
 
 EXIT_OK, EXIT_UNEXPECTED, EXIT_USAGE = 0, 1, 2
 EXIT_CONFIG, EXIT_STORE_MISSING, EXIT_AUDIT, EXIT_BUSY = 3, 4, 5, 6
 EXIT_TASK = 7
+EXIT_INIT = 8
 
 
 def utc_now() -> str:
@@ -57,6 +61,35 @@ def cmd_status(cfg, out) -> int:
         counts = store.count_by_state()
         _print(out, "tasks: %s" % (", ".join("%s=%d" % kv for kv in sorted(counts.items())) or "none"))
         return EXIT_AUDIT if store.halted else EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_init(cfg, args, out) -> int:
+    """Create the store and its genesis record in the data root (ADR-0005 D6).
+
+    The data root must already exist: init creates the database and the HEAD file
+    only, never a directory. It refuses to touch an existing store."""
+    if Store.exists(cfg.data_root):
+        _print(out, "init: store already exists")
+        return EXIT_INIT
+    if not os.path.isdir(cfg.data_root):
+        _print(out, "init: data root missing")
+        return EXIT_INIT
+    loaded = policy_mod.load(args.policy)
+    if isinstance(loaded, PolicyFailure):
+        _print(out, "init: policy invalid: %s" % loaded.reason)
+        return EXIT_INIT
+    store = Store.create(cfg.data_root, utc_now(), os_actor(),
+                         ((loaded.snapshot.policy_version, loaded.snapshot.sha256),),
+                         cfg.busy_timeout_ms)
+    try:
+        result = store.verify()
+        _print(out, "init: OK", "audit_tail_seq: %d" % result.tail_seq,
+               "audit_tail_hash: %s" % result.tail_hash,
+               "policy_version: %s" % loaded.snapshot.policy_version,
+               "policy_sha256: %s" % loaded.snapshot.sha256)
+        return EXIT_OK
     finally:
         store.close()
 
@@ -209,6 +242,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=config_mod.DEFAULT_CONFIG_PATH,
                         help="configuration file in the governance zone")
     sub = parser.add_subparsers(dest="command", required=True)
+    init = sub.add_parser("init", help="create the store in the data root (first use only)")
+    init.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                      help="policy file whose version and hash go in the genesis record")
     sub.add_parser("status", help="show control-plane status")
     audit = sub.add_parser("audit", help="audit chain operations")
     audit_sub = audit.add_subparsers(dest="audit_command", required=True)
@@ -249,6 +285,8 @@ def main(argv=None, out=None) -> int:
         _print(out, "configuration error: %s" % exc.code)
         return EXIT_CONFIG
     try:
+        if args.command == "init":
+            return cmd_init(cfg, args, out)
         if args.command == "status":
             return cmd_status(cfg, out)
         if args.command == "audit" and args.audit_command == "verify":
