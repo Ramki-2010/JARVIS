@@ -1,7 +1,15 @@
-# JARVIS Phase 1 policy, version 1.
+# JARVIS policy, version 2 (Beta).
 #
 # Sources: ADR-0003 D12 (initial capability matrix) and D2, ADR-0008 D1 (initial
-# user-secret locations), Master Context section 13 and section 33.
+# user-secret locations), Master Context section 13 and section 33, and ADR-0010 D2
+# (Phase 2 manual worker bridge). Version 1 is recoverable from Git history.
+#
+# Version 2 changes exactly five capabilities and nothing else (ADR-0010 D2):
+#   READ_PROJECT, READ_FILE       enabled, narrowed to PROJECT_PATH
+#   GENERATE_WORKER_BRIEF         enabled, CONTROL_PLANE_RECORD
+#   RECORD_RESULT, RECORD_NOTE    new, CONTROL_PLANE_RECORD
+# Every one is implemented and tested in this repository. Network, subprocess, model
+# calls, isolation-gated work, L4/L5 actions and every other row are unchanged.
 #
 # Changing any row or entry here is a policy change (G-03) and, for the secret
 # locations, a credential decision (G-07). It is made only by RK, by pull request.
@@ -19,9 +27,9 @@
 #   non_goal               true: DENY (NON_GOAL_V01), Master Context section 33
 
 schema_version = 1
-policy_version = 1
+policy_version = 2
 
-# --- Phase 1 ALLOW set: exactly four capabilities -------------------------------
+# --- ALLOW set: the four Phase 1 capabilities (then the Beta additions below) -------------------------------
 
 [[capability]]
 name = "CREATE_TASK"
@@ -63,13 +71,36 @@ mechanism_implemented = true
 forbidden_l5 = false
 non_goal = false
 
-# --- DEFER: capability recognized, phase not enabled ---------------------------
+# --- ADR-0010 additions: new capabilities, control-plane records only ----------
+
+[[capability]]
+name = "RECORD_RESULT"
+base_level = "L2"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "RECORD_NOTE"
+base_level = "L2"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+# --- Enabled by ADR-0010 (READ_PROJECT, READ_FILE, GENERATE_WORKER_BRIEF) or DEFER -
 
 [[capability]]
 name = "READ_PROJECT"
 base_level = "L1"
 requires_isolation = false
-phase_enabled = false
+allowed_classes = ["PROJECT_PATH"]
+phase_enabled = true
 mechanism_implemented = true
 forbidden_l5 = false
 non_goal = false
@@ -78,7 +109,8 @@ non_goal = false
 name = "READ_FILE"
 base_level = "L1"
 requires_isolation = false
-phase_enabled = false
+allowed_classes = ["PROJECT_PATH"]
+phase_enabled = true
 mechanism_implemented = true
 forbidden_l5 = false
 non_goal = false
@@ -87,7 +119,8 @@ non_goal = false
 name = "GENERATE_WORKER_BRIEF"
 base_level = "L2"
 requires_isolation = false
-phase_enabled = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
 mechanism_implemented = true
 forbidden_l5 = false
 non_goal = false

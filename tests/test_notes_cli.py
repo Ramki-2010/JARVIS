@@ -19,6 +19,7 @@ from jarvis.store import Store
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REAL_POLICY = os.path.join(REPO, "policy", "policy.toml")
 NOW = "2026-10-30T10:00:00.000000Z"
+V1_POLICY = os.path.join(REPO, "tests", "golden", "policy_v1.toml")
 
 NOTE_ROW = """
 [[capability]]
@@ -34,14 +35,9 @@ non_goal = false
 
 
 def note_policy_text():
+    """The real policy (version 2) already enables what this feature needs."""
     with open(REAL_POLICY, "r", encoding="utf-8") as fh:
-        text = fh.read()
-    # The capability rows precede the [secret_locations] table; appending after it would
-    # put the row in the wrong table, so insert before it.
-    marker = "[secret_locations]"
-    assert marker in text
-    return text.replace(marker, NOTE_ROW.lstrip("\n") + "\n" + marker, 1)
-
+        return fh.read()
 
 class NotesCase(unittest.TestCase):
     def setUp(self):
@@ -163,11 +159,11 @@ class NoteTests(NotesCase):
         self.assertEqual(code, cli.EXIT_OK, text)
         self.assertEqual(len(self.memory_files()), 1)
 
-    def test_the_real_policy_does_not_allow_notes_yet(self):
+    def test_policy_version_1_does_not_allow_notes(self):
         for name in ("jarvis.db", "HEAD"):
             os.remove(os.path.join(self.data, name))
-        self.assertEqual(self.run_cli("init", "--policy", REAL_POLICY)[0], cli.EXIT_OK)
-        code, text = self.add("--project", "p", policy=REAL_POLICY)
+        self.assertEqual(self.run_cli("init", "--policy", V1_POLICY)[0], cli.EXIT_OK)
+        code, text = self.add("--project", "p", policy=V1_POLICY)
         self.assertEqual(code, cli.EXIT_NOTE)
         self.assertIn("NOTE_NOT_ALLOWED", text)
         self.assertIn("UNKNOWN_CAPABILITY", text)

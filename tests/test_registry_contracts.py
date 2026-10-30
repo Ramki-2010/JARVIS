@@ -214,13 +214,13 @@ class EndToEndTests(CliCase):
         self.write_text(contracts.path_in(self.gov, "p"),
                         "".join("%s = %s\n" % kv for kv in fields.items()))
 
-    def reason_of(self, target):
-        self.create("t1", "READ_FILE=path:%s" % target)
+    def reason_of(self, target, capability="READ_FILE"):
+        self.create("t1", "%s=path:%s" % (capability, target))
         _, text = self.evaluate()
         return self.reasons(text)[0]
 
     def test_a_target_in_scope_passes_the_contract_steps(self):
-        self.assertEqual(self.reason_of(os.path.join(self.src, "a.txt")), "PHASE_NOT_ENABLED")
+        self.assertEqual(self.reason_of(os.path.join(self.src, "a.txt")), "ALLOWED_BY_POLICY")
         row = self.last_transition()["detail"]
         self.assertEqual(len(row["contract_sha256"]), 64)
 
@@ -234,7 +234,7 @@ class EndToEndTests(CliCase):
 
     def test_an_expired_contract_is_denied(self):
         self.write_contract(valid_until='"2000-01-01T00:00:00.000000Z"')
-        self.assertNotEqual(self.reason_of(os.path.join(self.src, "a.txt")), "PHASE_NOT_ENABLED")
+        self.assertNotEqual(self.reason_of(os.path.join(self.src, "a.txt")), "ALLOWED_BY_POLICY")
 
     def test_no_contract_file_is_contract_missing(self):
         os.remove(contracts.path_in(self.gov, "p"))
@@ -246,13 +246,15 @@ class EndToEndTests(CliCase):
 
     def test_a_missing_registry_denies_project_targets(self):
         os.remove(registry.path_in(self.gov))
-        self.assertNotEqual(self.reason_of(os.path.join(self.src, "a.txt")), "PHASE_NOT_ENABLED")
+        self.assertNotEqual(self.reason_of(os.path.join(self.src, "a.txt")), "ALLOWED_BY_POLICY")
 
     def test_a_changed_contract_is_seen_on_the_next_evaluation(self):
+        # RUN_TEST stays DEFERRED (isolation), so the task can be evaluated again; a task
+        # that is already RUNNING cannot (RUNNING re-evaluation is a post-Beta item).
         target = os.path.join(self.src, "a.txt")
-        self.assertEqual(self.reason_of(target), "PHASE_NOT_ENABLED")
+        self.assertEqual(self.reason_of(target, "RUN_TEST"), "ISOLATION_REQUIRED")
         first = self.last_transition()["detail"]["contract_sha256"]
-        self.write_contract(forbidden_operations='["READ_FILE"]')
+        self.write_contract(forbidden_operations='["RUN_TEST"]')
         _, text = self.evaluate()
         self.assertEqual(self.reasons(text), ["FORBIDDEN_BY_CONTRACT"])
         self.assertNotEqual(self.last_transition()["detail"]["contract_sha256"], first)
