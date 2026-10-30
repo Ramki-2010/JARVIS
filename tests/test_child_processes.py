@@ -410,6 +410,10 @@ class TaskRunCrashTests(ChildCase):
         self.assertGuardClean(marker)
         return result
 
+    def report_text(self):
+        with open(self.report_file, encoding="utf-8") as fh:
+            return fh.read()
+
     def transitions_to(self):
         return [rec["detail"]["to"] for _, rec, _ in self.records() if rec["event"] == "TASK_TRANSITION"]
 
@@ -420,14 +424,24 @@ class TaskRunCrashTests(ChildCase):
         self.assertIn("audit verify: OK", self.guarded(["audit", "verify"]).stdout)
         self.assertIn("task completed: t1", self.guarded(["task", "run", "t1"]).stdout)
         self.assertEqual(self.transitions_to(), ["RUNNING", "COMPLETED_UNVERIFIED"])
-        self.assertTrue(os.path.isfile(self.report_file))
+        self.assertIn("state: COMPLETED_UNVERIFIED", self.report_text())
+        self.assertNotIn("state: RUNNING", self.report_text())
         self.assertIn("audit verify: OK", self.guarded(["audit", "verify"]).stdout)
 
     def test_crash_after_commit_leaves_the_task_completed_once(self):
         self.guarded(["task", "run", "t1"], code=CRASH_EXIT, crash="after_commit")
         self.assertEqual(self.transitions_to(), ["RUNNING", "COMPLETED_UNVERIFIED"])
-        self.assertTrue(os.path.isfile(self.report_file))
         self.assertIn("state: COMPLETED_UNVERIFIED", self.guarded(["task", "show", "t1"]).stdout)
+        # The kill came before the file was refreshed: it is stale, and says so by its
+        # as_of_seq. Asking for the report repairs it from the committed state.
+        stale = self.report_text()
+        self.assertIn("state: RUNNING", stale)
+        self.assertIn("as_of_seq: 2", stale)
+        self.assertIn("state: COMPLETED_UNVERIFIED", self.guarded(["report", "t1"]).stdout)
+        fresh = self.report_text()
+        self.assertIn("state: COMPLETED_UNVERIFIED", fresh)
+        self.assertNotIn("state: RUNNING", fresh)
+        self.assertIn("as_of_seq: 3", fresh)
         self.assertIn("audit verify: OK", self.guarded(["audit", "verify"]).stdout)
         # Running it again is refused, not repeated.
         self.assertIn("TASK_NOT_RUNNING", self.guarded(["task", "run", "t1"], code=7).stdout)
