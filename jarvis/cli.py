@@ -1,13 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
-This milestone implements `init`, `status`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `report` and `cancel`. `task run` carries a RUNNING
+This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
+`task run`, `task show`, `task list`, `project list`, `project show`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
 unknown or existing task, rejected transition); 8 init refused (store exists, data root
-missing, policy invalid); 1 unexpected error.
+missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -17,7 +17,9 @@ import sys
 from datetime import datetime, timezone
 
 from . import config as config_mod
+from . import doctor as doctor_mod
 from . import planner
+from . import projects as projects_mod
 from . import reports
 from . import policy as policy_mod
 from . import states
@@ -29,6 +31,8 @@ EXIT_OK, EXIT_UNEXPECTED, EXIT_USAGE = 0, 1, 2
 EXIT_CONFIG, EXIT_STORE_MISSING, EXIT_AUDIT, EXIT_BUSY = 3, 4, 5, 6
 EXIT_TASK = 7
 EXIT_INIT = 8
+EXIT_DOCTOR = 9
+EXIT_PROJECT = 10
 
 
 def utc_now() -> str:
@@ -65,6 +69,57 @@ def cmd_status(cfg, out) -> int:
         return EXIT_AUDIT if store.halted else EXIT_OK
     finally:
         store.close()
+
+
+def cmd_doctor(cfg, args, out) -> int:
+    """Report whether the installation is ready to use. Exit 9 if any check fails."""
+    checks = doctor_mod.run(cfg, args.policy, utc_now(), os_actor())
+    for check in checks:
+        _print(out, "%-4s %s: %s" % (check.status, check.name, check.detail))
+    failed = sum(1 for c in checks if c.status == doctor_mod.FAIL)
+    warned = sum(1 for c in checks if c.status == doctor_mod.WARN)
+    if failed:
+        _print(out, "doctor: FAILED (%d failure(s), %d warning(s))" % (failed, warned))
+        return EXIT_DOCTOR
+    _print(out, "doctor: OK (%d warning(s))" % warned)
+    return EXIT_OK
+
+
+def cmd_project_list(cfg, args, out) -> int:
+    views = projects_mod.load(cfg, args.policy)
+    if isinstance(views, projects_mod.Failure):
+        _print(out, "project list: %s" % views.reason)
+        return EXIT_PROJECT
+    for view in views:
+        _print(out, "%s  %s  [%s]" % (view.record.id, view.record.name, projects_mod.contract_state(view)))
+    _print(out, "projects: %d" % len(views))
+    return EXIT_OK
+
+
+def cmd_project_show(cfg, args, out) -> int:
+    views = projects_mod.load(cfg, args.policy)
+    if isinstance(views, projects_mod.Failure):
+        _print(out, "project show: %s" % views.reason)
+        return EXIT_PROJECT
+    view = next((v for v in views if v.record.id == args.id), None)
+    if view is None:
+        _print(out, "project show: PROJECT_UNKNOWN")
+        return EXIT_PROJECT
+    record, contract = view.record, view.contract
+    _print(out, "project: %s" % record.id, "name: %s" % record.name,
+           "repository: %s" % (record.repository or "-"),
+           "description: %s" % (record.description or "-"),
+           "root: %s" % (view.root or record.root or "-"),
+           "status: %s" % projects_mod.contract_state(view))
+    if isinstance(contract, projects_mod.EffectiveContract):
+        _print(out, "contract_sha256: %s" % contract.sha256,
+               "valid_until: %s" % (contract.valid_until or "-"))
+        for label, items in (("scope_root", contract.scope_roots),
+                             ("protected_path", contract.protected_paths),
+                             ("forbidden_operation", sorted(contract.forbidden_operations))):
+            for item in items:
+                _print(out, "%s: %s" % (label, item))
+    return EXIT_OK
 
 
 def cmd_init(cfg, args, out) -> int:
@@ -303,6 +358,17 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
                       help="policy file whose version and hash go in the genesis record")
     sub.add_parser("status", help="show control-plane status")
+    doctor = sub.add_parser("doctor", help="check that the installation is ready to use")
+    doctor.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                        help="policy file (default: policy/policy.toml in the repository)")
+    project = sub.add_parser("project", help="registered projects and their contracts (read-only)")
+    project_sub = project.add_subparsers(dest="project_command", required=True)
+    plist = project_sub.add_parser("list", help="list registered projects")
+    pshow = project_sub.add_parser("show", help="show one project and its contract")
+    pshow.add_argument("id")
+    for p in (plist, pshow):
+        p.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                       help="policy file (default: policy/policy.toml in the repository)")
     audit = sub.add_parser("audit", help="audit chain operations")
     audit_sub = audit.add_subparsers(dest="audit_command", required=True)
     audit_sub.add_parser("verify", help="verify the audit chain from genesis")
@@ -350,6 +416,12 @@ def main(argv=None, out=None) -> int:
             return cmd_init(cfg, args, out)
         if args.command == "status":
             return cmd_status(cfg, out)
+        if args.command == "project":
+            if args.project_command == "list":
+                return cmd_project_list(cfg, args, out)
+            return cmd_project_show(cfg, args, out)
+        if args.command == "doctor":
+            return cmd_doctor(cfg, args, out)
         if args.command == "audit" and args.audit_command == "verify":
             return cmd_audit_verify(cfg, out)
         if args.command == "task":
