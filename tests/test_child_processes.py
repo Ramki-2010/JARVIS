@@ -9,9 +9,9 @@ Two kinds of write are driven through `python -m jarvis`:
   (ADR-0005 D6), an audit-only write; and
 - `task create`, which writes the task row and its TASK_CREATED audit record in
   one transaction (ADR-0002 D2, ADR-0005 D1). Crash recovery is tested for both.
-Both go through the same BEGIN IMMEDIATE ... COMMIT code path. Writes that need a
-task to reach RUNNING and finish (actions) are not implemented, so they are not
-covered.
+Both go through the same BEGIN IMMEDIATE ... COMMIT code path. Crash recovery of
+`task run` (RUNNING to a terminal state) is not covered; the runtime guard is, with
+the other later commands (GuardedCommandTests).
 """
 
 import os
@@ -78,6 +78,13 @@ class ChildCase(unittest.TestCase):
         marker = self.marker()
         result = harness.run_jarvis(args, self.cfg, marker=marker, **kw)
         return result, marker
+
+    def assertGuardClean(self, marker):
+        """The runtime guard was installed in the child and recorded no violation."""
+        with open(marker, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("INSTALLED", text)
+        self.assertNotIn("VIOLATION", text)
 
 
 class RuntimeGuardDecisionTests(unittest.TestCase):
@@ -218,7 +225,8 @@ class ConcurrentWriterTests(ChildCase):
         os.remove(self.head_path())
         sync = os.path.join(self.tmp, "sync")
         os.mkdir(sync)
-        procs = [harness.spawn_jarvis(["status"], self.cfg, sync_dir=sync) for _ in range(self.CHILDREN)]
+        markers = [self.marker() for _ in range(self.CHILDREN)]
+        procs = [harness.spawn_jarvis(["status"], self.cfg, marker=m, sync_dir=sync) for m in markers]
         try:
             self._wait_until_all_ready(sync)
             open(os.path.join(sync, "go"), "w").close()
@@ -228,8 +236,12 @@ class ConcurrentWriterTests(ChildCase):
             for p in procs:
                 if p.poll() is None:
                     p.kill()
-        verify = harness.run_jarvis(["audit", "verify"], self.cfg)
+        for m in markers:
+            self.assertGuardClean(m)
+        verify_marker = self.marker()
+        verify = harness.run_jarvis(["audit", "verify"], self.cfg, marker=verify_marker)
         self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
+        self.assertGuardClean(verify_marker)
 
 
 class CrashRecoveryTests(ChildCase):
@@ -425,6 +437,73 @@ class TaskRaceTests(ChildCase):
         finally:
             conn.close()
         self.assert_linear()
+
+
+class GuardedCommandTests(ChildCase):
+    """X-13b for the commands added after the first child-process tests: each runs as a
+    real `python -m jarvis` child under the runtime guard and records no violation.
+    Registry and contract loading are reached through `task evaluate`."""
+
+    def setUp(self):
+        super().setUp()
+        self.proj = os.path.join(self.tmp, "proj")
+        self.src = os.path.join(self.proj, "src")
+        os.makedirs(self.src)
+        self.write(os.path.join(self.gov, "revocations.toml"),
+                   "schema_version = 1\ncapabilities = []\nprojects = []\ncontract_hashes = []\n")
+        self.write(os.path.join(self.gov, "registry.toml"),
+                   "schema_version = 1\n[[projects]]\nid = \"p\"\nname = \"P\"\nroot = '%s'\n" % self.proj)
+        self.contract = os.path.join(self.gov, "contracts", "p.toml")
+        self.write(self.contract,
+                   "schema_version = 1\nproject_id = \"p\"\nscope_roots = ['%s']\n" % self.src)
+
+    @staticmethod
+    def write(path, text):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+
+    def run_guarded(self, args, code=0):
+        marker = self.marker()
+        result = harness.run_jarvis(args, self.cfg, marker=marker)
+        self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+        self.assertGuardClean(marker)
+        return result.stdout
+
+    def create(self, task_id, *requests, project="p"):
+        args = ["task", "create", "--id", task_id, "--project", project, "--objective", "x"]
+        for request in requests:
+            args += ["--request", request]
+        self.run_guarded(args)
+
+    def test_init_runs_under_the_guard(self):
+        self.assertIn("init: OK", self.run_guarded(["init"]))
+        self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
+        self.assertIn("init: store already exists", self.run_guarded(["init"], code=8))
+
+    def test_task_evaluate_run_and_report_run_under_the_guard(self):
+        self.run_guarded(["init"])
+        self.create("t1", "CREATE_TASK", "CREATE_REPORT")
+        self.assertIn("state: RUNNING", self.run_guarded(["task", "evaluate", "t1"]))
+        self.assertIn("task completed: t1", self.run_guarded(["task", "run", "t1"]))
+        self.assertIn("state: COMPLETED_UNVERIFIED", self.run_guarded(["report", "t1"]))
+        self.assertIn("COMPLETED_UNVERIFIED=1", self.run_guarded(["report"]))
+        self.assertTrue(os.path.isfile(os.path.join(self.data, "reports", "t1.txt")))
+        self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
+
+    def test_registry_and_contract_loaders_run_under_the_guard(self):
+        """READ_FILE inside the contract scope reaches PHASE_NOT_ENABLED only if the
+        registry and the contract were both loaded and accepted in the child."""
+        self.run_guarded(["init"])
+        self.create("t2", "READ_FILE=path:%s" % self.src)
+        self.assertIn("PHASE_NOT_ENABLED", self.run_guarded(["task", "evaluate", "t2"]))
+        # An invalid contract and a missing registry are loaded, and denied, under the guard.
+        self.write(self.contract, "not a contract [")
+        self.create("t3", "READ_FILE=path:%s" % self.src)
+        self.assertIn("CONTRACT_INVALID", self.run_guarded(["task", "evaluate", "t3"]))
+        os.remove(os.path.join(self.gov, "registry.toml"))
+        self.create("t4", "READ_FILE=path:%s" % self.src)
+        self.assertNotIn("PHASE_NOT_ENABLED", self.run_guarded(["task", "evaluate", "t4"]))
 
 
 if __name__ == "__main__":
