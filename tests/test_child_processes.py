@@ -594,6 +594,19 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("task completed: t1", text)
         self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
 
+    def test_brief_generation_runs_under_the_guard(self):
+        from .test_brief_cli import brief_policy_text
+        policy = os.path.join(self.tmp, "policy-brief.toml")
+        self.write(policy, brief_policy_text())
+        sample = os.path.join(self.src, "a.txt")
+        self.write(sample, "brief source")
+        self.run_guarded(["init", "--policy", policy])
+        self.create("t1", "READ_FILE=path:%s" % sample, "GENERATE_WORKER_BRIEF")
+        self.run_guarded(["task", "evaluate", "t1", "--policy", policy])
+        self.assertIn("brief: ", self.run_guarded(["task", "run", "t1", "--policy", policy]))
+        self.assertIn("| brief source", self.run_guarded(["brief", "show", "t1"]))
+        self.assertIn("PASS briefs: all match the chain", self.run_guarded(["doctor", "--policy", policy]))
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")

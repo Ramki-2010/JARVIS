@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass
 from typing import List
 
-from . import canonicalizer, contracts, notes, registry, revocations
+from . import briefs, canonicalizer, contracts, notes, registry, revocations
 from . import policy as policy_mod
 from .model import EffectiveContract, PolicyFailure, RevocationFailure
 from .store import Store, StoreError
@@ -57,9 +57,12 @@ def _store(cfg, policy_hashes_out: dict, now_utc: str, actor: str) -> List[Check
         found = notes.audit_files(store, cfg.data_root)
         note_check = (Check("notes", FAIL, "; ".join(found)) if found
                       else Check("notes", PASS, "%d recorded, all match the chain" % len(notes.list_notes(store))))
+        found = briefs.audit_files(store, cfg.data_root)
+        brief_check = (Check("briefs", FAIL, "; ".join(found)) if found
+                       else Check("briefs", PASS, "all match the chain"))
         return [Check("store", PASS, "initialized"),
                 Check("audit chain", PASS, "verified, tail seq %d" % result.tail_seq),
-                Check("tasks", PASS, tasks), note_check]
+                Check("tasks", PASS, tasks), note_check, brief_check]
     finally:
         store.close()
 
