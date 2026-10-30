@@ -580,6 +580,20 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("audit: OK", text)
         self.assertIn("t1  PENDING", text)
 
+    def test_bounded_reading_runs_under_the_guard(self):
+        from .test_read_cli import read_policy_text
+        policy = os.path.join(self.tmp, "policy-read.toml")
+        self.write(policy, read_policy_text())
+        sample = os.path.join(self.src, "a.txt")
+        self.write(sample, "guarded read")
+        self.run_guarded(["init", "--policy", policy])
+        self.create("t1", "READ_FILE=path:%s" % sample, "READ_PROJECT=path:%s" % self.src)
+        self.assertIn("state: RUNNING", self.run_guarded(["task", "evaluate", "t1", "--policy", policy]))
+        text = self.run_guarded(["task", "run", "t1", "--policy", policy, "--show-reads"])
+        self.assertIn("guarded read", text)
+        self.assertIn("task completed: t1", text)
+        self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")
