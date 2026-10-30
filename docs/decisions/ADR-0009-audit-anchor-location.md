@@ -1,12 +1,12 @@
 # ADR-0009 — Audit-Anchor Location
 
-**STATUS: PROPOSED — NOT ACCEPTED**
+**STATUS: ACCEPTED**
 
 | Field | Value |
 |---|---|
 | ID | ADR-0009 |
 | Title | Audit-Anchor Location |
-| Status | PROPOSED. Not accepted. No force until RK accepts it (ADR-0001 D6) |
+| Status | ACCEPTED |
 | Drafted | 2026-10-21, by Local Claude, from RK's instruction to proceed with the recommended Decision 3 |
 | Authority class | USER AUTHORITY REQUIRED (G-12, G-06) |
 | Inputs | ADR-0005 D6, D7, §10. ADR-0001 D6, D9, G-06, G-12. ADR-0007 D6. `jarvis/store.py` (the `HEAD` file format). Live GitHub ruleset check of 2026-10-21 (`docs/environment/anchor-ref-verification-2026-10-21.md`) |
@@ -14,6 +14,18 @@
 | Supplements | ADR-0005 D7 (decides what D7 left `UNKNOWN`: the carrying ref, the file path and the place of the verification record). No accepted ADR is amended |
 
 **Labels:** `VERIFIED` · `UNKNOWN` · `PROPOSED` · `USER AUTHORITY REQUIRED` · `LOCAL FACT CHECK REQUIRED`.
+
+## Acceptance record
+
+| Field | Value |
+|---|---|
+| Status | ACCEPTED |
+| Accepted by | RK, the owner of the project (the founder) |
+| Acceptance date | 2026-10-30 |
+| How the acceptance was given | RK's chat instruction to Local Claude on 2026-10-30: "Accept ADR-0009 and update PR #15". Under ADR-0001 D6 that instruction is an input. The acceptance is recorded by RK's merge |
+| Recorded in the repository by | The merge commit of the pull request that adds this document. Effective only when RK merges it (ADR-0001 D6) |
+| Scope | The exact text of this document as added by that pull request, including the `/audit-anchor/` line in `.github/CODEOWNERS` and the verification note `docs/environment/anchor-ref-verification-2026-10-21.md` |
+| Still open | The decision on narrowing or removing session access to RK's GitHub credentials (section 10; ADR-0001 §10; G-07, G-12). The first anchor and the first `HEAD` file. The enforcement test, and the backup of `D:\JARVIS\`. Accepting this ADR decides none of them |
 
 ## Governance-trigger classification (ADR-0001 D7)
 
@@ -34,7 +46,7 @@
 
 ## 2. Decision
 
-All of D1 to D6 are `PROPOSED` `USER AUTHORITY REQUIRED` (G-12, G-06).
+All of D1 to D6 are `USER AUTHORITY REQUIRED` (G-12, G-06). They take force when RK merges this document (ADR-0001 D6).
 
 ### D1. The carrying ref is `main`, through the normal pull-request workflow
 
