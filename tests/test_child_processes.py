@@ -646,6 +646,67 @@ class GuardedCommandTests(ChildCase):
         self.create("t4", "READ_FILE=path:%s" % self.src)
         self.assertNotIn("ALLOWED_BY_POLICY", self.run_guarded(["task", "evaluate", "t4"]))
 
+    def task_state(self, task_id):
+        conn = sqlite3.connect(Store.db_path(self.data))
+        try:
+            row = conn.execute("SELECT state FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
+        finally:
+            conn.close()
+        return row[0] if row else None
+
+    def test_cancel_runs_under_the_guard_from_every_cancellable_state(self):
+        """B-03 for `cancel`: a real child ends each cancellable task in CANCELLED and
+        appends one TASK_TRANSITION record. Cancelling changes state only; nothing runs."""
+        self.assertIn("store missing", self.run_guarded(["cancel", "t1"], code=4))
+        self.run_guarded(["init"])
+        setups = {
+            "PENDING": ("CREATE_TASK", False),
+            "RUNNING": ("CREATE_TASK", True),
+            "DEFERRED": ("RUN_TEST", True),
+            "BLOCKED": ("MAKE_CALL", True),
+        }
+        for n, (label, (request, evaluate)) in enumerate(setups.items()):
+            with self.subTest(state=label):
+                task_id = "c%d" % n
+                self.create(task_id, request)
+                if evaluate:
+                    self.run_guarded(["task", "evaluate", task_id])
+                self.assertEqual(self.task_state(task_id), label)
+                before = len(self.records())
+                text = self.run_guarded(["cancel", task_id])
+                self.assertIn("task cancelled: %s" % task_id, text)
+                self.assertEqual(self.task_state(task_id), "CANCELLED")
+                added = self.records()[before:]
+                self.assertEqual(len(added), 1)
+                record = added[0][1]
+                self.assertEqual(record["event"], "TASK_TRANSITION")
+                self.assertEqual(record["task_id"], task_id)
+                self.assertEqual(record["final_status"], "CANCELLED")
+                self.assertEqual(record["detail"]["from"], label)
+                self.assertEqual(record["detail"]["to"], "CANCELLED")
+        self.assertFalse(os.path.exists(os.path.join(self.data, "reports")))
+        self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
+
+    def test_cancel_of_a_terminal_or_unknown_task_changes_nothing_but_the_audit(self):
+        """A second cancel is rejected and audited; an unknown task writes nothing. Both
+        run as real guarded children and leave the chain verifying."""
+        self.run_guarded(["init"])
+        self.create("t1", "CREATE_TASK")
+        self.run_guarded(["cancel", "t1"])
+        before = len(self.records())
+        self.assertIn("transition rejected", self.run_guarded(["cancel", "t1"], code=7))
+        self.assertEqual(self.task_state("t1"), "CANCELLED")
+        added = self.records()[before:]
+        self.assertEqual([r[1]["event"] for r in added], ["TRANSITION_REJECTED"])
+        self.assertEqual(added[0][1]["detail"], {"from": "CANCELLED", "to": "CANCELLED"})
+        before = len(self.records())
+        self.run_guarded(["cancel", "nope"], code=7)
+        self.assertEqual(len(self.records()), before)
+        # A cancelled task cannot be brought back by evaluating or running it.
+        self.run_guarded(["task", "evaluate", "t1"], code=7)
+        self.assertEqual(self.task_state("t1"), "CANCELLED")
+        self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
+
 
 if __name__ == "__main__":
     unittest.main()
