@@ -96,7 +96,10 @@ def add(store, cfg, policy_path: str, now_utc: str, actor: str, *, project: Opti
     text_bytes = validate_text(text)
 
     if task is not None:
-        tasks.validate_id(task, "NOTE_SCOPE_INVALID")
+        try:
+            tasks.validate_id(task, "NOTE_SCOPE_INVALID")
+        except tasks.TaskInputError:
+            raise NoteError("NOTE_SCOPE_INVALID") from None
         row = store.get_task(task)
         if row is None:
             raise NoteError("NOTE_TASK_UNKNOWN")

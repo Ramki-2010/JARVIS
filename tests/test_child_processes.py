@@ -607,6 +607,21 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("| brief source", self.run_guarded(["brief", "show", "t1"]))
         self.assertIn("PASS briefs: all match the chain", self.run_guarded(["doctor", "--policy", policy]))
 
+    def test_result_commands_run_under_the_guard(self):
+        from .test_result_cli import result_policy_text
+        policy = os.path.join(self.tmp, "policy-result.toml")
+        self.write(policy, result_policy_text())
+        incoming = os.path.join(self.tmp, "incoming.txt")
+        self.write(incoming, "relayed by hand")
+        self.run_guarded(["init", "--policy", policy])
+        self.create("t1", "CREATE_TASK")
+        added = self.run_guarded(["result", "add", "t1", "--file", incoming, "--policy", policy])
+        seq = [ln for ln in added.splitlines() if ln.startswith("result recorded:")][0].split()[-1]
+        self.assertIn("UNTRUSTED, NOT VERIFIED", added)
+        self.assertIn("relayed by hand", self.run_guarded(["result", "show", seq]))
+        self.assertIn("results: 1", self.run_guarded(["result", "list", "--task", "t1"]))
+        self.assertIn("PASS results: 1 recorded", self.run_guarded(["doctor", "--policy", policy]))
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")
