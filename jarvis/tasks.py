@@ -11,13 +11,13 @@ import os
 import re
 from typing import List
 
-from . import canonicalizer, revocations
+from . import canonicalizer, contracts, registry, revocations
 from . import policy as policy_mod
 from . import states
 from .evaluator import evaluate as evaluate_capability
 from .evaluator import task_outcome
 from .model import (CAPABILITY_RE, NO_CONTRACT, CanonicalTarget, ContractFailure,
-                    PolicyFailure, TargetFailure, TaskConstraints)
+                    EffectiveContract, PolicyFailure, TargetFailure, TaskConstraints)
 from .reasons import PROJECT_SCOPED_CLASSES, Level
 from .store import Evaluation
 
@@ -83,12 +83,12 @@ def build_request(specs: List[str], add_capabilities: List[str], task_id: str) -
     }
 
 
-def _target(request: dict, roots):
+def _target(request: dict, roots, project_id=None):
     target = request["target"]
     if target["kind"] == "record":
         record_type, _, record_id = target["value"].partition("/")
         return canonicalizer.canonicalize_record(record_type, record_id)
-    return canonicalizer.canonicalize_path(target["value"], roots)
+    return canonicalizer.canonicalize_path(target["value"], roots, project_id=project_id)
 
 
 def _describe(target) -> str:
@@ -115,6 +115,16 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
         policy, secrets = loaded.snapshot, loaded.secret_locations
     roots = canonicalizer.build_roots(config.governance_zone, config.data_root, REPO_ROOT,
                                       config.user_home, secrets)
+    # Registry and contracts are read on every evaluation. A missing or invalid
+    # registry leaves no project root, so project-scoped targets are denied.
+    project = store.get_task(task_id)["project"]
+    registered = registry.load(registry.path_in(config.governance_zone))
+    if isinstance(registered, registry.RegistryFailure):
+        project_roots = {}
+    else:
+        project_roots, _ = registry.resolve_roots(registered, roots)
+        roots = canonicalizer.build_roots(config.governance_zone, config.data_root, REPO_ROOT,
+                                          config.user_home, secrets, project_roots)
     revoked = revocations.load(revocations.path_in(config.governance_zone))
     constraints = TaskConstraints(
         extra_capabilities=tuple((request.get("constraints") or {}).get("add_capabilities", ())))
@@ -122,11 +132,18 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
 
     decisions = []
     described = []
+    contract_hash = None
     for item in request["requests"]:
-        target = _target(item, roots)
+        target = _target(item, roots, project)
         contract = NO_CONTRACT
         if isinstance(target, CanonicalTarget) and target.target_class in PROJECT_SCOPED_CLASSES:
-            contract = ContractFailure("CONTRACT_MISSING")  # no registry or contract loader yet
+            root = project_roots.get(target.project_id) if target.project_id else None
+            if root is None:
+                contract = ContractFailure("CONTRACT_MISSING")
+            else:
+                contract = contracts.load(config.governance_zone, target.project_id, root)
+                if isinstance(contract, EffectiveContract):
+                    contract_hash = contract.sha256
         decision = evaluate_capability(item["capability"], target, contract, policy, revoked,
                                        constraints, now_utc, last_recorded)
         decisions.append(decision)
@@ -145,7 +162,7 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
         risk_level=risk if risk is not None else Level.L5,
         policy_version=snapshot.policy_version if snapshot else None,
         policy_sha256=snapshot.sha256 if snapshot else None,
-        contract_sha256=None,
+        contract_sha256=contract_hash,
         capabilities=tuple(sorted({i["capability"] for i in request["requests"]})),
         decisions=tuple(described),
     )
