@@ -196,6 +196,10 @@ class Store:
         # (ADR-0005 D8, ADR-0010 D6).
         for name in _MEDIATED_DETAIL_EVENTS.get(record.get("event"), ()):
             prov[name] = "MEDIATED"
+        # A read the control plane mediated: it saw the bytes, not the worker's own reads
+        # (ADR-0005 D9, ADR-0010 D3 item 5).
+        if record.get("files_read"):
+            prov["files_read"] = "MEDIATED"
         return prov
 
     def _tail(self):
@@ -378,7 +382,7 @@ class Store:
         _check_ts(now_utc)
         self._require_open_for_work()
         extra = dict(extra or {})
-        if not set(extra) <= {"files_modified", "errors", "detail"}:
+        if not set(extra) <= {"files_modified", "files_read", "errors", "detail"}:
             raise StoreError("EXTRA_INVALID")
 
         def fn():
@@ -411,7 +415,7 @@ class Store:
                                "contract_sha256": used.contract_sha256,
                                "decisions": [dict(d) for d in used.decisions]},
                 })
-            for name in ("files_modified", "errors"):
+            for name in ("files_modified", "files_read", "errors"):
                 if name in extra:
                     fields[name] = list(extra[name])
             if "detail" in extra:

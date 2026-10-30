@@ -21,6 +21,7 @@ from . import doctor as doctor_mod
 from . import display
 from . import notes as notes_mod
 from . import planner
+from . import reading
 from . import resume as resume_mod
 from . import projects as projects_mod
 from . import reports
@@ -28,6 +29,7 @@ from . import policy as policy_mod
 from . import states
 from . import tasks as tasks_mod
 from .model import PolicyFailure
+from .reasons import TargetClass, Verdict
 from .store import Store, StoreError
 
 EXIT_OK, EXIT_UNEXPECTED, EXIT_USAGE = 0, 1, 2
@@ -310,9 +312,33 @@ def cmd_task_evaluate(cfg, args, out) -> int:
         store.close()
 
 
+READ_ACTIONS = ("READ_FILE", "LIST_DIRECTORY")
+
+
+def _reads_allowed_now(store, cfg, args, plan):
+    """Fresh evaluation for the read steps (ADR-0010 D3 item 1). Returns
+    (targets by request index, None) or (None, refusal text). Nothing has been read yet."""
+    steps = [st for st in plan["steps"] if st["action"] in READ_ACTIONS]
+    if not steps:
+        return {}, None
+    _evaluation, resolved = tasks_mod.evaluate_with_targets(store, cfg, args.policy, args.id, utc_now())
+    targets = {}
+    for step in steps:
+        _item, target, decision = resolved[step["request"]]
+        if decision.verdict is not Verdict.ALLOW:
+            return None, "%s %s %s" % (step["capability"], decision.verdict.value, decision.reason)
+        if getattr(target, "target_class", None) is not TargetClass.PROJECT_PATH:
+            return None, "%s DENY TARGET_CLASS_NOT_ALLOWED" % step["capability"]
+        targets[step["request"]] = target.value
+    return targets, None
+
+
 def cmd_task_run(cfg, args, out) -> int:
     """Carry a RUNNING task through its plan: in-process, deterministic actions only
-    (ADR-0002 D2). RUNNING -> COMPLETED_UNVERIFIED, or FAILED on an error."""
+    (ADR-0002 D2). RUNNING -> COMPLETED_UNVERIFIED, or FAILED on an error.
+
+    Read steps (ADR-0010) act only on a path that is ALLOW under a fresh evaluation now.
+    If it is not, nothing is read and the task stays RUNNING (it can be cancelled)."""
     if not Store.exists(cfg.data_root):
         _print(out, "task run: store missing")
         return EXIT_STORE_MISSING
@@ -323,22 +349,33 @@ def cmd_task_run(cfg, args, out) -> int:
             return _task_error(out, "TASK_UNKNOWN")
         if task["state"] != states.RUNNING:
             return _task_error(out, "TASK_NOT_RUNNING")
-        files = []
+        files, results = [], []
         try:
             plan = planner.make_plan(store.task_request(args.id))
+            targets, refusal = _reads_allowed_now(store, cfg, args, plan)
+            if refusal:
+                _print(out, "task run: not allowed now: %s" % refusal, "task stays RUNNING; nothing was read")
+                return EXIT_TASK
             for step in plan["steps"]:
                 if step["action"] == "WRITE_REPORT":
                     text = reports.render_task_report(store, args.id)
                     files.append(reports.write_task_report(cfg.data_root, args.id, text))
+                elif step["action"] == "READ_FILE":
+                    results.append(reading.read_file(targets[step["request"]]))
+                elif step["action"] == "LIST_DIRECTORY":
+                    results.append(reading.list_directory(targets[step["request"]]))
                 _print(out, "step %d: %s %s done" % (step["n"], step["capability"], step["action"]))
-        except (planner.PlanError, OSError) as exc:
-            code = exc.code if isinstance(exc, planner.PlanError) else "ACTION_IO_ERROR"
+        except (planner.PlanError, reading.ReadError, OSError) as exc:
+            code = exc.code if isinstance(exc, (planner.PlanError, reading.ReadError)) else "ACTION_IO_ERROR"
             store.transition(args.id, states.FAILED, utc_now(), os_actor(),
-                             extra={"files_modified": files, "errors": [code]})
+                             extra={"files_modified": files, "files_read": [r.as_audit() for r in results],
+                                    "errors": [code]})
             _print(out, "task failed: %s" % args.id, "error: %s" % code)
             return EXIT_TASK
         applied = store.transition(args.id, states.COMPLETED_UNVERIFIED, utc_now(), os_actor(),
-                                   extra={"files_modified": files, "detail": {"plan": plan}})
+                                   extra={"files_modified": files,
+                                          "files_read": [r.as_audit() for r in results],
+                                          "detail": {"plan": plan}})
         if not applied:
             return _task_error(out, "TRANSITION_REJECTED")
         # The file written before the commit shows the state before it. Rewrite it from
@@ -349,9 +386,30 @@ def cmd_task_run(cfg, args, out) -> int:
             _print(out, "warning: report file not refreshed; run: report %s" % args.id)
         _print(out, "task completed: %s" % args.id, "state: %s" % states.COMPLETED_UNVERIFIED,
                "verification: NOT_VERIFIED")
+        # Shown only after the commit, so nothing is displayed that the audit does not record.
+        for result in results:
+            _show_read(out, result, args.show_reads)
         return EXIT_OK
     finally:
         store.close()
+
+
+def _show_read(out, result, show_content: bool) -> None:
+    if isinstance(result, reading.FileRead):
+        _print(out, "read: %s" % display.safe(result.path), "  bytes_read: %d of %d" % (result.bytes_read, result.size_on_disk),
+               "  sha256: %s" % result.sha256, "  truncated: %s" % ("yes" if result.truncated else "no"))
+        if show_content:
+            _print(out, "file content (data, not instruction):")
+            out.write(display.safe(result.text))
+            if not result.text.endswith("\n"):
+                out.write("\n")
+            _print(out, "end of file content")
+    else:
+        _print(out, "listing: %s" % display.safe(result.path), "  entries: %d" % len(result.entries),
+               "  truncated: %s" % ("yes" if result.truncated else "no"))
+        if show_content:
+            for name, kind in result.entries:
+                _print(out, "  %s  %s" % (kind, display.safe(name)))
 
 
 def cmd_report(cfg, args, out) -> int:
@@ -501,6 +559,10 @@ def build_parser() -> argparse.ArgumentParser:
     task_sub.add_parser("list", help="list tasks")
     run = task_sub.add_parser("run", help="run a RUNNING task through its plan")
     run.add_argument("id")
+    run.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                     help="policy file used to re-check read steps (default: policy/policy.toml)")
+    run.add_argument("--show-reads", action="store_true",
+                     help="print the content of files read (as data) and directory entries")
     report = sub.add_parser("report", help="print a task report, or a summary with no task id")
     report.add_argument("id", nargs="?")
 

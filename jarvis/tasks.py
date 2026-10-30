@@ -104,6 +104,14 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
     Nothing is cached: the policy and the revocation list are read on every call
     (ADR-0003 D7, D11).
     """
+    return evaluate_with_targets(store, config, policy_path, task_id, now_utc)[0]
+
+
+def evaluate_with_targets(store, config, policy_path: str, task_id: str, now_utc: str):
+    """As evaluate_task, and also return one (request item, target, decision) per
+    requested capability, in request order. `task run` uses it to act only on a target
+    that is ALLOW under a fresh evaluation (ADR-0010 D3 item 1).
+    """
     request = store.task_request(task_id)
     if not request or not request.get("requests"):
         raise TaskInputError("TASK_REQUEST_MISSING")
@@ -132,6 +140,7 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
 
     decisions = []
     described = []
+    resolved = []
     contract_hash = None
     for item in request["requests"]:
         target = _target(item, roots, project)
@@ -147,6 +156,7 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
         decision = evaluate_capability(item["capability"], target, contract, policy, revoked,
                                        constraints, now_utc, last_recorded)
         decisions.append(decision)
+        resolved.append((item, target, decision))
         described.append({
             "capability": item["capability"],
             "target": _describe(target),
@@ -157,7 +167,7 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
 
     risk, outcome = task_outcome(decisions)
     snapshot = None if isinstance(policy, PolicyFailure) else policy
-    return Evaluation(
+    evaluation = Evaluation(
         outcome=outcome,
         risk_level=risk if risk is not None else Level.L5,
         policy_version=snapshot.policy_version if snapshot else None,
@@ -166,6 +176,7 @@ def evaluate_task(store, config, policy_path: str, task_id: str, now_utc: str) -
         capabilities=tuple(sorted({i["capability"] for i in request["requests"]})),
         decisions=tuple(described),
     )
+    return evaluation, resolved
 
 
 def target_state(evaluation: Evaluation) -> str:
