@@ -326,14 +326,21 @@ class Store:
         return self._write(fn)
 
     def transition(self, task_id: str, to_state: str, now_utc: str, actor: str,
-                   evaluation: Optional[Evaluation] = None) -> bool:
+                   evaluation: Optional[Evaluation] = None,
+                   extra: Optional[dict] = None) -> bool:
         """Apply a transition, or record its rejection. Returns True if applied.
+
+        extra may carry files_modified, errors (lists) and detail (a dict merged
+        into the record's detail) for the audit record of an applied transition.
 
         A rejected transition leaves the state unchanged and writes an audit
         event (ADR-0002 D2, test C6).
         """
         _check_ts(now_utc)
         self._require_open_for_work()
+        extra = dict(extra or {})
+        if not set(extra) <= {"files_modified", "errors", "detail"}:
+            raise StoreError("EXTRA_INVALID")
 
         def fn():
             row = self._conn.execute(
@@ -365,6 +372,11 @@ class Store:
                                "contract_sha256": used.contract_sha256,
                                "decisions": [dict(d) for d in used.decisions]},
                 })
+            for name in ("files_modified", "errors"):
+                if name in extra:
+                    fields[name] = list(extra[name])
+            if "detail" in extra:
+                fields["detail"] = dict(fields["detail"], **extra["detail"])
             seq = self._append("TASK_TRANSITION", now_utc, actor, fields)
             if used is not None:
                 self._conn.execute(

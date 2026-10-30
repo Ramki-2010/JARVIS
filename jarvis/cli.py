@@ -1,8 +1,8 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `audit verify`, `task create`, `task evaluate`,
-`task show`, `task list` and `cancel`. `report` and the actions that move a RUNNING
-task to COMPLETED_UNVERIFIED are not implemented yet.
+`task run`, `task show`, `task list`, `report` and `cancel`. `task run` carries a RUNNING
+task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
@@ -17,6 +17,8 @@ import sys
 from datetime import datetime, timezone
 
 from . import config as config_mod
+from . import planner
+from . import reports
 from . import policy as policy_mod
 from . import states
 from . import tasks as tasks_mod
@@ -176,6 +178,61 @@ def cmd_task_evaluate(cfg, args, out) -> int:
         store.close()
 
 
+def cmd_task_run(cfg, args, out) -> int:
+    """Carry a RUNNING task through its plan: in-process, deterministic actions only
+    (ADR-0002 D2). RUNNING -> COMPLETED_UNVERIFIED, or FAILED on an error."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "task run: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        task = store.get_task(args.id)
+        if task is None:
+            return _task_error(out, "TASK_UNKNOWN")
+        if task["state"] != states.RUNNING:
+            return _task_error(out, "TASK_NOT_RUNNING")
+        files = []
+        try:
+            plan = planner.make_plan(store.task_request(args.id))
+            for step in plan["steps"]:
+                if step["action"] == "WRITE_REPORT":
+                    text = reports.render_task_report(store, args.id)
+                    files.append(reports.write_task_report(cfg.data_root, args.id, text))
+                _print(out, "step %d: %s %s done" % (step["n"], step["capability"], step["action"]))
+        except (planner.PlanError, OSError) as exc:
+            code = exc.code if isinstance(exc, planner.PlanError) else "ACTION_IO_ERROR"
+            store.transition(args.id, states.FAILED, utc_now(), os_actor(),
+                             extra={"files_modified": files, "errors": [code]})
+            _print(out, "task failed: %s" % args.id, "error: %s" % code)
+            return EXIT_TASK
+        applied = store.transition(args.id, states.COMPLETED_UNVERIFIED, utc_now(), os_actor(),
+                                   extra={"files_modified": files, "detail": {"plan": plan}})
+        if not applied:
+            return _task_error(out, "TRANSITION_REJECTED")
+        _print(out, "task completed: %s" % args.id, "state: %s" % states.COMPLETED_UNVERIFIED,
+               "verification: NOT_VERIFIED")
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_report(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "report: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        if args.id is None:
+            out.write(reports.render_summary(store))
+            return EXIT_OK
+        if store.get_task(args.id) is None:
+            return _task_error(out, "TASK_UNKNOWN")
+        out.write(reports.render_task_report(store, args.id))
+        return EXIT_OK
+    finally:
+        store.close()
+
+
 def cmd_task_show(cfg, args, out) -> int:
     if not Store.exists(cfg.data_root):
         _print(out, "task show: store missing")
@@ -267,6 +324,10 @@ def build_parser() -> argparse.ArgumentParser:
     show = task_sub.add_parser("show", help="show a task and its audit history")
     show.add_argument("id")
     task_sub.add_parser("list", help="list tasks")
+    run = task_sub.add_parser("run", help="run a RUNNING task through its plan")
+    run.add_argument("id")
+    report = sub.add_parser("report", help="print a task report, or a summary with no task id")
+    report.add_argument("id", nargs="?")
 
     cancel = sub.add_parser("cancel", help="move a task to CANCELLED (a state change, not a stop)")
     cancel.add_argument("id")
@@ -300,6 +361,10 @@ def main(argv=None, out=None) -> int:
                 return cmd_task_show(cfg, args, out)
             if args.task_command == "list":
                 return cmd_task_list(cfg, out)
+            if args.task_command == "run":
+                return cmd_task_run(cfg, args, out)
+        if args.command == "report":
+            return cmd_report(cfg, args, out)
         if args.command == "cancel":
             return cmd_cancel(cfg, args, out)
         return EXIT_USAGE
