@@ -15,6 +15,7 @@ Current Master Context version: 0.1-r1 (amended by MCA-001). Earlier versions ar
 
 - **Decisions:** architectural decisions are recorded as numbered ADRs, and changes to the Master Context as numbered MCAs, under [`decisions/`](decisions/). The register in that folder's README lists their status.
 - **Environment:** environment facts are recorded under [`environment/`](environment/).
+- **Plans:** release plans are recorded under [`plans/`](plans/). They are non-authoritative until RK merges them. Current: [`JARVIS_BETA_RELEASE_PLAN_2026-11-29.md`](plans/JARVIS_BETA_RELEASE_PLAN_2026-11-29.md).
 
 ## Source of truth
 
