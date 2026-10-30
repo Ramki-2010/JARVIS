@@ -1,7 +1,7 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
@@ -21,6 +21,7 @@ from . import doctor as doctor_mod
 from . import display
 from . import notes as notes_mod
 from . import planner
+from . import resume as resume_mod
 from . import projects as projects_mod
 from . import reports
 from . import policy as policy_mod
@@ -180,6 +181,20 @@ def cmd_note_show(cfg, args, out) -> int:
     except notes_mod.NoteError as exc:
         _print(out, "note show: %s" % exc.code)
         return EXIT_NOTE
+    finally:
+        store.close()
+
+
+def cmd_resume(cfg, args, out) -> int:
+    """Print the cold-start summary. Exit 5 if the audit chain has problems."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "resume: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        text, audit_ok = resume_mod.render(cfg, store, args.policy, utc_now(), os_actor(), args.project)
+        out.write(text)
+        return EXIT_OK if audit_ok else EXIT_AUDIT
     finally:
         store.close()
 
@@ -459,6 +474,10 @@ def build_parser() -> argparse.ArgumentParser:
     nlist.add_argument("--task")
     nshow = note_sub.add_parser("show", help="show one note after checking it against the chain")
     nshow.add_argument("id", type=int)
+    resume = sub.add_parser("resume", help="cold-start summary: health, projects, tasks, notes")
+    resume.add_argument("--project", help="limit tasks and notes to one project")
+    resume.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                        help="policy file (default: policy/policy.toml in the repository)")
     audit = sub.add_parser("audit", help="audit chain operations")
     audit_sub = audit.add_subparsers(dest="audit_command", required=True)
     audit_sub.add_parser("verify", help="verify the audit chain from genesis")
@@ -506,6 +525,8 @@ def main(argv=None, out=None) -> int:
             return cmd_init(cfg, args, out)
         if args.command == "status":
             return cmd_status(cfg, out)
+        if args.command == "resume":
+            return cmd_resume(cfg, args, out)
         if args.command == "note":
             if args.note_command == "add":
                 return cmd_note_add(cfg, args, out)

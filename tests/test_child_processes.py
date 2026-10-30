@@ -573,6 +573,13 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("PASS notes: 1 recorded", self.run_guarded(["doctor", "--policy", policy]))
         self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
 
+    def test_resume_runs_under_the_guard(self):
+        self.run_guarded(["init"])
+        self.create("t1", "CREATE_TASK")
+        text = self.run_guarded(["resume", "--project", "p"])
+        self.assertIn("audit: OK", text)
+        self.assertIn("t1  PENDING", text)
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")
