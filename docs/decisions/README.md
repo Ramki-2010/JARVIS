@@ -44,5 +44,6 @@ ADRs are numbered records of architectural decisions. Each ADR records one meani
 | ADR-0007 | External Operational Storage | Accepted | 2026-10-12 | [`ADR-0007-external-operational-storage.md`](ADR-0007-external-operational-storage.md) |
 | ADR-0008 | Initial User-Secret Locations and Build-Session Permission Mode | Accepted | 2026-10-21 | [`ADR-0008-user-secret-locations-and-build-session-permission-mode.md`](ADR-0008-user-secret-locations-and-build-session-permission-mode.md) |
 | ADR-0009 | Audit-Anchor Location | Accepted | 2026-10-30 | [`ADR-0009-audit-anchor-location.md`](ADR-0009-audit-anchor-location.md) |
+| ADR-0010 | Phase 2 Manual Worker Bridge | Accepted | 2026-10-30 | [`ADR-0010-manual-worker-bridge.md`](ADR-0010-manual-worker-bridge.md) |
 
 The order of the rows is the acceptance order. Acceptance takes effect when RK merges the pull request that adds the records (ADR-0001 D6).

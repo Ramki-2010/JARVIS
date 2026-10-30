@@ -1,17 +1,29 @@
 # ADR-0010 — Phase 2 Manual Worker Bridge
 
-**STATUS: PROPOSED**
+**STATUS: ACCEPTED**
 
 | Field | Value |
 |---|---|
 | ID | ADR-0010 |
 | Title | Phase 2 Manual Worker Bridge: project reading, task briefs, relayed results, minimal memory |
-| Status | PROPOSED. Not effective until RK merges the pull request that sets it ACCEPTED (ADR-0001 D6) |
+| Status | ACCEPTED |
 | Drafted | 2026-10-30, by Local Claude, from RK's Beta instruction of the same day and the Beta release plan |
 | Authority class | USER AUTHORITY REQUIRED (G-03, G-14, G-15, G-06, G-11) |
 | Inputs | Master Context section 17, 18, 30 (Phase 2), 33. MCA-001. ADR-0001 D6, D9, G-03, G-14. ADR-0002 D4. ADR-0003 D2, D12. ADR-0004. ADR-0005 D8, D9, D11. ADR-0007 D5. `docs/plans/JARVIS_BETA_RELEASE_PLAN_2026-11-29.md`. `jarvis/` at the merge of PR #25 |
 | Related | ADR-0002, ADR-0003, ADR-0005, ADR-0007 |
 | Supplements | ADR-0002 D4 ("Manual worker brief", "Reading or parsing project content"), ADR-0003 D12 (the DEFER rows for `READ_PROJECT`, `READ_FILE`, `GENERATE_WORKER_BRIEF`), ADR-0007 D5 (the `memory/` layout, left `UNKNOWN`). No accepted ADR is amended |
+
+## Acceptance record
+
+| Field | Value |
+|---|---|
+| Status | ACCEPTED |
+| Accepted by | RK, the owner of the project (the founder) |
+| Acceptance date | 2026-10-30 |
+| How the acceptance was given | RK's chat instruction to Local Claude on 2026-10-30: "ADR-0010 is ACCEPTED", after the focused security review (PR #28 comment) found no release-blocking issue once its seven corrections were applied. Under ADR-0001 D6 that instruction is an input. The acceptance is recorded by RK's merge |
+| Recorded in the repository by | The merge commit of PR #28. Effective only when RK's merge lands (ADR-0001 D6) |
+| Scope | The exact text of this document as added by that pull request, including the seven review corrections (protected paths raise the level and do not deny; no `PROJECT_ID` target, briefs use the task record; regular-file-only reads; re-resolve before open and after read; secret-looking file-name refusal; terminal-escape display; hash of the bytes read; MEDIATED provenance for `files_read`) |
+| Not done | `policy/policy.toml` is not edited by this ADR. Policy version 2 is a separate pull request that RK merges after the capabilities exist (G-03). No code is changed by this acceptance |
 
 **Labels:** `VERIFIED` · `UNKNOWN` · `PROPOSED` · `USER AUTHORITY REQUIRED` · `ENGINEERING` (an ordinary implementation choice inside this ADR).
 
