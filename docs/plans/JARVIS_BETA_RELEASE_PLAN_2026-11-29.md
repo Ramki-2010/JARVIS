@@ -42,7 +42,7 @@ Consequence stated plainly: **the Beta does not meet the Master Context section 
 | ID | Capability | Notes |
 |---|---|---|
 | BR-1 | **Project context.** `project list/show`: the registered projects, their roots and contract scope, read-only. | Uses `READ_REGISTRY`, already allowed. |
-| BR-2 | **Bounded project reading.** `file read` / `project read`: read a file or list a directory inside a contract scope, with a size cap and truncation marking; refused for protected paths and user-secret locations (ADR-0008). | Needs `READ_FILE`/`READ_PROJECT` enabled: ADR-0010 and a policy change by RK (G-03). Reuses the canonicalizer (X-09, X-16). |
+| BR-2 | **Bounded project reading.** `file read` / `project read`: read a file or list a directory inside a contract scope, with a size cap and truncation marking; refused in the governance zone, data root, JARVIS tree and user-secret locations (ADR-0008), and for secret-looking file names (ADR-0010 D3). | Needs `READ_FILE`/`READ_PROJECT` enabled: ADR-0010 and a policy change by RK (G-03). Reuses the canonicalizer (X-09, X-16). |
 | BR-3 | **Task briefs.** `brief generate <task>`: a deterministic, size-bounded brief written to the data root, hashed, audited. | `GENERATE_WORKER_BRIEF`. Brief rules are decided by ADR-0010 (G-14). |
 | BR-4 | **Relayed results.** `result add <task> --file`: store a result RK relays from a worker, labelled UNTRUSTED, hashed, never parsed for instructions, never executed. Task stays `COMPLETED_UNVERIFIED`; `VERIFIED` stays unreachable. | ADR-0010. |
 | BR-5 | **Persistent context.** `note add/list/show` per project and task, with provenance class (who wrote it, from what). `resume`: a plain summary of open tasks, latest notes and audit state, to start a session cold. | Layout of `memory/` is `UNKNOWN` today (ADR-0007); ADR-0010 decides the minimal layout. Written through the audit chain. |
@@ -104,7 +104,7 @@ The Beta ships when all hold, each with evidence recorded in a Beta evidence not
 | B-01 | CP-1 criteria X-01 to X-16 still pass (X-16 symlink case stays an environment limitation). |
 | B-02 | The full suite passes on a fresh clone of the release candidate. |
 | B-03 | Every new command runs as a real child under the runtime guard (X-13b) and records no violation. |
-| B-04 | The new reading capability denies: `..` escape, junction escape, a protected path, a user-secret location, an over-size file (truncated and marked), a path in another project's scope. |
+| B-04 | The new reading capability denies: `..` escape, junction escape, the governance zone, a user-secret location, a secret-looking file name, an over-size file (truncated and marked), a path in another project's scope. |
 | B-05 | A relayed result containing text that looks like instructions, a command or a task is stored as data and changes nothing. |
 | B-06 | The scripted end-to-end path passes: register project, create task, evaluate, read file, generate brief, add relayed result, add note, report, resume, `audit verify`. |
 | B-07 | Killing `task run` at each commit boundary leaves a chain that verifies and a task in a defined state. |

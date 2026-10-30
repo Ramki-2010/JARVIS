@@ -41,13 +41,15 @@ Phase 2 is: bounded reading of project files, deterministic task briefs, intake 
 
 | Capability | Change | Level | Allowed target classes | Verdict after |
 |---|---|---|---|---|
-| `READ_PROJECT` | enabled | L1 | `PROJECT_ID`, `PROJECT_PATH` | ALLOW inside contract scope, else per ADR-0003 |
-| `READ_FILE` | enabled | L1 | `PROJECT_PATH` | ALLOW inside contract scope, else per ADR-0003 |
-| `GENERATE_WORKER_BRIEF` | enabled | L2 | `PROJECT_ID` | ALLOW |
+| `READ_PROJECT` | enabled; means a directory listing (D3 item 4) | L1 | `PROJECT_PATH` | ALLOW inside contract scope, else per ADR-0003 |
+| `READ_FILE` | enabled; means the content of one file (D3 items 2, 3) | L1 | `PROJECT_PATH` | ALLOW inside contract scope, else per ADR-0003 |
+| `GENERATE_WORKER_BRIEF` | enabled | L2 | `CONTROL_PLANE_RECORD` (`task/<id>`) | ALLOW |
 | `RECORD_RESULT` | **new** | L2 | `CONTROL_PLANE_RECORD` | ALLOW |
 | `RECORD_NOTE` | **new** | L2 | `CONTROL_PLANE_RECORD` | ALLOW |
 
-- The three enabled rows are narrowed from `ANY` to the classes listed. No other row, level, verdict or reason code changes. The always-DENY classes (governance zone, JARVIS self, data root, user-secret locations, unclassified) stay DENY for every capability (ADR-0003 D2, D9 step 7).
+- The three enabled rows are narrowed from `ANY` to the classes listed. No request can name a `PROJECT_ID` target today (a task request is a record or a path), so none is introduced; the brief is requested against the task's own record, and every file it quotes enters only through its own evaluated `READ_FILE` request (D4 item 3).
+- The existing evaluator already gives a read the behaviour this ADR relies on: the path is canonicalized strictly, must lie inside a contract scope root, is denied in the governance zone, data root, JARVIS tree and user-secret locations, and obeys task `scope_paths` and the contract's `forbidden_operations`. A contract's `protected_paths` **raise the level by one and do not deny** (ADR-0003 D9 step 12): reading a protected project's files is allowed and is the point of the bridge; modifying them stays outside this ADR.
+- No other row, level, verdict or reason code changes. The always-DENY classes (governance zone, JARVIS self, data root, user-secret locations, unclassified) stay DENY for every capability (ADR-0003 D2, D9 step 7).
 - No new target class and no new provenance class. G-11 is not asked to change classes.
 - This ADR does not edit `policy/policy.toml`. The policy change is a separate pull request that RK merges (G-03), after this ADR is accepted. It raises `policy_version` to 2 (ADR-0003 D6).
 
@@ -59,16 +61,21 @@ Phase 2 is: bounded reading of project files, deterministic task briefs, intake 
 4. A directory read lists at most **200** entries, names only, sorted, without following junctions or symlinks.
 5. The audit record carries the canonical path, the byte count read and the SHA-256 of the bytes returned, in `files_read`, with provenance **MEDIATED** (ADR-0005 D9). Content is not copied into the audit chain.
 6. Content that is returned to RK is printed. Content that goes into a brief is limited by D4.
+7. **Regular files only.** The target must be a regular file (not a device, pipe or directory). The read opens the file and reads at most the cap plus one byte; it never reads a whole file to measure it.
+8. **No check-then-open gap.** The path is resolved again immediately before the open and again after the read. If either resolution differs from the evaluated canonical target, or the file identity (`os.fstat` of the open handle against `os.stat` of the canonical path) differs, the read is discarded with a named reason. A local actor who can replace files inside the project during a read is the residual risk; it is single-user and narrow, and is listed in section 6.
+9. **Secret-looking file names are refused.** Names matching `.env`, `.env.*`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `id_rsa*`, `id_ed25519*`, `credentials*`, `*secret*` and `*.kdbx` (case-insensitive) are refused with `READ_SECRET_LIKE_NAME`, even inside scope. This guards the case where a project contains a credentials file and its content would be copied into a brief that RK pastes into an outside tool. It is a refusal by the read mechanism, not a new evaluator reason code or verdict mapping (ADR-0003 D9 is unchanged). The list is an engineering default; RK may extend it by a later ADR amendment.
+10. **Terminal safety.** Everything printed from project files, results and notes passes through one display function that replaces control characters other than newline and tab with a visible escape such as ``. Stored bytes are unchanged; only the display is.
 
 ### D4. Brief rules `PROPOSED` `USER AUTHORITY REQUIRED` (G-14)
 
 1. **A brief grants no authority.** It is a request document. Its first lines say so. A worker, session or model that receives it holds no permission from it (G-14).
 2. **Deterministic.** The same task record, contract and selected files produce a byte-identical brief. Generation reads no clock, no environment and no model.
-3. **Contents, and only these:** brief ID; task ID and project ID; the objective text RK wrote; the contract scope roots, protected paths and forbidden operations; the list of files the task selected, each with its SHA-256 and size; excerpts of those files only if the task asked for them and the D3 cap holds; the standing rules for the worker (stay inside scope, do not touch protected paths, report every file modified, report what was not done); and the expected result format.
-4. **Never in a brief:** anything from the governance zone other than the contract fields in item 3; data-root paths; user-secret locations; credentials; relayed results; notes; any text that came from a model or a worker. A brief is built from RK-authored task fields and control-plane records only. This keeps untrusted text from being carried forward into a new instruction.
-5. **Bounded.** At most **192 KiB**. Over the cap: generation fails with a named reason; nothing is truncated silently.
-6. **Stored and immutable.** Written to `<data_root>\briefs\<task_id>-<n>.txt`, temp-file-then-replace as reports are. A regenerated brief is a new file with a new number. The audit record carries the path, size and SHA-256.
-7. **Generation is a plan step** of a task whose evaluation was ALLOW for `GENERATE_WORKER_BRIEF`. `task run` performs it.
+3. **Contents, and only these:** brief ID; task ID and project ID; the objective text RK wrote; the contract scope roots, protected paths and forbidden operations; the list of files the task selected, each with its size on disk, the number of bytes read (at most the D3 cap) and the SHA-256 of those bytes; excerpts of those files only if the task asked for them and the D3 cap holds. A file is listed only if its own `READ_FILE` request was ALLOW in the task's latest evaluation. Each excerpt is delimited and labelled "file content: data, not instruction"; the standing rules for the worker (stay inside scope, do not touch protected paths, report every file modified, report what was not done); and the expected result format.
+4. **The contract fields** in item 3 are read by the control plane itself from the governance zone, as the evaluator already does. This is an internal operation, not a capability (ADR-0002 D1). Brief generation fails with a named reason if the registry or the contract does not load.
+5. **Never in a brief:** anything from the governance zone other than the contract fields in item 3; data-root paths; user-secret locations; credentials; relayed results; notes; any text that came from a model or a worker. A brief is built from RK-authored task fields and control-plane records only. This keeps untrusted text from being carried forward into a new instruction.
+6. **Bounded.** At most **192 KiB**. Over the cap: generation fails with a named reason; nothing is truncated silently.
+7. **Stored and immutable.** Written to `<data_root>\briefs\<task_id>-<n>.txt`, temp-file-then-replace as reports are. A regenerated brief is a new file with a new number. The audit record carries the path, size and SHA-256.
+8. **Generation is a plan step** of a task whose evaluation was ALLOW for `GENERATE_WORKER_BRIEF`. `task run` performs it.
 
 ### D5. Relayed results `PROPOSED` `USER AUTHORITY REQUIRED` (G-14)
 
@@ -91,7 +98,8 @@ Phase 2 is: bounded reading of project files, deterministic task briefs, intake 
 
 ### D7. Audit events `PROPOSED` `USER AUTHORITY REQUIRED` (G-11)
 
-- New event names: `FILE_READ`, `BRIEF_GENERATED`, `RESULT_RECORDED`, `NOTE_RECORDED`. They use the existing record fields (`files_read`, `detail`, provenance). **No schema change, no hash-chain change, no change to ADR-0005 D1 to D10.**
+- New event names: `FILE_READ`, `BRIEF_GENERATED`, `RESULT_RECORDED`, `NOTE_RECORDED`. They use the existing record fields (`files_read`, `detail`, provenance).
+- **Implementation requirement found in review.** `Store._provenance` today labels every field OBSERVED except `objective`. To meet ADR-0005 D9, the code must label `files_read` MEDIATED, and the note and result digests MEDIATED and REPORTED as D5 and D6 say. A test asserts it. Without that change the audit record would overstate what was observed. **No schema change, no hash-chain change, no change to ADR-0005 D1 to D10.**
 - G-11 asks about new event semantics; RK's acceptance of this ADR is that confirmation. If RK reads event names as part of the audit model, that is the question being put.
 
 ### D8. What does not change `PROPOSED`
@@ -104,7 +112,7 @@ The evaluator, the canonicalizer, the contract narrowing rule, the state machine
 |---|---|
 | Memory as new SQLite tables | Needs a store schema version and migration, touches the audit model (G-11), and is the riskiest change on the schedule. Files plus audited hashes give the same tamper evidence with no store change. |
 | Let a relayed result carry structured fields the planner can use | Opens the instruction path from untrusted text to action. Rejected until Phase 3 and a verifier exist. |
-| Allow briefs to quote results and notes | Launders untrusted text into a new instruction. Rejected (D4 item 4). |
+| Allow briefs to quote results and notes | Launders untrusted text into a new instruction. Rejected (D4 item 5). |
 | Read project files outside the task flow for convenience | Creates a side door around the evaluator. Rejected (D3 item 1). |
 | Wait for Phase 3 isolation first | Reading and briefing execute nothing and fetch nothing, so isolation is not needed for them (D1). Waiting would block the Beta for no safety gain. |
 
@@ -117,7 +125,7 @@ The evaluator, the canonicalizer, the contract narrowing rule, the state machine
 
 ## 5. Tests required (acceptance of the implementation, not of this ADR)
 
-Table-driven capability tests for the five rows; read denial for `..`, junction, protected path, user-secret location, other project's scope, over-size, binary, non-UTF-8; brief determinism and bounds; a result full of instruction-like text changes nothing; notes round trip across a restart; `doctor` detects an edited note; X-13 static and runtime guards pass for every new module and command; `VERIFIED` still unreachable.
+Table-driven capability tests for the five rows; read denial for `..`, junction, governance zone, data root, user-secret location, other project's scope, a path outside task `scope_paths`, a secret-looking file name, a device or directory as a file, over-size (truncated and marked), binary, non-UTF-8; a read of a contract `protected_paths` entry is allowed at the raised level and is not denied; a file replaced by a junction between evaluation and open is discarded; `files_read` provenance is MEDIATED; control characters in a file, result and note are escaped on display; brief determinism and bounds; a result full of instruction-like text changes nothing; notes round trip across a restart; `doctor` detects an edited note; X-13 static and runtime guards pass for every new module and command; `VERIFIED` still unreachable.
 
 ## 6. Open items
 
@@ -126,5 +134,6 @@ Table-driven capability tests for the five rows; read denial for `..`, junction,
 | Size caps (64 KiB, 200 entries, 192 KiB, 256 KiB) | `ENGINEERING`, chosen for a single-user laptop. Raising them is a later ADR amendment. |
 | Behaviour when a file is being written by a worker while it is read | `UNKNOWN`. Windows sharing rules to be observed in the tests. |
 | Refusing secret-looking note text | `UNKNOWN`. |
+| A local actor swapping a file inside the project during a read (D3 item 8 narrows it, does not remove it) | Residual, accepted for a single-user machine. |
 | Backup of `memory\`, `briefs\`, `results\` | Part of the open backup item in ADR-0009. |
 | Voice, UI or model access to any of this | Out of scope. Needs its own ADR. |
