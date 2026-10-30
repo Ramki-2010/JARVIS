@@ -13,17 +13,13 @@ import unittest
 from jarvis import briefs, cli, doctor
 from jarvis.model import EffectiveContract
 
-from .test_read_cli import ReadCase, read_policy_text
+from .test_read_cli import REAL_POLICY, ReadCase
 
 
 def brief_policy_text():
-    text = read_policy_text()
-    pattern = re.compile(r'(name = "GENERATE_WORKER_BRIEF"\nbase_level = "L2"\nrequires_isolation = false\n)'
-                         r'phase_enabled = false\n')
-    text, count = pattern.subn(r'\1allowed_classes = ["CONTROL_PLANE_RECORD"]\nphase_enabled = true\n', text)
-    assert count == 1
-    return text
-
+    """The real policy (version 2) already enables what this feature needs."""
+    with open(REAL_POLICY, "r", encoding="utf-8") as fh:
+        return fh.read()
 
 class BriefCase(ReadCase):
     def policy_text(self):

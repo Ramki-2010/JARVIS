@@ -1,0 +1,318 @@
+# JARVIS Phase 1 policy, version 1.
+#
+# Sources: ADR-0003 D12 (initial capability matrix) and D2, ADR-0008 D1 (initial
+# user-secret locations), Master Context section 13 and section 33.
+#
+# Changing any row or entry here is a policy change (G-03) and, for the secret
+# locations, a credential decision (G-07). It is made only by RK, by pull request.
+# A content change must raise policy_version (ADR-0003 D6).
+#
+# Capability keys:
+#   name                   capability name
+#   base_level             L0..L5 (Master Context section 12)
+#   requires_isolation     true: DEFER (ISOLATION_REQUIRED) until isolation exists
+#   allowed_classes        target classes allowed. Omitted means ANY class except the
+#                          always-deny classes and UNCLASSIFIED (ADR-0003 D12)
+#   phase_enabled          false: DEFER (PHASE_NOT_ENABLED)
+#   mechanism_implemented  false: DEFER (MECHANISM_NOT_IMPLEMENTED)
+#   forbidden_l5           true: DENY (FORBIDDEN_L5)
+#   non_goal               true: DENY (NON_GOAL_V01), Master Context section 33
+
+schema_version = 1
+policy_version = 1
+
+# --- Phase 1 ALLOW set: exactly four capabilities -------------------------------
+
+[[capability]]
+name = "CREATE_TASK"
+base_level = "L2"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "CREATE_REPORT"
+base_level = "L2"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "READ_REGISTRY"
+base_level = "L1"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "READ_CONTROL_PLANE_CONFIG"
+base_level = "L1"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+# --- DEFER: capability recognized, phase not enabled ---------------------------
+
+[[capability]]
+name = "READ_PROJECT"
+base_level = "L1"
+requires_isolation = false
+phase_enabled = false
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "READ_FILE"
+base_level = "L1"
+requires_isolation = false
+phase_enabled = false
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "GENERATE_WORKER_BRIEF"
+base_level = "L2"
+requires_isolation = false
+phase_enabled = false
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+# --- DEFER: isolation required ---------------------------------------------------
+
+[[capability]]
+name = "SEARCH_WEB"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "WRITE_SANDBOX"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "RUN_TEST"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "RUN_EXPERIMENT"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "USE_CLAUDE_CODE"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "USE_CODEBASE_MEMORY"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "USE_VERIFICATION"
+base_level = "L3"
+requires_isolation = true
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+# --- DEFER: mechanism not implemented -------------------------------------------
+
+[[capability]]
+name = "SCHEDULE_TASK"
+base_level = "L3"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = false
+forbidden_l5 = false
+non_goal = false
+
+# --- DEFER: L4, approval mechanism absent ---------------------------------------
+
+[[capability]]
+name = "DELETE_PROTECTED"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "PUSH"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "MERGE"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "DEPLOY"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "SEND_EMAIL"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+[[capability]]
+name = "SEND_MESSAGE"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+# --- DENY: non-goals for v0.1 (Master Context section 33) ------------------------
+
+[[capability]]
+name = "MAKE_CALL"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = true
+
+[[capability]]
+name = "FINANCIAL_TRANSACTION"
+base_level = "L4"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = true
+
+# --- DENY: forbidden for JARVIS (L5) --------------------------------------------
+
+[[capability]]
+name = "CHANGE_PERMISSION"
+base_level = "L5"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = true
+non_goal = false
+
+[[capability]]
+name = "CHANGE_GOVERNANCE"
+base_level = "L5"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = true
+non_goal = false
+
+[[capability]]
+name = "DISABLE_GUARDRAIL"
+base_level = "L5"
+requires_isolation = false
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = true
+non_goal = false
+
+# --- Initial user-secret locations (ADR-0008 D1) ---------------------------------
+# Paths are relative to <USER_HOME>, which comes from governance-zone configuration
+# and never from an environment variable (ADR-0006 section 3.3). A target equal to
+# or inside an entry is classified USER_SECRET_LOCATION and is always DENY.
+
+[secret_locations]
+user_home_relative = [
+    # SSH and signing keys
+    '.ssh',
+    '.gnupg',
+    # Git and generic credentials
+    '.git-credentials',
+    '.netrc',
+    '_netrc',
+    # Developer and cloud tool credentials
+    '.aws',
+    '.azure',
+    '.config\gcloud',
+    '.kube',
+    '.docker',
+    '.npmrc',
+    '.pypirc',
+    '.config\gh',
+    'AppData\Roaming\GitHub CLI',
+    # AI tool credentials and configuration
+    '.claude',
+    '.claude.json',
+    '.codex',
+    'AppData\Roaming\Claude',
+    # Windows credential and key stores
+    'AppData\Roaming\Microsoft\Credentials',
+    'AppData\Local\Microsoft\Credentials',
+    'AppData\Roaming\Microsoft\Protect',
+    'AppData\Roaming\Microsoft\Vault',
+    'AppData\Local\Microsoft\Vault',
+    'AppData\Roaming\Microsoft\Crypto',
+    # Browser profiles
+    'AppData\Local\Google\Chrome\User Data',
+    'AppData\Local\Microsoft\Edge\User Data',
+    'AppData\Local\BraveSoftware\Brave-Browser\User Data',
+    'AppData\Roaming\Mozilla\Firefox\Profiles',
+    'AppData\Roaming\Opera Software',
+]

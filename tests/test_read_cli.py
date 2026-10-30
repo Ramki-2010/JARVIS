@@ -23,19 +23,13 @@ from .test_reading import make_junction
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REAL_POLICY = os.path.join(REPO, "policy", "policy.toml")
 NOW = "2026-10-30T10:00:00.000000Z"
+V1_POLICY = os.path.join(REPO, "tests", "golden", "policy_v1.toml")
 
 
 def read_policy_text():
+    """The real policy (version 2) already enables what this feature needs."""
     with open(REAL_POLICY, "r", encoding="utf-8") as fh:
-        text = fh.read()
-    for name in ("READ_PROJECT", "READ_FILE"):
-        pattern = re.compile(r'(name = "%s"\nbase_level = "L1"\nrequires_isolation = false\n)'
-                             r'phase_enabled = false\n' % name)
-        text, count = pattern.subn(
-            r'\1allowed_classes = ["PROJECT_PATH"]\nphase_enabled = true\n', text)
-        assert count == 1, name
-    return text
-
+        return fh.read()
 
 class ReadCase(unittest.TestCase):
     def setUp(self):
@@ -214,14 +208,13 @@ class DeniedReadTests(ReadCase):
                    "forbidden_operations = [\"READ_FILE\"]\n" % self.src)
         self.assertBlocked("READ_FILE=path:%s" % os.path.join(self.src, "a.txt"), "FORBIDDEN_BY_CONTRACT")
 
-    def test_the_real_policy_still_defers_reading(self):
-        state = self.make_task("t1", "READ_FILE=path:%s" % os.path.join(self.src, "a.txt"))
+    def test_policy_version_1_still_defers_reading(self):
         for name in ("jarvis.db", "HEAD"):
             os.remove(os.path.join(self.data, name))
-        self.assertEqual(self.run_cli("init", "--policy", REAL_POLICY)[0], cli.EXIT_OK)
+        self.assertEqual(self.run_cli("init", "--policy", V1_POLICY)[0], cli.EXIT_OK)
         self.run_cli("task", "create", "--id", "t2", "--project", "p", "--objective", "x",
                      "--request", "READ_FILE=path:%s" % os.path.join(self.src, "a.txt"))
-        text = self.run_cli("task", "evaluate", "t2", "--policy", REAL_POLICY)[1]
+        text = self.run_cli("task", "evaluate", "t2", "--policy", V1_POLICY)[1]
         self.assertIn("state: DEFERRED", text)
         self.assertIn("PHASE_NOT_ENABLED", text)
 

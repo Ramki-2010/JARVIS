@@ -633,18 +633,18 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
 
     def test_registry_and_contract_loaders_run_under_the_guard(self):
-        """READ_FILE inside the contract scope reaches PHASE_NOT_ENABLED only if the
+        """READ_FILE inside the contract scope reaches ALLOWED_BY_POLICY only if the
         registry and the contract were both loaded and accepted in the child."""
         self.run_guarded(["init"])
         self.create("t2", "READ_FILE=path:%s" % self.src)
-        self.assertIn("PHASE_NOT_ENABLED", self.run_guarded(["task", "evaluate", "t2"]))
+        self.assertIn("ALLOWED_BY_POLICY", self.run_guarded(["task", "evaluate", "t2"]))
         # An invalid contract and a missing registry are loaded, and denied, under the guard.
         self.write(self.contract, "not a contract [")
         self.create("t3", "READ_FILE=path:%s" % self.src)
         self.assertIn("CONTRACT_INVALID", self.run_guarded(["task", "evaluate", "t3"]))
         os.remove(os.path.join(self.gov, "registry.toml"))
         self.create("t4", "READ_FILE=path:%s" % self.src)
-        self.assertNotIn("PHASE_NOT_ENABLED", self.run_guarded(["task", "evaluate", "t4"]))
+        self.assertNotIn("ALLOWED_BY_POLICY", self.run_guarded(["task", "evaluate", "t4"]))
 
 
 if __name__ == "__main__":

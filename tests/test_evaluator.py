@@ -24,6 +24,7 @@ CONTRACT_SHA = "b" * 64
 ROOT = "d:\\projects\\demo"
 
 GOLDEN = os.path.join(os.path.dirname(__file__), "golden", "evaluator_decisions_v1.json")
+GOLDEN_V2 = os.path.join(os.path.dirname(__file__), "golden", "evaluator_decisions_v2.json")
 
 CPR_TARGET = CanonicalTarget(TargetClass.CONTROL_PLANE_RECORD, "task/t-0001")
 PROJECT_TARGET = CanonicalTarget(TargetClass.PROJECT_ID, "demo", project_id="demo")
@@ -263,8 +264,9 @@ class TaskOutcomeTests(unittest.TestCase):
         self.assertEqual(task_outcome([]), (None, "BLOCKED"))
 
 
-def golden_cases():
+def golden_cases(rows=None):
     """A fixed grid of inputs for the X-03 golden file."""
+    rows = rows or d12.ROWS
     targets = (
         ("record", CPR_TARGET, NO_CONTRACT),
         ("project", PROJECT_TARGET, contract()),
@@ -276,14 +278,15 @@ def golden_cases():
     )
     constraints = (("none", TaskConstraints()),
                    ("widen", TaskConstraints(extra_capabilities=("PUSH",))))
-    for row, (tname, target, contract_in), (cname, c) in itertools.product(d12.ROWS, targets, constraints):
+    for row, (tname, target, contract_in), (cname, c) in itertools.product(rows, targets, constraints):
         yield "%s|%s|%s" % (row[0], tname, cname), (row[0], target, contract_in, c)
 
 
-def golden_bytes() -> bytes:
+def golden_bytes(rows=None, policy=None) -> bytes:
     out = {}
-    for key, (cap, target, contract_in, c) in golden_cases():
-        out[key] = run(cap, target=target, contract_in=contract_in, constraints=c).as_record()
+    for key, (cap, target, contract_in, c) in golden_cases(rows):
+        out[key] = run(cap, target=target, contract_in=contract_in, constraints=c,
+                       policy=policy).as_record()
     return canonical_json.dumps(out)
 
 
