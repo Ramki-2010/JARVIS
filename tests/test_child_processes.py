@@ -481,6 +481,11 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
         self.assertIn("init: store already exists", self.run_guarded(["init"], code=8))
 
+    def test_doctor_runs_under_the_guard(self):
+        self.assertIn("FAIL store: not initialized", self.run_guarded(["doctor"], code=9))
+        self.run_guarded(["init"])
+        self.assertIn("doctor: OK (0 warning(s))", self.run_guarded(["doctor"]))
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")
