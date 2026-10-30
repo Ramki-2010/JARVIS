@@ -1,10 +1,12 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
-This milestone implements `status` and `audit verify`. `task`, `report` and
-`cancel` follow with the policy loader.
+This milestone implements `status`, `audit verify`, `task create`, `task evaluate`,
+`task show`, `task list` and `cancel`. `report` and the actions that move a RUNNING
+task to COMPLETED_UNVERIFIED are not implemented yet.
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
-5 audit verification failed or store halted; 6 store busy; 1 unexpected error.
+5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
+unknown or existing task, rejected transition); 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -14,10 +16,13 @@ import sys
 from datetime import datetime, timezone
 
 from . import config as config_mod
+from . import states
+from . import tasks as tasks_mod
 from .store import Store, StoreError
 
 EXIT_OK, EXIT_UNEXPECTED, EXIT_USAGE = 0, 1, 2
 EXIT_CONFIG, EXIT_STORE_MISSING, EXIT_AUDIT, EXIT_BUSY = 3, 4, 5, 6
+EXIT_TASK = 7
 
 
 def utc_now() -> str:
@@ -74,6 +79,131 @@ def cmd_audit_verify(cfg, out) -> int:
         store.close()
 
 
+def _open_store(cfg):
+    return Store.open(cfg.data_root, utc_now(), os_actor(), cfg.busy_timeout_ms)
+
+
+def _task_error(out, code) -> int:
+    _print(out, "task error: %s" % code)
+    return EXIT_TASK
+
+
+def cmd_task_create(cfg, args, out) -> int:
+    try:
+        task_id = tasks_mod.validate_id(args.id, "TASK_ID_INVALID")
+        project = tasks_mod.validate_id(args.project, "PROJECT_INVALID")
+        objective = tasks_mod.validate_objective(args.objective)
+        request = tasks_mod.build_request(args.request or [], args.add_capability or [], task_id)
+    except tasks_mod.TaskInputError as exc:
+        return _task_error(out, exc.code)
+    if not Store.exists(cfg.data_root):
+        _print(out, "task create: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        try:
+            store.create_task(task_id, project, objective, utc_now(), os_actor(), request)
+        except StoreError as exc:
+            if exc.code == "TASK_EXISTS":
+                return _task_error(out, exc.code)
+            raise
+        _print(out, "task created: %s" % task_id, "state: %s" % states.PENDING,
+               "requests: %d" % len(request["requests"]))
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_task_evaluate(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "task evaluate: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        task = store.get_task(args.id)
+        if task is None:
+            return _task_error(out, "TASK_UNKNOWN")
+        now = utc_now()
+        try:
+            evaluation = tasks_mod.evaluate_task(store, cfg, args.policy, args.id, now)
+        except tasks_mod.TaskInputError as exc:
+            return _task_error(out, exc.code)
+        applied = store.transition(args.id, tasks_mod.target_state(evaluation), now,
+                                   os_actor(), evaluation)
+        for d in evaluation.decisions:
+            _print(out, "decision: %s %s %s %s %s" % (
+                d["capability"], d["target"], d["verdict"], d["reason"], d["risk_level"]))
+        if not applied:
+            _print(out, "task evaluate: transition rejected from %s" % task["state"])
+            return EXIT_TASK
+        _print(out, "task evaluated: %s" % args.id,
+               "state: %s" % tasks_mod.target_state(evaluation), "risk: %s" % evaluation.risk_level.value)
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_task_show(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "task show: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        task = store.get_task(args.id)
+        if task is None:
+            return _task_error(out, "TASK_UNKNOWN")
+        _print(out, "task: %s" % task["task_id"], "project: %s" % task["project"],
+               "state: %s" % task["state"], "risk: %s" % task["risk_level"],
+               "policy_version: %s" % task["policy_version"],
+               "verification: %s" % task["verification"],
+               "created: %s" % task["created_utc"], "updated: %s" % task["updated_utc"])
+        for record in store.task_history(args.id):
+            detail = record.get("detail") or {}
+            _print(out, "event: seq=%d %s %s -> %s" % (
+                record["seq"], record["event"], detail.get("from"), detail.get("to")))
+            for d in detail.get("decisions", ()):
+                _print(out, "  decision: %s %s %s %s" % (
+                    d["capability"], d["target"], d["verdict"], d["reason"]))
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_task_list(cfg, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "task list: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        rows = store.list_tasks()
+        for row in rows:
+            _print(out, "%s %s %s %s" % (row["task_id"], row["state"], row["risk_level"], row["project"]))
+        _print(out, "tasks: %d" % len(rows))
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_cancel(cfg, args, out) -> int:
+    """CANCELLED is a state change. It does not stop anything: nothing executes in
+    Phase 1 (ADR-0002 D2)."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "cancel: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        task = store.get_task(args.id)
+        if task is None:
+            return _task_error(out, "TASK_UNKNOWN")
+        if not store.transition(args.id, states.CANCELLED, utc_now(), os_actor()):
+            _print(out, "cancel: transition rejected from %s" % task["state"])
+            return EXIT_TASK
+        _print(out, "task cancelled: %s" % args.id, "state: %s" % states.CANCELLED)
+        return EXIT_OK
+    finally:
+        store.close()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis", description="JARVIS Phase 1 control plane")
     parser.add_argument("--config", default=config_mod.DEFAULT_CONFIG_PATH,
@@ -83,6 +213,27 @@ def build_parser() -> argparse.ArgumentParser:
     audit = sub.add_parser("audit", help="audit chain operations")
     audit_sub = audit.add_subparsers(dest="audit_command", required=True)
     audit_sub.add_parser("verify", help="verify the audit chain from genesis")
+
+    task = sub.add_parser("task", help="task operations")
+    task_sub = task.add_subparsers(dest="task_command", required=True)
+    create = task_sub.add_parser("create", help="create a PENDING task")
+    create.add_argument("--id", required=True)
+    create.add_argument("--project", required=True)
+    create.add_argument("--objective", required=True)
+    create.add_argument("--request", action="append", metavar="CAPABILITY[=record:TYPE/ID|=path:RAW]",
+                        help="a capability the task asks for; repeatable")
+    create.add_argument("--add-capability", action="append", metavar="CAPABILITY",
+                        help="a constraint that adds a capability: always rejected (CONSTRAINT_WIDENS)")
+    evaluate = task_sub.add_parser("evaluate", help="evaluate a task and apply the outcome state")
+    evaluate.add_argument("id")
+    evaluate.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                          help="policy file (default: policy/policy.toml in the repository)")
+    show = task_sub.add_parser("show", help="show a task and its audit history")
+    show.add_argument("id")
+    task_sub.add_parser("list", help="list tasks")
+
+    cancel = sub.add_parser("cancel", help="move a task to CANCELLED (a state change, not a stop)")
+    cancel.add_argument("id")
     return parser
 
 
@@ -102,6 +253,17 @@ def main(argv=None, out=None) -> int:
             return cmd_status(cfg, out)
         if args.command == "audit" and args.audit_command == "verify":
             return cmd_audit_verify(cfg, out)
+        if args.command == "task":
+            if args.task_command == "create":
+                return cmd_task_create(cfg, args, out)
+            if args.task_command == "evaluate":
+                return cmd_task_evaluate(cfg, args, out)
+            if args.task_command == "show":
+                return cmd_task_show(cfg, args, out)
+            if args.task_command == "list":
+                return cmd_task_list(cfg, out)
+        if args.command == "cancel":
+            return cmd_cancel(cfg, args, out)
         return EXIT_USAGE
     except StoreError as exc:
         _print(out, "store error: %s" % exc.code)
