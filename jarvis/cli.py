@@ -1,13 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `brief show`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
 unknown or existing task, rejected transition); 8 init refused (store exists, data root
-missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 1 unexpected error.
+missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 from . import config as config_mod
 from . import doctor as doctor_mod
+from . import briefs
 from . import display
 from . import notes as notes_mod
 from . import planner
@@ -39,6 +40,7 @@ EXIT_INIT = 8
 EXIT_DOCTOR = 9
 EXIT_PROJECT = 10
 EXIT_NOTE = 11
+EXIT_BRIEF = 12
 
 
 def utc_now() -> str:
@@ -349,7 +351,7 @@ def cmd_task_run(cfg, args, out) -> int:
             return _task_error(out, "TASK_UNKNOWN")
         if task["state"] != states.RUNNING:
             return _task_error(out, "TASK_NOT_RUNNING")
-        files, results = [], []
+        files, results, brief_info = [], [], None
         try:
             plan = planner.make_plan(store.task_request(args.id))
             targets, refusal = _reads_allowed_now(store, cfg, args, plan)
@@ -360,13 +362,18 @@ def cmd_task_run(cfg, args, out) -> int:
                 if step["action"] == "WRITE_REPORT":
                     text = reports.render_task_report(store, args.id)
                     files.append(reports.write_task_report(cfg.data_root, args.id, text))
+                elif step["action"] == "WRITE_BRIEF":
+                    contract = briefs.contract_for(cfg, args.policy, task["project"])
+                    brief_info = briefs.write_brief(cfg.data_root, args.id,
+                                                    briefs.build(task, contract, results))
+                    files.append(brief_info["path"])
                 elif step["action"] == "READ_FILE":
                     results.append(reading.read_file(targets[step["request"]]))
                 elif step["action"] == "LIST_DIRECTORY":
                     results.append(reading.list_directory(targets[step["request"]]))
                 _print(out, "step %d: %s %s done" % (step["n"], step["capability"], step["action"]))
-        except (planner.PlanError, reading.ReadError, OSError) as exc:
-            code = exc.code if isinstance(exc, (planner.PlanError, reading.ReadError)) else "ACTION_IO_ERROR"
+        except (planner.PlanError, reading.ReadError, briefs.BriefError, OSError) as exc:
+            code = exc.code if isinstance(exc, (planner.PlanError, reading.ReadError, briefs.BriefError)) else "ACTION_IO_ERROR"
             store.transition(args.id, states.FAILED, utc_now(), os_actor(),
                              extra={"files_modified": files, "files_read": [r.as_audit() for r in results],
                                     "errors": [code]})
@@ -375,7 +382,8 @@ def cmd_task_run(cfg, args, out) -> int:
         applied = store.transition(args.id, states.COMPLETED_UNVERIFIED, utc_now(), os_actor(),
                                    extra={"files_modified": files,
                                           "files_read": [r.as_audit() for r in results],
-                                          "detail": {"plan": plan}})
+                                          "detail": dict({"plan": plan},
+                                                         **({"brief": brief_info} if brief_info else {}))})
         if not applied:
             return _task_error(out, "TRANSITION_REJECTED")
         # The file written before the commit shows the state before it. Rewrite it from
@@ -387,8 +395,34 @@ def cmd_task_run(cfg, args, out) -> int:
         _print(out, "task completed: %s" % args.id, "state: %s" % states.COMPLETED_UNVERIFIED,
                "verification: NOT_VERIFIED")
         # Shown only after the commit, so nothing is displayed that the audit does not record.
+        if brief_info:
+            _print(out, "brief: %s" % brief_info["path"], "  sha256: %s" % brief_info["sha256"],
+                   "  show it with: brief show %s" % args.id)
         for result in results:
             _show_read(out, result, args.show_reads)
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_brief_show(cfg, args, out) -> int:
+    """Print the latest brief of a task after checking it against the chain."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "brief show: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        recorded = briefs.recorded(store, args.id)
+        if not recorded:
+            _print(out, "brief show: BRIEF_UNKNOWN")
+            return EXIT_BRIEF
+        brief = recorded[-1]
+        problem = briefs.check(brief, cfg.data_root)
+        if problem:
+            _print(out, "brief show: %s" % problem)
+            return EXIT_BRIEF
+        with open(brief["path"], "rb") as fh:
+            out.write(fh.read().decode("utf-8"))
         return EXIT_OK
     finally:
         store.close()
@@ -566,6 +600,10 @@ def build_parser() -> argparse.ArgumentParser:
     report = sub.add_parser("report", help="print a task report, or a summary with no task id")
     report.add_argument("id", nargs="?")
 
+    brief = sub.add_parser("brief", help="worker briefs")
+    brief_sub = brief.add_subparsers(dest="brief_command", required=True)
+    bshow = brief_sub.add_parser("show", help="print the latest brief of a task, checked against the chain")
+    bshow.add_argument("id")
     cancel = sub.add_parser("cancel", help="move a task to CANCELLED (a state change, not a stop)")
     cancel.add_argument("id")
     return parser
@@ -587,6 +625,8 @@ def main(argv=None, out=None) -> int:
             return cmd_init(cfg, args, out)
         if args.command == "status":
             return cmd_status(cfg, out)
+        if args.command == "brief":
+            return cmd_brief_show(cfg, args, out)
         if args.command == "resume":
             return cmd_resume(cfg, args, out)
         if args.command == "note":

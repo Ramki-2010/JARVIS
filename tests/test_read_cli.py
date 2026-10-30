@@ -54,7 +54,7 @@ class ReadCase(unittest.TestCase):
         self.write(self.cfg, "schema_version = 1\ndata_root = '%s'\ngovernance_zone = '%s'\n"
                    "user_home = '%s'\n" % (self.data, self.gov, self.home))
         self.policy = os.path.join(self.tmp, "policy-read.toml")
-        self.write(self.policy, read_policy_text())
+        self.write(self.policy, self.policy_text())
         self.revocations = os.path.join(self.gov, "revocations.toml")
         self.write(self.revocations,
                    "schema_version = 1\ncapabilities = []\nprojects = []\ncontract_hashes = []\n")
@@ -71,6 +71,9 @@ class ReadCase(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.assertEqual(self.run_cli("init", "--policy", self.policy)[0], cli.EXIT_OK)
+
+    def policy_text(self):
+        return read_policy_text()
 
     @staticmethod
     def write(path, text, binary=False):

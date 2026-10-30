@@ -11,8 +11,9 @@ name and then the request index, so the same request gives the same plan.
 
 PLAN_VERSION = 2
 
-# capability -> (action label, order class). Only WRITE_REPORT has a side effect in
-# Phase 1; READ_FILE and READ_PROJECT read inside a contract scope (ADR-0010 D3).
+# capability -> (action label, order class). Order 0: reads inside a contract scope
+# (ADR-0010 D3). Order 1: the Phase 1 record actions. Order 2: the brief, built from the
+# bytes the reads of this same run returned (ADR-0010 D4).
 ACTIONS = {
     "CREATE_TASK": ("RECORD_TASK", 1),
     "CREATE_REPORT": ("WRITE_REPORT", 1),
@@ -20,6 +21,7 @@ ACTIONS = {
     "READ_CONTROL_PLANE_CONFIG": ("SHOW_CONTROL_PLANE_CONFIG", 1),
     "READ_PROJECT": ("LIST_DIRECTORY", 0),
     "READ_FILE": ("READ_FILE", 0),
+    "GENERATE_WORKER_BRIEF": ("WRITE_BRIEF", 2),
 }
 
 
@@ -44,7 +46,7 @@ def make_plan(request) -> dict:
     # One step per capability for the Phase 1 record actions; one per request for reads.
     steps, seen = [], set()
     for order, capability, index, action in sorted(entries):
-        if order == 1:
+        if order >= 1:
             if capability in seen:
                 continue
             seen.add(capability)
