@@ -6,6 +6,8 @@ contains no test hook (ADR-0002 D5, "Test process structure"). It does three
 things, each switched on by a harness-set environment variable:
 
 - JARVIS_TEST_GUARD_MARKER: install the runtime audit-hook guard (X-13b).
+- JARVIS_TEST_ENV_DUMP: write the NAMES of the child's environment variables (never
+  their values) to a file, so a test can check what the harness passed on.
 - JARVIS_TEST_SYNC_DIR: before the first BEGIN IMMEDIATE, signal "ready" and wait
   for the harness to say "go", so that several children contend for the write
   lock at the same moment (X-05).
@@ -22,6 +24,11 @@ import time
 
 if os.environ.get("JARVIS_TEST_CHILD") == "1":
     import childguard
+
+    _dump = os.environ.get("JARVIS_TEST_ENV_DUMP")
+    if _dump:
+        with open(_dump, "w", encoding="utf-8", newline="\n") as _fh:
+            _fh.write("\n".join(sorted(os.environ.keys())) + "\n")
 
     _marker = os.environ.get("JARVIS_TEST_GUARD_MARKER") or None
     if _marker:

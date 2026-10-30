@@ -37,30 +37,46 @@ def write_config(directory, data_root, governance_zone, busy_timeout_ms=30000, n
     return path
 
 
-def spawn_jarvis(args, config_path, *, marker=None, crash=None, sync_dir=None, selftest=None):
+# Names a Windows Python child needs to start. Everything else in the parent's
+# environment, including any variable that holds a credential, is not passed on.
+# Compared in upper case because Windows names are case-insensitive.
+CHILD_ENV_ALLOWLIST = frozenset({"SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP"})
+
+
+def child_environment(parent, *, marker=None, crash=None, sync_dir=None, selftest=None,
+                      env_dump=None):
+    """The environment for a child: the allow-listed parent names plus the test settings.
+
+    Pure function of its arguments, so it can be tested without starting a process.
+    """
+    env = {name: value for name, value in parent.items() if name.upper() in CHILD_ENV_ALLOWLIST}
+    env.update({
+        "PYTHONPATH": CHILD_DIR,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "JARVIS_TEST_CHILD": "1",
+    })
+    for key, value in (("JARVIS_TEST_GUARD_MARKER", marker), ("JARVIS_TEST_GUARD_SELFTEST", selftest),
+                       ("JARVIS_TEST_CRASH", crash), ("JARVIS_TEST_SYNC_DIR", sync_dir),
+                       ("JARVIS_TEST_ENV_DUMP", env_dump)):
+        if value:
+            env[key] = value
+    return env
+
+
+def spawn_jarvis(args, config_path, *, marker=None, crash=None, sync_dir=None, selftest=None,
+                 env_dump=None):
     """Start `python -m jarvis --config <config> <args...>` and return the Popen.
 
     marker: path of the guard marker file; installs the runtime guard (X-13b).
     crash: "before_commit" or "after_commit" (X-06).
     sync_dir: directory for the start-line barrier (X-05).
     selftest: make the startup module do a forbidden thing, to prove the guard fires.
+    env_dump: path where the startup module writes the child's environment NAMES
+    (never values), so a test can check what the child was given.
     """
-    env = dict(os.environ)
-    env["PYTHONPATH"] = CHILD_DIR
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-    env["JARVIS_TEST_CHILD"] = "1"
-    for key in ("JARVIS_TEST_GUARD_MARKER", "JARVIS_TEST_GUARD_SELFTEST",
-                "JARVIS_TEST_CRASH", "JARVIS_TEST_SYNC_DIR"):
-        env.pop(key, None)
-    if marker:
-        env["JARVIS_TEST_GUARD_MARKER"] = marker
-    if selftest:
-        env["JARVIS_TEST_GUARD_SELFTEST"] = selftest
-    if crash:
-        env["JARVIS_TEST_CRASH"] = crash
-    if sync_dir:
-        env["JARVIS_TEST_SYNC_DIR"] = sync_dir
+    env = child_environment(os.environ, marker=marker, crash=crash, sync_dir=sync_dir,
+                            selftest=selftest, env_dump=env_dump)
     cmd = [sys.executable, "-m", "jarvis", "--config", config_path] + list(args)
     return subprocess.Popen(cmd, cwd=REPO, env=env, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8")
