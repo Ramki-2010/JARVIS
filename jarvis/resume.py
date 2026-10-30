@@ -8,7 +8,7 @@ same text. Everything that came from a person or a file is shown through `displa
 and labelled as data, not instruction.
 """
 
-from . import display, doctor, notes
+from . import display, doctor, notes, results
 from . import projects as projects_mod
 from . import states
 
@@ -78,4 +78,10 @@ def render(cfg, store, policy_path: str, now_utc: str, actor: str, project=None)
         except notes.NoteError as exc:
             shown = "[%s]" % exc.code
         lines.append("  #%d  %s  %s  %s  %s" % (ref.seq, ref.kind, ref.scope, ref.recorded, shown))
+    found = [r for r in results.list_results(store) if project is None or r.project == project]
+    lines.append("relayed results (%s; metadata only): %d of %d" % (
+        results.LABEL, min(len(found), NOTE_LIMIT), len(found)))
+    for ref in reversed(found[-NOTE_LIMIT:]):
+        lines.append("  #%d  task %s  %s  %d bytes  sha256 %s" % (
+            ref.seq, ref.task, ref.recorded, ref.size, ref.sha256[:12]))
     return "\n".join(lines) + "\n", audit_ok

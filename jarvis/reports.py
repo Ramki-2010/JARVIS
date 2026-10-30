@@ -24,6 +24,7 @@ def render_task_report(store: Store, task_id: str) -> str:
              "created: %s" % task["created_utc"], "updated: %s" % task["updated_utc"],
              "as_of_seq: %d" % (history[-1]["seq"] if history else -1),
              "events:"]
+    results = [r for r in store.records_of("RESULT_RECORDED") if r.get("task_id") == task_id]
     for record in history:
         detail = record.get("detail") or {}
         lines.append("  seq=%d %s %s -> %s" % (
@@ -35,6 +36,11 @@ def render_task_report(store: Store, task_id: str) -> str:
             lines.append("    plan step %d: %s %s" % (step["n"], step["capability"], step["action"]))
         for error in record.get("errors") or ():
             lines.append("    error: %s" % error)
+    if results:
+        lines.append("relayed results (UNTRUSTED, NOT VERIFIED; metadata only):")
+        for r in results:
+            d = r["detail"]
+            lines.append("  seq=%d %d bytes sha256 %s" % (r["seq"], d["size"], d["sha256"][:12]))
     return "\n".join(lines) + "\n"
 
 

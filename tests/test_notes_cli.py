@@ -58,7 +58,7 @@ class NotesCase(unittest.TestCase):
         self.write(self.cfg, "schema_version = 1\ndata_root = '%s'\ngovernance_zone = '%s'\n"
                    "user_home = '%s'\n" % (self.data, self.gov, self.home))
         self.policy = os.path.join(self.tmp, "policy-note.toml")
-        self.write(self.policy, note_policy_text())
+        self.write(self.policy, self.policy_text())
         self.write(os.path.join(self.gov, "revocations.toml"),
                    "schema_version = 1\ncapabilities = []\nprojects = []\ncontract_hashes = []\n")
         self.write(os.path.join(self.gov, "registry.toml"),
@@ -67,6 +67,9 @@ class NotesCase(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.assertEqual(self.run_cli("init", "--policy", self.policy)[0], cli.EXIT_OK)
+
+    def policy_text(self):
+        return note_policy_text()
 
     @staticmethod
     def write(path, text):
@@ -144,6 +147,7 @@ class NoteTests(NotesCase):
         self.assertIn("NOTE_TASK_UNKNOWN", self.add("--task", "nope")[1])
         self.assertIn("NOTE_PROJECT_UNKNOWN", self.add("--project", "nope")[1])
         self.assertIn("NOTE_SCOPE_INVALID", self.add("--project", "../x")[1])
+        self.assertIn("NOTE_SCOPE_INVALID", self.add("--task", "../x")[1])
         self.assertEqual(self.memory_files(), [])
 
     def test_bad_text_is_refused(self):

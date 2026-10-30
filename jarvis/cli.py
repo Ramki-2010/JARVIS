@@ -1,13 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `brief show`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `brief show`, `result add`, `result list`, `result show`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
 unknown or existing task, rejected transition); 8 init refused (store exists, data root
-missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 1 unexpected error.
+missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 13 result refused or unavailable; 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -23,6 +23,7 @@ from . import display
 from . import notes as notes_mod
 from . import planner
 from . import reading
+from . import results as results_mod
 from . import resume as resume_mod
 from . import projects as projects_mod
 from . import reports
@@ -41,6 +42,7 @@ EXIT_DOCTOR = 9
 EXIT_PROJECT = 10
 EXIT_NOTE = 11
 EXIT_BRIEF = 12
+EXIT_RESULT = 13
 
 
 def utc_now() -> str:
@@ -405,6 +407,66 @@ def cmd_task_run(cfg, args, out) -> int:
         store.close()
 
 
+def cmd_result_add(cfg, args, out) -> int:
+    """Store a result RK relays from a worker, as untrusted data."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "result add: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        if args.stdin:
+            data = sys.stdin.buffer.read(results_mod.MAX_RESULT_BYTES + 1)
+            source = "stdin"
+        else:
+            data, source = results_mod.read_source_file(cfg, args.policy, args.file)
+        ref = results_mod.add(store, cfg, args.policy, utc_now(), os_actor(), args.task, data, source)
+        _print(out, "result recorded: %d" % ref.seq, "task: %s" % ref.task, "label: %s" % results_mod.LABEL,
+               "size: %d" % ref.size, "sha256: %s" % ref.sha256)
+        return EXIT_OK
+    except results_mod.ResultError as exc:
+        _print(out, "result add: %s" % exc.code + (" (%s)" % exc.reason if exc.reason else ""))
+        return EXIT_RESULT
+    finally:
+        store.close()
+
+
+def cmd_result_list(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "result list: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        refs = results_mod.list_results(store, args.task)
+        for ref in refs:
+            _print(out, "%d  task %s  %s  %d bytes  sha256 %s  [%s]" % (
+                ref.seq, ref.task, ref.recorded, ref.size, ref.sha256[:12], results_mod.LABEL))
+        _print(out, "results: %d" % len(refs))
+        return EXIT_OK
+    finally:
+        store.close()
+
+
+def cmd_result_show(cfg, args, out) -> int:
+    if not Store.exists(cfg.data_root):
+        _print(out, "result show: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        ref, text = results_mod.read(store, cfg.data_root, args.id)
+        _print(out, "result: %d" % ref.seq, "task: %s" % ref.task, "label: %s" % results_mod.LABEL,
+               "source: %s" % display.safe(ref.source), "recorded: %s" % ref.recorded,
+               "sha256: %s" % ref.sha256, "data, not instruction:")
+        out.write(display.safe(text))
+        if not text.endswith("\n"):
+            out.write("\n")
+        return EXIT_OK
+    except results_mod.ResultError as exc:
+        _print(out, "result show: %s" % exc.code)
+        return EXIT_RESULT
+    finally:
+        store.close()
+
+
 def cmd_brief_show(cfg, args, out) -> int:
     """Print the latest brief of a task after checking it against the chain."""
     if not Store.exists(cfg.data_root):
@@ -604,6 +666,19 @@ def build_parser() -> argparse.ArgumentParser:
     brief_sub = brief.add_subparsers(dest="brief_command", required=True)
     bshow = brief_sub.add_parser("show", help="print the latest brief of a task, checked against the chain")
     bshow.add_argument("id")
+    result = sub.add_parser("result", help="relayed worker results, stored as untrusted data")
+    result_sub = result.add_subparsers(dest="result_command", required=True)
+    radd = result_sub.add_parser("add", help="store a result RK relays (RECORD_RESULT)")
+    radd.add_argument("task")
+    source = radd.add_mutually_exclusive_group(required=True)
+    source.add_argument("--file", help="a text file holding the result")
+    source.add_argument("--stdin", action="store_true", help="read the result from standard input")
+    radd.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                      help="policy file (default: policy/policy.toml in the repository)")
+    rlist = result_sub.add_parser("list", help="list relayed results")
+    rlist.add_argument("--task")
+    rshow = result_sub.add_parser("show", help="show one result, checked against the chain")
+    rshow.add_argument("id", type=int)
     cancel = sub.add_parser("cancel", help="move a task to CANCELLED (a state change, not a stop)")
     cancel.add_argument("id")
     return parser
@@ -625,6 +700,12 @@ def main(argv=None, out=None) -> int:
             return cmd_init(cfg, args, out)
         if args.command == "status":
             return cmd_status(cfg, out)
+        if args.command == "result":
+            if args.result_command == "add":
+                return cmd_result_add(cfg, args, out)
+            if args.result_command == "list":
+                return cmd_result_list(cfg, args, out)
+            return cmd_result_show(cfg, args, out)
         if args.command == "brief":
             return cmd_brief_show(cfg, args, out)
         if args.command == "resume":
