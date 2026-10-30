@@ -47,7 +47,8 @@ class RunTests(CliCase):
         path = os.path.join(self.data, "reports", "t1.txt")
         with open(path, encoding="utf-8") as fh:
             report = fh.read()
-        self.assertIn("state: RUNNING", report)
+        self.assertIn("state: COMPLETED_UNVERIFIED", report)
+        self.assertNotIn("state: RUNNING", report)
         self.assertIn("verification: NOT_VERIFIED", report)
         last = self.last_transition()
         self.assertEqual(last["final_status"], "COMPLETED_UNVERIFIED")

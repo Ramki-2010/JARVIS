@@ -264,6 +264,12 @@ def cmd_task_run(cfg, args, out) -> int:
                                    extra={"files_modified": files, "detail": {"plan": plan}})
         if not applied:
             return _task_error(out, "TRANSITION_REJECTED")
+        # The file written before the commit shows the state before it. Rewrite it from
+        # the committed state; a kill before this point is repaired by `report`.
+        try:
+            reports.write_task_report(cfg.data_root, args.id, reports.render_task_report(store, args.id))
+        except OSError:
+            _print(out, "warning: report file not refreshed; run: report %s" % args.id)
         _print(out, "task completed: %s" % args.id, "state: %s" % states.COMPLETED_UNVERIFIED,
                "verification: NOT_VERIFIED")
         return EXIT_OK
@@ -282,7 +288,14 @@ def cmd_report(cfg, args, out) -> int:
             return EXIT_OK
         if store.get_task(args.id) is None:
             return _task_error(out, "TASK_UNKNOWN")
-        out.write(reports.render_task_report(store, args.id))
+        text = reports.render_task_report(store, args.id)
+        out.write(text)
+        # A persisted report of a finished task is brought up to date (derived file only).
+        if store.get_task(args.id)["state"] in states.TERMINAL and reports.report_path_exists(cfg.data_root, args.id):
+            try:
+                reports.write_task_report(cfg.data_root, args.id, text)
+            except OSError:
+                _print(out, "warning: report file not refreshed")
         return EXIT_OK
     finally:
         store.close()

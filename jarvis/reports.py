@@ -14,6 +14,7 @@ REPORTS_DIR = "reports"
 
 def render_task_report(store: Store, task_id: str) -> str:
     task = store.get_task(task_id)
+    history = store.task_history(task_id)
     lines = ["JARVIS task report",
              "task: %s" % task["task_id"], "project: %s" % task["project"],
              "objective: %s" % task["objective"], "state: %s" % task["state"],
@@ -21,8 +22,9 @@ def render_task_report(store: Store, task_id: str) -> str:
              "verification: %s (no independent verifier in Phase 1)" % task["verification"],
              "policy_version: %s" % task["policy_version"],
              "created: %s" % task["created_utc"], "updated: %s" % task["updated_utc"],
+             "as_of_seq: %d" % (history[-1]["seq"] if history else -1),
              "events:"]
-    for record in store.task_history(task_id):
+    for record in history:
         detail = record.get("detail") or {}
         lines.append("  seq=%d %s %s -> %s" % (
             record["seq"], record["event"], detail.get("from"), detail.get("to")))
@@ -60,3 +62,7 @@ def write_task_report(data_root: str, task_id: str, text: str) -> str:
         fh.write(text)
     os.replace(temp, path)
     return path
+
+
+def report_path_exists(data_root: str, task_id: str) -> bool:
+    return os.path.isfile(os.path.join(data_root, REPORTS_DIR, task_id + ".txt"))
