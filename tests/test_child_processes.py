@@ -313,6 +313,11 @@ class CrashRecoveryTests(ChildCase):
                 self.assertEqual(a, b)
 
 
+NL = chr(10)
+BS_N = NL
+REVOCATIONS_TEXT = NL.join(("schema_version = 1", "capabilities = []", "projects = []", "contract_hashes = []", ""))
+
+
 def create_args(task_id, project="p"):
     return ["task", "create", "--id", task_id, "--project", project, "--objective", "x",
             "--request", "CREATE_TASK"]
@@ -378,6 +383,56 @@ class TaskCreationCrashTests(ChildCase):
         # The task exists once; creating it again is refused, not duplicated.
         self.assertEqual(self.child(create_args("t1")).returncode, 7)
         self.assertEqual(len(self.task_rows()), 1)
+
+
+class TaskRunCrashTests(ChildCase):
+    """X-06 (C2) for `task run`, the transition RUNNING -> COMPLETED_UNVERIFIED.
+
+    Killed at either side of the COMMIT, the task is either still RUNNING with no
+    completion record (so `task run` can simply be run again), or completed once with a
+    lagging HEAD that the next run repairs. Never half-completed, never completed twice."""
+
+    def setUp(self):
+        super().setUp()
+        os.makedirs(self.gov, exist_ok=True)
+        self.guarded(["init"])
+        with open(os.path.join(self.gov, "revocations.toml"), "w", encoding="utf-8", newline=BS_N) as fh:
+            fh.write(REVOCATIONS_TEXT)
+        self.guarded(["task", "create", "--id", "t1", "--project", "p", "--objective", "x",
+                      "--request", "CREATE_REPORT"])
+        self.assertIn("state: RUNNING", self.guarded(["task", "evaluate", "t1"]).stdout)
+        self.report_file = os.path.join(self.data, "reports", "t1.txt")
+
+    def guarded(self, args, code=0, **kw):
+        marker = self.marker()
+        result = harness.run_jarvis(args, self.cfg, marker=marker, **kw)
+        self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+        self.assertGuardClean(marker)
+        return result
+
+    def transitions_to(self):
+        return [rec["detail"]["to"] for _, rec, _ in self.records() if rec["event"] == "TASK_TRANSITION"]
+
+    def test_crash_before_commit_leaves_the_task_running_and_it_can_be_run_again(self):
+        self.guarded(["task", "run", "t1"], code=CRASH_EXIT, crash="before_commit")
+        self.assertEqual(self.transitions_to(), ["RUNNING"], "a completion record was committed")
+        self.assertIn("state: RUNNING", self.guarded(["task", "show", "t1"]).stdout)
+        self.assertIn("audit verify: OK", self.guarded(["audit", "verify"]).stdout)
+        self.assertIn("task completed: t1", self.guarded(["task", "run", "t1"]).stdout)
+        self.assertEqual(self.transitions_to(), ["RUNNING", "COMPLETED_UNVERIFIED"])
+        self.assertTrue(os.path.isfile(self.report_file))
+        self.assertIn("audit verify: OK", self.guarded(["audit", "verify"]).stdout)
+
+    def test_crash_after_commit_leaves_the_task_completed_once(self):
+        self.guarded(["task", "run", "t1"], code=CRASH_EXIT, crash="after_commit")
+        self.assertEqual(self.transitions_to(), ["RUNNING", "COMPLETED_UNVERIFIED"])
+        self.assertTrue(os.path.isfile(self.report_file))
+        self.assertIn("state: COMPLETED_UNVERIFIED", self.guarded(["task", "show", "t1"]).stdout)
+        self.assertIn("audit verify: OK", self.guarded(["audit", "verify"]).stdout)
+        # Running it again is refused, not repeated.
+        self.assertIn("TASK_NOT_RUNNING", self.guarded(["task", "run", "t1"], code=7).stdout)
+        self.assertEqual(self.transitions_to(), ["RUNNING", "COMPLETED_UNVERIFIED"])
+        self.assertEqual(len([e for _, rec, _ in self.records() if (e := rec["event"]) == "RECOVERY"]), 1)
 
 
 class TaskRaceTests(ChildCase):
