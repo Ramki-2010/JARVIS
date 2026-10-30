@@ -52,6 +52,10 @@ _SCHEMA = (
 )
 
 
+# Events whose named fields are mediated input rather than observed facts.
+_MEDIATED_DETAIL_EVENTS = {"NOTE_RECORDED": ("detail",)}
+
+
 class StoreError(RuntimeError):
     def __init__(self, code: str):
         super().__init__(code)
@@ -188,6 +192,10 @@ class Store:
         prov = {k: "OBSERVED" for k in record if k != "provenance"}
         if "objective" in prov:
             prov["objective"] = "MEDIATED"
+        # A note is RK's typed input: observed as input, not as the event it describes
+        # (ADR-0005 D8, ADR-0010 D6).
+        for name in _MEDIATED_DETAIL_EVENTS.get(record.get("event"), ()):
+            prov[name] = "MEDIATED"
         return prov
 
     def _tail(self):
@@ -324,6 +332,37 @@ class Store:
                  "NOT_VERIFIED", "OBSERVED", now_utc, now_utc, seq))
             return seq
         return self._write(fn)
+
+    def record_document(self, event: str, now_utc: str, actor: str, write_file,
+                        fields: dict) -> int:
+        """Write a data-root file and its audit record in one write transaction.
+
+        write_file(seq) is called with the sequence number the record will get, writes
+        the file, and returns the detail dict (path, size, sha256, ...). If it raises,
+        nothing is recorded. A file left behind by a kill before COMMIT is an orphan
+        that `doctor` reports and a later record with the same number replaces."""
+        _check_ts(now_utc)
+        self._require_open_for_work()
+
+        def fn():
+            seq = self._tail()[0] + 1
+            detail = write_file(seq)
+            merged = dict(fields)
+            merged["detail"] = detail
+            merged["files_modified"] = [detail["path"]]
+            got = self._append(event, now_utc, actor, merged)
+            assert got == seq
+            return seq
+        return self._write(fn)
+
+    def records_of(self, event: str) -> List[dict]:
+        """Audit records of one event type, in order."""
+        out = []
+        for _seq, data in self._conn.execute("SELECT seq, record FROM audit_log ORDER BY seq"):
+            record = cj.loads(data)
+            if record.get("event") == event:
+                out.append(record)
+        return out
 
     def transition(self, task_id: str, to_state: str, now_utc: str, actor: str,
                    evaluation: Optional[Evaluation] = None,

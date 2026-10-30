@@ -560,6 +560,19 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("status: ok", self.run_guarded(["project", "show", "p"]))
         self.assertIn("PROJECT_UNKNOWN", self.run_guarded(["project", "show", "nope"], code=10))
 
+    def test_note_commands_run_under_the_guard(self):
+        from .test_notes_cli import note_policy_text
+        policy = os.path.join(self.tmp, "policy-note.toml")
+        self.write(policy, note_policy_text())
+        self.run_guarded(["init", "--policy", policy])
+        added = self.run_guarded(["note", "add", "--project", "p", "--text", "guarded note",
+                                  "--policy", policy])
+        seq = [line for line in added.splitlines() if line.startswith("note recorded:")][0].split()[-1]
+        self.assertIn("notes: 1", self.run_guarded(["note", "list", "--project", "p"]))
+        self.assertIn("guarded note", self.run_guarded(["note", "show", seq]))
+        self.assertIn("PASS notes: 1 recorded", self.run_guarded(["doctor", "--policy", policy]))
+        self.assertIn("audit verify: OK", self.run_guarded(["audit", "verify"]))
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")
