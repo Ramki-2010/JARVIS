@@ -121,6 +121,11 @@ def _norm(path: str) -> str:
     return ntpath.normcase(ntpath.normpath(path))
 
 
+def normalize(path: str) -> str:
+    """Case-normalised form used for every containment comparison."""
+    return _norm(path)
+
+
 def inside(path: str, root: str) -> bool:
     """Containment on canonical, case-normalised paths. A different drive is not
     inside. A name that only shares a prefix is not inside."""
