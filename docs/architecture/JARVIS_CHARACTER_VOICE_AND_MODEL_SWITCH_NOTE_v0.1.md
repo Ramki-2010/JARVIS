@@ -2,7 +2,8 @@
 
 **Status:** IDEA NOTE. DRAFT, NON-AUTHORITATIVE. Not approved, not an ADR, not an MCA. It starts nothing, builds nothing, adds no phase and changes no Master Context text.
 **Date:** 2026-10-30
-**Raised by:** RK, in chat on 2026-10-30, after watching two short videos (section 2).
+**Raised by:** RK, in chat on 2026-10-30, after watching short videos (section 2).
+**Updated:** 2026-10-30, at RK's request: a third video added (sections 2, 3, 6, 7A and 8).
 **Labels:** `VERIFIED`, `UNKNOWN`, `PROPOSED`, `USER AUTHORITY REQUIRED`, as in the architecture draft.
 
 ## 1. What RK asked for
@@ -12,7 +13,7 @@ RK found that a creator's "Jarvis" demo looks like the project and asked for the
 1. **The voice of the film's J.A.R.V.I.S.** RK says the demo uses it and that nobody has filed a copyright claim. RK approved the voice overall, **not limited to private use**, and said it will not be used anywhere it is legally prohibited (section 4).
 2. **The same dry wit, humour and small quirks** (section 3).
 3. **Switching between a local and an online model** (section 5).
-4. **Anything else worth taking from the videos** (sections 6 and 7). The second video shows JARVIS **making a phone call for RK**, which RK asked to add.
+4. **Anything else worth taking from the videos** (sections 6, 7 and 7A). The second video shows JARVIS **making a phone call for RK**, and the third shows **looking things up, searching the web and describing a shared screen**. RK asked for both to be added.
 
 Settled earlier and still in force (presence proposal, 2026-10-21): no new phase, nothing that complicates the existing process, and voice that runs locally.
 
@@ -22,7 +23,8 @@ Settled earlier and still in force (presence proposal, 2026-10-21): no new phase
 
 - Video one (39 seconds, "Jarvis is now running 100% locally on my machine"): a voice assistant on a dark screen with a ring that shows when it is listening or speaking. A badge names a small local model. A cost counter reads zero, and three badges read cloud off, invoice none, listening no one. It reads the person's calendar and comments on it dryly. A graph of the person's notes sits behind it.
 - Video two (73 seconds): the assistant phones a restaurant to book a table (section 7). The ring is there again, and the badge now names a cloud model.
-- `VERIFIED` I read the captions of both and about half the frames of each. `UNKNOWN` I did not listen to the audio, so I cannot say whose voice it is. `UNKNOWN` how either is built, how reliable it is, or what it costs.
+- Video three (60 seconds, "I Built JARVIS with Claude Fable 5"): the assistant introduces itself in character, pulls up information from the creator's own notes and offers to read it aloud, searches the web for cheaper alternatives to a paid tool and shows its sources, and describes a browser tab the creator shares (section 7A). The badge names a different cloud model from video two.
+- `VERIFIED` I read the captions of all three and about half the frames of each. `UNKNOWN` I did not listen to the audio, so I cannot say whose voice it is. `UNKNOWN` how either is built, how reliable it is, or what it costs.
 - Lines from the videos are not copied here. Only the patterns are used, and every sample line below is written fresh. This is the same rule the architecture draft already applies to the films.
 
 ## 3. Character: what we have, and what to add
@@ -39,6 +41,9 @@ Patterns from the videos worth adding, each as a **style example, never a script
 | Gentle jokes about its own status | "I have been promoted from tool to housemate, sir. The salary is unchanged." |
 | A dry line after good news | "Booked for eight, sir. The venue offered no resistance; I shall file that under unexpected courtesy." |
 | Refusing to guess | "I have no number for that place, sir, and I would rather ask than guess. A name and a city will do." |
+| A self-introduction in character | "Good morning, sir. I am your second brain and, on request, your conscience. I keep the notes; you keep the credit." |
+| A morning exchange that skips the pleasantries | "Present and fully operational, sir, which is more than I can say for the backlog. Where shall we begin?" |
+| Offering the next step after an answer | "That is the comparison, sir. Shall I set the sources side by side, or would you rather argue with them first?" |
 
 Rules that stay: the quip never carries or hides the information; no jokes in approvals, risk, credentials, money or any canonical record; wit is a style and grants nothing (architecture draft 3.3). Persona scope for Claude Code sessions is still open (decision D-7).
 
@@ -91,7 +96,7 @@ Triggers it touches when built: G-05 (network), G-06 (data leaving the machine),
 | Text box with example prompts and quick buttons | Dashboard phase | |
 | Addressed by name, always listening | Wake word is a v0.1 non-goal (section 33) | Prefer push-to-talk for privacy |
 | Reading a calendar | A connection to an account: credentials (G-07), network (G-05), and a new capability | Not planned |
-| Toggles named EYES, HOLO, FOCUS, REFLEX | `UNKNOWN` what they do | EYES might mean a camera, which would hit the computer-vision non-goal; not assumed |
+| Toggles named EYES, HOLO, FOCUS, REFLEX | `UNKNOWN` what they do | EYES is probably the screen- or tab-sharing switch: video three shows a browser banner saying a tab is being shared, with a stop button. Not confirmed, and not a camera as far as I saw. HOLO, FOCUS and REFLEX stay `UNKNOWN` (section 7A) |
 | Refusing to invent a phone number it had no record of | Already our rule: candid about limits, evidence over guessing | Keep |
 
 ## 7. Ability from the second video: JARVIS phones someone for RK
@@ -121,6 +126,31 @@ Triggers it touches when built: G-05 (network), G-06 (data leaving the machine),
 
 **Where it fits.** No new phase. It needs the approval mechanism (ADR-0002 D4), isolation, and an accepted change to move `MAKE_CALL` out of DENY (G-03, G-15; likely an MCA because it is a v0.1 non-goal). The call card belongs to the dashboard phase.
 
+## 7A. Abilities from the third video: notes, web search and a shared screen
+
+**What was shown (paraphrased).**
+- **In-character self-introduction** and a short morning exchange that skips the pleasantries.
+- **Pulling up information from the creator's own notes** on request, with an offer to read it aloud if asked.
+- **A web search** for cheaper alternatives to a paid tool. The answer gave prices, a recommendation, a remark about timing, an offer for a next step, and a list of the sources it used under the answer.
+- **A shared browser tab.** The creator shares a tab and asks what the assistant sees. It describes the page. The browser's own banner, "sharing this tab" with a stop button, is visible.
+- **The notes graph with hover cards:** pointing at a node shows a small card with its type, its number of connections and a one-line description.
+- **A text box** with example prompts and a row of buttons, for typing instead of speaking.
+- The badge names a different cloud model from the one in video two. Across the three videos the badge changes, which fits the visible model switch in section 5.
+
+`UNKNOWN` whether the prices in the video are right. They are an example of the format, not a fact I checked.
+
+| Ability | Where it fits | What it would need, and the trigger | Verdict |
+|---|---|---|---|
+| Self-introduction and morning banter | Character, section 3 | Nothing new. Briefing voice only | Adopt as style now (documentation) |
+| Pull up RK's notes on request; read aloud on request | Memory draft; the presence layer; Obsidian as the viewer | Local only. The notes are RK's data and are not sent online unless the section 5 rule allows it. Reading aloud follows the voice rules in section 4 | Later, with memory and the presence layer |
+| Web search that shows its sources | Capability `SEARCH_WEB`, which the Phase 1 policy marks DEFER because it needs isolation | Network (G-05), isolation (Phase 3), the research phase, and the online and cost rules in section 5. What it finds is `REPORTED`, not verified (ADR-0005 D8) | Later. The **habit of showing sources** under every answer is worth adopting now |
+| Share a tab or screen and have JARVIS describe it | Probably the EYES toggle (section 6) | Screen content can hold secrets and other people's data, and "full computer vision" is a v0.1 non-goal (section 33). Proposed limits: RK starts it each time, a visible indicator with a stop button stays on, never continuous, a local model by default, and screen content never goes online unless the section 5 rule is met (G-06, G-07) | Needs RK's decision; not planned |
+| Hover cards on the notes graph | Memory draft; the 3D Galaxy is a v0.1 non-goal (section 24) | None | Later |
+| Typed prompt box and buttons | Dashboard phase | None | Later |
+| A visible model badge that changes | Section 5 | None | Keep |
+
+> **JARVIS:** I note, sir, that I am now expected to read the notes, search the web, watch the screen and remain polite throughout. I accept, with the usual conditions attached.
+
 ## 8. Decisions for RK
 
 | # | Decision | Default if left open |
@@ -129,12 +159,14 @@ Triggers it touches when built: G-05 (network), G-06 (data leaving the machine),
 | 2 | A spending budget before any online use | No online use |
 | 3 | The voice engine, and where the source audio comes from (later, with a fresh instruction) | No voice, no engine |
 | 4 | For each use beyond private listening (sharing, posting, public, commercial, calls): record the lawful basis before it is switched on | Off |
-| 5 | Whether a camera feature (EYES) is wanted at all | Not wanted |
+| 5 | Whether a camera or screen-sharing feature (EYES) is wanted at all. If screen sharing: started by RK each time, a visible indicator and stop button, never continuous, a local model by default (section 7A) | Not wanted |
 | 6 | Whether calendar-style account connections are wanted later | Not planned |
 | 7 | Whether phone calling is wanted at all (a v0.1 non-goal), and if so: disclosure as an automated assistant (recommended yes), recording (recommended off), an allow-list of numbers | Not wanted |
 | 8 | The voice on calls (recommended: a licensed neutral voice unless a lawful basis for calls is recorded) | Licensed neutral voice |
 | 9 | Persona scope for Claude Code sessions (D-7) | Runtime only |
 | 10 | Whether to add the new sample lines to the architecture draft's phrasebook (a separate, small follow-up PR) | Not added |
+| 11 | Whether web search is wanted, and under what limits (sources always shown; results treated as unverified until checked; the section 5 online rules apply) | Not planned |
+| 12 | Whether JARVIS should pull up RK's notes and read them aloud on request, later, with the memory and presence work | Not planned |
 
 ## 9. What this note does not do
 
