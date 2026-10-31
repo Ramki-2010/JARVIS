@@ -3,9 +3,9 @@
 ### Master Development Context for Claude Code
 
 **Status:** Approved baseline  
-**Version:** 0.1-r1  
-**Date:** 2026-10-11  
-**Amendments:** MCA-001  
+**Version:** 0.1-r2  
+**Date:** 2026-10-31  
+**Amendments:** MCA-001, MCA-002  
 **Owner:** User  
 **Primary developer:** Claude Code  
 **Deployment target:** User's Windows gaming laptop  
@@ -809,7 +809,7 @@ Keep it simple.
 
 ## 23. Initial UI
 
-Do not build the cinematic 3D galaxy yet.
+Do not build the full cinematic 3D galaxy yet. The v0.1 Beta sub-context below defines a limited, truthful Beta subset.
 
 Start with a functional dashboard.
 
@@ -839,11 +839,28 @@ View Logs
 View Report
 ```
 
-The 3D Knowledge Galaxy belongs to a later phase.
+The full 3D Knowledge Galaxy belongs to later phases.
+
+```text
+v0.1 Beta sub-context (MCA-002).
+The v0.1 Beta ships a Beta dashboard. It is the functional minimum, not an
+intentionally incomplete one: system status and health, projects, tasks,
+notes, results, recent activity, audit and backup status, errors, and
+blocked, deferred and cancelled work (shown as states, not necessarily as
+separate views), all read from real records. It adds a
+live status ring and a read-only galaxy (section 24). The finished
+functional dashboard, with the full panel list and the controls above
+(Pause, Resume, Stop), is completed in Phase 7. Beta dashboard work is a
+subset of Phase 7 and is replaced or extended by it, never contradicted.
+Every Beta interface surface is read from the control plane's records and
+holds no authority (section 26).
+```
 
 ---
 
-## 24. Knowledge Galaxy — Later
+## 24. Knowledge Galaxy — Full Version Later
+
+The full Knowledge Galaxy belongs to later phases.
 
 The supplied Jarvis UI references inspired this feature.
 
@@ -877,11 +894,21 @@ The galaxy is a visualization layer.
 
 It must not become the governance layer.
 
+```text
+v0.1 Beta sub-context (MCA-002).
+The v0.1 Beta may ship a read-only galaxy. Every LIVE node and every
+displayed relationship must map to real source data. Future capabilities may
+appear only as nodes clearly labelled PREVIEW, DEFERRED or BLOCKED, and are
+never counted as records or activity. No fabricated telemetry or activity.
+The typed relationships above and Memory, Research and Evidence nodes remain
+later. The galaxy is a visualization layer and never a governance layer.
+```
+
 ---
 
-## 25. Voice — Later
+## 25. Voice — Full Version Later
 
-Voice is not part of v0.1.
+Full voice is not part of v0.1. The v0.1 Beta sub-context below defines the Beta subset.
 
 Later support:
 
@@ -895,6 +922,17 @@ Later support:
 - Mobile support.
 
 Do not let voice complexity delay autonomous engineering.
+
+```text
+v0.1 Beta sub-context (MCA-002).
+The v0.1 Beta may ship push-to-talk voice: local speech input and local
+speech output, on a separate interaction surface that holds no authority.
+Voice input becomes an intent that passes the same validation, command and
+policy path as the CLI. Voice identity grants no authority. The microphone is
+open only while the user holds push-to-talk. Still later, and excluded from
+the Beta: wake word, always-listening, barge-in, interruption, mobile
+support, any external communication, phone calling, and any cloud speech.
+```
 
 ---
 
@@ -1134,6 +1172,9 @@ Add the basic UI.
 
 Do not build cinematic UI yet.
 
+Phase 7 completes the functional dashboard (section 23 in full). Beta-era UI
+(MCA-002) is its minimum, not a substitute.
+
 ---
 
 ## 31. First Acceptance Test
@@ -1191,8 +1232,8 @@ Test:
 
 Do NOT build yet:
 
-- 3D galaxy.
-- Full voice assistant.
+- Full 3D galaxy (see the v0.1 Beta sub-context, sections 23 and 24).
+- Full voice assistant: wake word, always-listening, barge-in (see the v0.1 Beta sub-context, section 25).
 - Wake word.
 - Mobile application.
 - WhatsApp.
