@@ -1,12 +1,12 @@
 # ADR-0013 — Local Model Advisory Surface (optional for the Beta)
 
-**STATUS: PROPOSED**
+**STATUS: ACCEPTED**
 
 | Field | Value |
 |---|---|
 | ID | ADR-0013 |
 | Title | Local Model Advisory Surface: an approved-list, advisory-only, untrusted-output model demo |
-| Status | PROPOSED |
+| Status | ACCEPTED |
 | Drafted | 2026-10-31, by Local Claude, from RK's chat instruction and the updated second-opinion report of the same day |
 | Authority class | USER AUTHORITY REQUIRED (G-05, G-13, G-14, G-15; G-03 for the approved list) |
 | Inputs | MCA-002 (PROPOSED). ADR-0011, ADR-0012 (PROPOSED). ADR-0001 D3, D6. ADR-0005 (provenance). ADR-0006. ADR-0010 D5 (relayed results are untrusted). Master Context sections 26, 27. Beta plan Amendment 1 |
@@ -15,7 +15,15 @@
 
 ## Acceptance record
 
-Not accepted. Acceptance is RK's merge of a pull request that sets STATUS to ACCEPTED (ADR-0001 D6).
+| Field | Value |
+|---|---|
+| Status | ACCEPTED, effective only when RK merges the pull request that adds this change, and only after MCA-002 and ADR-0011 are in force |
+| Accepted by | RK, the owner of the project (the founder) |
+| Acceptance date | 2026-10-31 (the date of RK's instruction; the effective date is the merge date) |
+| How the acceptance was given | RK's chat instructions to Local Claude on 2026-10-31: approval of the direction, and the later instruction to prepare the acceptance pull requests. An independent second-opinion review passed the text unchanged; that review is input, not authority. Under ADR-0001 D6 these are inputs. The acceptance is recorded by RK's merge |
+| Recorded in the repository by | The merge commit of the pull request that adds this change. Effective only when RK merges it (ADR-0001 D6) |
+| Scope | The exact text of this document as added by that pull request. Labels such as PROPOSED inside the body are part of the accepted text and were not rewritten (ADR-0001 D6). The status line, the Status row and this record were the only edits. **The ADR stays optional for the Beta**: the model-free Beta is complete without it, and it must never block the core Beta |
+| Not done | No runtime or model is chosen, downloaded or installed. The approved model list does not exist (RK writes it in the governance zone). The spike has not run. No code, no `advisor/` package, no policy change |
 
 **Labels:** `PROPOSED` · `USER AUTHORITY REQUIRED` · `UNKNOWN` · `RK ACT`.
 
