@@ -9,7 +9,7 @@
 
 If the two conflict on technical/product rules, the Master Context takes precedence.
 
-Current Master Context version: 0.1-r1 (amended by MCA-001). Earlier versions are recoverable from Git history.
+Current Master Context version: 0.1-r2 (amended by MCA-001 and MCA-002). Earlier versions are recoverable from Git history.
 
 ## Other documentation
 
