@@ -58,7 +58,12 @@ Each interface only translates what the user did. No interface holds authority, 
 - `jarvis/` is unchanged. It never creates a subprocess and never opens a socket. ADR-0006 and X-13 remain true for it.
 - New packages `interaction/` and `ui/` sit outside `jarvis/`. Process creation and sockets belong **only** to them (and to `voice/` under ADR-0012), never to `jarvis/`.
 - **The UI process may invoke the CLI (`python -m jarvis ...`) as a child process. `jarvis/` itself never creates subprocesses. UI child calls are the only read/write command boundary into the control plane. No UI code imports or directly accesses control-plane internals, the database, or the filesystem beyond what the CLI prints.**
-- One helper in `interaction/` starts the child: fixed interpreter, fixed module, an argument list (never a shell string), a timeout, a bounded output size. No other process-creating call is permitted in `ui/` or `interaction/`. A static test enforces this, as it does for `tests/` (ADR-0006 section 3.2).
+- One helper in `interaction/` starts the child. Required form:
+  - **Absolute interpreter path.** The Python 3.14 executable is given by absolute path (taken from the launching interpreter's own `sys.executable`, checked to be 3.14 at start and refused otherwise). A bare `python` or `py` resolved through `PATH` is forbidden, so a changed `PATH` cannot redirect execution.
+  - Fixed arguments `-I -m jarvis` followed by an argument list built from validated parameters, and an absolute `--config` path.
+  - **Shell invocation is prohibited**: `shell=False`, never a command string, never `os.system` or similar.
+  - Fixed working directory, a minimal fixed environment (nothing inherited that changes behaviour), a timeout and a bounded output size.
+- No other process-creating call is permitted in `ui/` or `interaction/`. A static test enforces this, as it does for `tests/` (ADR-0006 section 3.2): it fails on `shell=True`, on a bare interpreter name, and on any second process-creating call.
 - The static guard is extended: `jarvis/` has no subprocess or network imports; `ui/` and `interaction/` import no network module other than the stdlib HTTP server in `ui/`; `voice/` has no network module at all.
 - Every child call goes through the control plane, so policy evaluation and audit happen exactly as they do from the CLI.
 
@@ -66,13 +71,13 @@ Each interface only translates what the user did. No interface holds authority, 
 
 1. Standard library `http.server` only. Bound to `127.0.0.1` only. A random free port chosen at launch. Never `0.0.0.0`, never a LAN address. **LAN access is excluded from the Beta.**
 2. A per-launch random token (at least 128 bits). It is delivered to the page without putting it in a query string (for example a URL fragment read by the page script) and sent as a request header. Requests without it are refused.
-3. `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`; anything else is refused (DNS rebinding). For state-changing requests `Origin` must match too.
+3. **Exact Host and Origin.** `Host` must be exactly `127.0.0.1:<port>` or `localhost:<port>` (this launch's port); anything else is refused (DNS rebinding). `Origin`, where present or required, must be exactly `http://127.0.0.1:<port>` or `http://localhost:<port>`; every other value is rejected. **`Origin` is required on every Stage B mutation; a missing `Origin` is refused.** The per-launch token (item 2) stays independently mandatory: a correct `Origin` never substitutes for it.
 4. No CORS headers. A strict Content-Security-Policy: same-origin only, no inline script except one hashed or nonced block, no remote fonts, images or scripts, no CDN.
 5. No outbound calls of any kind from the server. No arbitrary URL fetching. No filesystem browsing. No endpoint returns a path outside what the CLI prints. No secret is ever read.
 6. All output is HTML-escaped; control characters are neutralised, as the CLI display module does.
 7. Request size and rate are bounded. The server holds no state of its own beyond the token.
 8. **Stage A (first):** read-only routes only, each mapped to a read-only CLI command (`status`, `doctor`, `project list/show`, `task list/show`, `note list/show`, `result` metadata, `audit verify`, `resume`, `report`).
-9. **Stage B (only after Stage A passes its security tests and RK says so):** POST routes for a whitelist of three existing commands: task create, note add, cancel. Each maps to an existing CLI command, is evaluated by policy and audited. No other write route exists.
+9. **Stage B (only after Stage A passes its security tests and RK says so):** POST routes for a whitelist of three existing commands: task create, note add, cancel. Each maps to an existing CLI command, is evaluated by policy and audited. No other write route exists. **Strict POST validation:** a fixed content type; a strict maximum body size, checked before parsing; an exact field whitelist per route, where unexpected, duplicate or missing fields are rejected (no lenient parsing, no default filling); values pass the same validation as CLI arguments. Tests: oversize body, unknown field, duplicate field, missing field, wrong content type, wrong or absent Origin, wrong Host, and missing token with an otherwise correct Origin must each be refused.
 10. If this ADR is not accepted in time, the fallback is a static, read-only HTML file generated from CLI output and opened from disk, with no server (Beta plan BS-3).
 
 ### D4. Truthfulness invariants (ring and every display) `PROPOSED`
