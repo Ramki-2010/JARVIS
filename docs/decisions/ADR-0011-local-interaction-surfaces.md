@@ -1,12 +1,12 @@
 # ADR-0011 — Local Interaction Surfaces: Dashboard, Status Ring, Galaxy, Intent Layer
 
-**STATUS: PROPOSED**
+**STATUS: ACCEPTED**
 
 | Field | Value |
 |---|---|
 | ID | ADR-0011 |
 | Title | Local Interaction Surfaces for the v0.1 Beta: localhost dashboard, status ring, read-only galaxy, shared interaction and intent layers |
-| Status | PROPOSED |
+| Status | ACCEPTED |
 | Drafted | 2026-10-31, by Local Claude, from RK's chat instruction of the same day |
 | Authority class | USER AUTHORITY REQUIRED (G-05, G-06, G-15; G-11 for the optional interaction log) |
 | Inputs | MCA-002 (PROPOSED). ADR-0001 D3, D6, D9. ADR-0002 D2. ADR-0003. ADR-0005. ADR-0006 sections 3.2, 6.1. ADR-0007. ADR-0010 D1, section 6. Master Context sections 23, 24, 26. Two uploaded second-opinion reports of 2026-10-31 (input only). Beta plan Amendment 1 |
@@ -16,7 +16,15 @@
 
 ## Acceptance record
 
-Not accepted. Acceptance is RK's merge of a pull request that sets STATUS to ACCEPTED (ADR-0001 D6). RK's chat approval of the direction on 2026-10-31 is an input, not the record.
+| Field | Value |
+|---|---|
+| Status | ACCEPTED, effective only when RK merges the pull request that adds this change, and only after MCA-002 is in force |
+| Accepted by | RK, the owner of the project (the founder) |
+| Acceptance date | 2026-10-31 (the date of RK's instruction; the effective date is the merge date) |
+| How the acceptance was given | RK's chat instructions to Local Claude on 2026-10-31: approval of the direction, and the later instruction to prepare the acceptance pull requests. An independent second-opinion review accepted the text after two correction rounds (absolute interpreter path, exact Host and Origin, strict POST validation); that review is input, not authority. Under ADR-0001 D6 these are inputs. The acceptance is recorded by RK's merge |
+| Recorded in the repository by | The merge commit of the pull request that adds this change. Effective only when RK merges it (ADR-0001 D6) |
+| Scope | The exact text of this document as added by that pull request, including the round-2 hardening. Labels such as PROPOSED inside the body are part of the accepted text and were not rewritten (ADR-0001 D6). The status line, the Status row and this record were the only edits |
+| Not done | No code, `ui/`, `interaction/` or intent module exists. No policy change. **Stage B writes are not enabled by this acceptance**: D3 item 9 still needs RK's separate go-ahead after Stage A passes its security tests. D-12 (whether RESUME may reopen a terminal task) is not decided; terminal tasks stay terminal. The optional interaction log (D8) stays off until RK decides |
 
 **Labels:** `PROPOSED` · `USER AUTHORITY REQUIRED` · `ENGINEERING` (an ordinary implementation choice inside this ADR) · `UNKNOWN`.
 
