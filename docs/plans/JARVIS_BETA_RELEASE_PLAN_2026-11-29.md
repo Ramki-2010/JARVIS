@@ -221,7 +221,8 @@ An item that is cut has no acceptance duty. An item that ships must meet its row
 
 | ID | Criterion |
 |---|---|
-| BU-1 | UI server tests pass: only `127.0.0.1`, random port, token required, wrong Host or Origin rejected, no CORS, strict CSP, no outbound connection, Stage A has no write route. |
+| BU-1 | UI server tests pass: only `127.0.0.1`, random port, token required (and never replaced by Origin), `Host` and `Origin` accepted only as exactly `http://127.0.0.1:<port>` or `http://localhost:<port>`, `Origin` required on every Stage B mutation, wrong or absent Origin or wrong Host rejected, no CORS, strict CSP, no outbound connection, Stage A has no write route. POST bodies have a strict size limit and an exact field whitelist per route; unexpected, duplicate or missing fields are rejected. |
+| BU-1b | The child-process helper uses an absolute Python 3.14 interpreter path (not resolved through `PATH`), `-I -m jarvis`, an argument list, never a shell; a static test fails on `shell=True` or a bare interpreter name. |
 | BU-2 | The static guard shows `jarvis/` has no subprocess or network import; `ui/` starts only `python -m jarvis`; `voice/` has no network. |
 | BU-3 | Every LIVE galaxy node and relationship traces to real source data; PREVIEW, DEFERRED and BLOCKED nodes are labelled and never counted as records or activity; the ring state equals the record state. |
 | BU-4 | Cross-surface equivalence: the same request through CLI, UI and voice resolves to the same intent and command. Intent harness results are reported as measured, with no target invented in advance. |
