@@ -5,6 +5,8 @@
 **Baseline:** `main` at the merge of PR #25 (CP-1 evidence). CP-1: PASS WITH LIMITATION (`docs/environment/CP-1-phase-1-evidence-2026-10-30.md`).
 **Classification (ADR-0001 D7):** matched triggers **G-15** (it fixes what ships and in what order) and **G-17** (it states that the Beta does not meet the Master Context section 31 acceptance test). No accepted ADR is amended. This block is a claim by the drafting session; RK's merge confirms or corrects it.
 
+**Amendment 1 (PROPOSED, 2026-10-31).** RK instructed in chat that the Beta also include a functional dashboard minimum, a live status ring, a read-only galaxy, push-to-talk voice, 25 intent families and, if time allows, a local-model advisory demo (see section 11). This edits sections 3.3 and 7 and adds section 11. Matched triggers: **G-15**. It does not take effect until RK merges it. It depends on MCA-002 (Master Context), ADR-0011, ADR-0012 and ADR-0013 (optional), none of which is in force until RK merges its acceptance. Core criteria B-01 to B-13 and the dates of Gates 1 to 8 are unchanged. **Cut rule: scope is cut, never acceptance criteria.**
+
 **Labels:** `IMPLEMENTED` (in `main`, with tests) · `OBSERVED` (seen locally, with the source named) · `INFERRED` (follows from documents, not run) · `PLANNED` · `UNKNOWN` · `RK DECISION`.
 
 ---
@@ -70,7 +72,7 @@ Consequence stated plainly: **the Beta does not meet the Master Context section 
 | Controlled coding, tests, experiments (Phase 4) | Subprocess. Behind isolation. |
 | Web research and R&D (Phase 5) | Network. Behind isolation. |
 | Any model call, local or online; the local/online switch | No accepted ADR; needs a local server or network (a socket) and, online, G-05, G-06, G-07, G-08. See the character, voice and model-switch note. |
-| Voice, wake word, orb/HUD, dashboard (Phase 7) | v0.1 non-goal or later phase; voice needs installs (G-13). A model-free voice layer was weighed and rejected as not "reliable within the deadline". |
+| Wake word, always-listening, barge-in, mobile, finished dashboard (Phase 7) | Later phases. **Amendment 1:** push-to-talk voice, the status ring, the galaxy and the Beta dashboard minimum are now Beta-supporting items (section 11), not post-Beta. |
 | Phone calling, decision-call idea | v0.1 non-goal; `MAKE_CALL` is DENY. |
 | Scheduler and background autonomy (Phase 6) | `pause`/`resume`/`stop` semantics and isolation. |
 | Approval engine for L4 | Forgeable before isolation (ADR-0002). |
@@ -78,7 +80,7 @@ Consequence stated plainly: **the Beta does not meet the Master Context section 
 | RUNNING-task re-evaluation (no RUNNING to BLOCKED/DEFERRED edge) | State-machine redesign. Beta has no long-running step, so the window for a policy change mid-run is empty. |
 | Symlink test limitation | Environment (Developer Mode). Junction and other path cases pass. Revisit if the Beta host changes. |
 | Registry/config editing UX | RK writes TOML by hand in the governance zone. Deliberate. |
-| Knowledge Galaxy, memory graph, rich memory | v0.1 non-goal. Beta memory is plain notes. |
+| Full Knowledge Galaxy (typed relationships, memory graph), rich memory | Later. **Amendment 1:** a read-only galaxy over real records is Beta-supporting (section 11). Beta memory stays plain notes. |
 | Advanced planner, broad capability expansion, refactors | No Beta requirement. |
 
 ### 3.4 Release-blocking unknowns
@@ -175,7 +177,7 @@ A missed gate is reported the same day with the cut proposed. The date is not ex
 | 5 | Clean-machine install behaves differently (Python 3.14, paths) | Medium | B-10 fails late | Bootstrap and a clean-clone run in PR-14, not at the end |
 | 6 | One Local Claude session carries all code PRs | Medium | Serial bottleneck | PRs are small and independent where possible (PR-3, PR-6, PR-12 can run in any order) |
 | 7 | Audit independence is procedural only (ADR-0009) until U-6 | Known | A claim in the release notes must be precise | Say so in B-13; do not claim tamper-proof |
-| 8 | Scope pressure to add a model, voice or UI | High | Eats the schedule | Section 3.3 is the answer; changes need an RK-accepted edit to this plan |
+| 8 | Scope pressure to add a model, voice or UI | High | Eats the schedule | **Amendment 1 is that RK-accepted edit** (section 11). It adds scope behind a cut line; core gates keep priority, and voice and the local-model demo are the first cut |
 
 ## 8. Highest-priority next work item
 
@@ -197,3 +199,68 @@ A missed gate is reported the same day with the cut proposed. The date is not ex
 ## 10. What this plan does not do
 
 It creates no operational file, changes no policy, ADR, ruleset or governance file, starts no phase, and builds nothing. It does not claim the Beta is v0.1. Dates after Gate 1 are targets, not facts, and are re-planned at each gate.
+
+## 11. Amendment 1 (PROPOSED): interaction surfaces in the Beta
+
+**Principle: strict authority, flexible interaction, controlled exposure.** No interface, voice command or model grants authority; policy decides. The interface itself is not artificially limited.
+
+### 11.1 New Beta-supporting items (droppable in the order given in 11.4)
+
+| ID | Item | Governing record |
+|---|---|---|
+| BS-5 | **Beta dashboard** (functional minimum): status, health, projects, tasks, notes, results, recent activity, audit and backup status, errors, blocked, deferred and cancelled work. Read-only first (Stage A), then a short whitelist of writes (Stage B: task create, note add, cancel), each an existing CLI command | MCA-002, ADR-0011 |
+| BS-6 | **Status ring** driven by real state only | ADR-0011 |
+| BS-7 | **Galaxy**, read-only, canvas, real records; future capabilities only as labelled PREVIEW, DEFERRED or BLOCKED nodes | MCA-002, ADR-0011 |
+| BS-8 | **Intent layer**, 25 intent families, deterministic, clarify-on-doubt, persona wording that never changes meaning | ADR-0011 |
+| BS-9 | **Push-to-talk voice**, local speech in and out, private profile only | MCA-002, ADR-0012 |
+| BS-10 | **Local-model advisory demo** (optional): approved list, advisory and untrusted output, separate process | ADR-0013 |
+
+### 11.2 Acceptance for the new items (they do not replace B-01 to B-13)
+
+An item that is cut has no acceptance duty. An item that ships must meet its rows.
+
+| ID | Criterion |
+|---|---|
+| BU-1 | UI server tests pass: only `127.0.0.1`, random port, token required (and never replaced by Origin), `Host` and `Origin` accepted only as exactly `http://127.0.0.1:<port>` or `http://localhost:<port>`, `Origin` required on every Stage B mutation, wrong or absent Origin or wrong Host rejected, no CORS, strict CSP, no outbound connection, Stage A has no write route. POST bodies have a strict size limit and an exact field whitelist per route; unexpected, duplicate or missing fields are rejected. |
+| BU-1b | The child-process helper uses an absolute Python 3.14 interpreter path (not resolved through `PATH`), `-I -m jarvis`, an argument list, never a shell; a static test fails on `shell=True` or a bare interpreter name. |
+| BU-2 | The static guard shows `jarvis/` has no subprocess or network import; `ui/` starts only `python -m jarvis`; `voice/` has no network. |
+| BU-3 | Every LIVE galaxy node and relationship traces to real source data; PREVIEW, DEFERRED and BLOCKED nodes are labelled and never counted as records or activity; the ring state equals the record state. |
+| BU-4 | Cross-surface equivalence: the same request through CLI, UI and voice resolves to the same intent and command. Intent harness results are reported as measured, with no target invented in advance. |
+| BU-5 | Voice: push-to-talk only, mic closed during speech, no audio written by default, no outbound connection, no external-communication adapter exists, voice profile record present with hash and provenance status. |
+| BU-6 | Local model (if shipped): output stored as untrusted data and never read by planning, authorization or briefs. |
+| B-13 (extended) | Release notes also list the limitations of these items and state that the Beta dashboard is the minimum and Phase 7 completes it. |
+
+### 11.3 Schedule (targets; Gates 1 to 8 are unchanged)
+
+| Window | Deliverable | Cut line |
+|---|---|---|
+| 1-3 Nov | MCA-002, this amendment, ADR-0011, ADR-0012, ADR-0013 drafted; RK decides | RK latency is the risk |
+| 3-7 Nov | Spikes with no product code: speech tool licence, network behaviour, Python 3.14 compatibility; canvas frame-rate measurement | |
+| 4-10 Nov | Dashboard views and status data (Stage A), then the ring | |
+| 8-15 Nov | Intent layer and measurement harness | |
+| 12-18 Nov | Galaxy | **14 Nov: UI cut line** |
+| 14-19 Nov | Stage B writes; local-model demo if ADR-0013 accepted | |
+| 10-19 Nov | Voice in, then voice out | **19 Nov: voice cut line** |
+| 19-24 Nov | Cross-surface equivalence, security review of `ui/` and `voice/` | |
+
+The core path (Gates 2 to 8) keeps priority. A missed cut line is reported the same day, with the cut proposed. The date is not extended silently.
+
+### 11.4 Cut order if time runs short
+
+1. Local-model demo (BS-10). 2. Voice output, then voice input (BS-9). 3. Stage B writes. 4. Galaxy (BS-7). 5. Ring (BS-6). The Beta dashboard minimum (BS-5, Stage A) is the last to go. The static, read-only HTML report (BS-3) is the fallback if the UI server ADR is not accepted.
+
+### 11.5 Still excluded from the Beta
+
+Wake word, always-listening, barge-in, phone calling, external communication, cloud speech, LAN access, direct GitHub access (manual human transfer only), unrestricted computer control, autonomous execution, any model holding authority, mobile UI.
+
+### 11.6 Decisions that need RK
+
+| ID | Decision |
+|---|---|
+| D-9 | Merge MCA-002 (accept) |
+| D-10 | Merge this amendment |
+| D-11 | Accept ADR-0011 and ADR-0012; ADR-0013 optional |
+| D-12 | Whether RESUME may reopen a terminal task. It needs a new state edge (ADR-0002 amendment); without it RESUME re-evaluates and reports only |
+| D-13 | Firewall rule to block outbound traffic for the voice runtime (G-05, RK's act) |
+| D-14 | Install the speech tool from a pinned release with checked hashes (G-13, RK's act) |
+| D-15 | Where the voice asset and model files live under `D:\JARVIS` (ADR-0007) |
