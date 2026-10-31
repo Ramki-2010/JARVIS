@@ -5,7 +5,7 @@
 **Baseline:** `main` at the merge of PR #25 (CP-1 evidence). CP-1: PASS WITH LIMITATION (`docs/environment/CP-1-phase-1-evidence-2026-10-30.md`).
 **Classification (ADR-0001 D7):** matched triggers **G-15** (it fixes what ships and in what order) and **G-17** (it states that the Beta does not meet the Master Context section 31 acceptance test). No accepted ADR is amended. This block is a claim by the drafting session; RK's merge confirms or corrects it.
 
-**Amendment 1 (PROPOSED, 2026-10-31).** RK instructed in chat that the Beta also include a functional dashboard minimum, a live status ring, a read-only galaxy, push-to-talk voice, 25 intent families and, if time allows, a local-model advisory demo (see section 11). This edits sections 3.3 and 7 and adds section 11. Matched triggers: **G-15**. It does not take effect until RK merges it. It depends on MCA-002 (Master Context), ADR-0011, ADR-0012 and ADR-0013 (optional), none of which is in force until RK merges its acceptance. Core criteria B-01 to B-13 and the dates of Gates 1 to 8 are unchanged. **Cut rule: scope is cut, never acceptance criteria.**
+**Amendment 1 (ACCEPTED 2026-10-31; effective only when RK merges the acceptance pull request, and only after MCA-002, ADR-0011 and ADR-0012 are in force; ADR-0013 stays optional).** RK instructed in chat that the Beta also include a functional dashboard minimum, a live status ring, a read-only galaxy, push-to-talk voice, 25 intent families and, if time allows, a local-model advisory demo (see section 11). This edits sections 3.3 and 7 and adds section 11. Matched triggers: **G-15**. It does not take effect until RK merges it. It depends on MCA-002 (Master Context), ADR-0011, ADR-0012 and ADR-0013 (optional), none of which is in force until RK merges its acceptance. Core criteria B-01 to B-13 and the dates of Gates 1 to 8 are unchanged. **Cut rule: scope is cut, never acceptance criteria.**
 
 **Labels:** `IMPLEMENTED` (in `main`, with tests) · `OBSERVED` (seen locally, with the source named) · `INFERRED` (follows from documents, not run) · `PLANNED` · `UNKNOWN` · `RK DECISION`.
 
@@ -200,7 +200,9 @@ A missed gate is reported the same day with the cut proposed. The date is not ex
 
 It creates no operational file, changes no policy, ADR, ruleset or governance file, starts no phase, and builds nothing. It does not claim the Beta is v0.1. Dates after Gate 1 are targets, not facts, and are re-planned at each gate.
 
-## 11. Amendment 1 (PROPOSED): interaction surfaces in the Beta
+## 11. Amendment 1 (ACCEPTED): interaction surfaces in the Beta
+
+**Acceptance record.** Accepted by RK, the owner of the project, by chat instruction on 2026-10-31 (the Beta scope change, G-15) and the later instruction to prepare the acceptance pull requests. An independent second-opinion review passed the text after two correction rounds; that review is input, not authority. Recorded by RK's merge of the pull request that adds this change (ADR-0001 D6), effective only then. The text of this section is otherwise unchanged from the proposal. This acceptance changes no code, policy, ruleset or CODEOWNERS, enables no Stage B writes (ADR-0011 D3 item 9 needs RK's separate go-ahead), and decides none of D-12 to D-15. Core criteria B-01 to B-13 and the dates of Gates 1 to 8 are unchanged. **Scope is cut, never acceptance criteria.**
 
 **Principle: strict authority, flexible interaction, controlled exposure.** No interface, voice command or model grants authority; policy decides. The interface itself is not artificially limited.
 
