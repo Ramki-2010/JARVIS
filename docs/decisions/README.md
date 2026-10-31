@@ -46,5 +46,6 @@ ADRs are numbered records of architectural decisions. Each ADR records one meani
 | ADR-0009 | Audit-Anchor Location | Accepted | 2026-10-30 | [`ADR-0009-audit-anchor-location.md`](ADR-0009-audit-anchor-location.md) |
 | ADR-0010 | Phase 2 Manual Worker Bridge | Accepted | 2026-10-30 | [`ADR-0010-manual-worker-bridge.md`](ADR-0010-manual-worker-bridge.md) |
 | MCA-002 | v0.1 Beta Sub-Context: Status Ring, Galaxy, Dashboard Minimum and Voice | Proposed | n/a | [`MCA-002-v0.1-beta-ui-galaxy-voice-subcontext.md`](MCA-002-v0.1-beta-ui-galaxy-voice-subcontext.md) |
+| ADR-0011 | Local Interaction Surfaces: Dashboard, Status Ring, Galaxy, Intent Layer | Proposed | n/a | [`ADR-0011-local-interaction-surfaces.md`](ADR-0011-local-interaction-surfaces.md) |
 
 The order of the rows is the acceptance order; Proposed rows come last and are not in force. Acceptance takes effect when RK merges the pull request that adds the records (ADR-0001 D6).
