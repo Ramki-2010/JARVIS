@@ -4,6 +4,16 @@
 **Status:** NON-AUTHORITATIVE review aid. Not an ADR, not an MCA, not for merge. It exists on a review branch only so an independent reviewer can read everything in one place.
 **Repository:** `Ramki-2010/JARVIS` (public). **Review branch:** `review/chatgpt-verification-2026-10-31`. This branch contains `main` plus the five proposed governance documents below and this packet.
 
+## 00. Review history
+
+**Round 1 (ChatGPT):** architecture PASS; asked for three document corrections before acceptance. **Round 2 (applied, documents only; each stacked branch contains its required fixes):**
+1. **MCA-002** now *replaces* the lines that contradicted the Beta sub-context, instead of only appending: §23 first and last lines, §24 heading plus an opening sentence ("The full Knowledge Galaxy belongs to later phases."), §25 heading and first line. The reviewer named §24; the same defect existed in §23 and §25 and is fixed too. The "blocked, deferred and cancelled work" wording is clarified as states, not necessarily separate views.
+2. **ADR-0011 D2:** the child helper uses an absolute Python 3.14 interpreter path (not resolved via PATH), `-I -m jarvis`, absolute `--config`, `shell=False`, minimal fixed environment; shell invocation prohibited; static test fails on `shell=True` or a bare interpreter name.
+3. **ADR-0011 D3:** `Host` and `Origin` accepted only as exactly `http://127.0.0.1:<port>` or `http://localhost:<port>` (Host without scheme); `Origin` required on every Stage B mutation; the token stays independently mandatory.
+4. **ADR-0011 D3 (reviewer addition):** strict POST validation: fixed content type, maximum body size checked before parsing, exact field whitelist per route, unexpected, duplicate or missing fields rejected.
+5. **Beta plan:** BU-1 aligned, BU-1b added for the interpreter rule.
+ADR-0012, ADR-0013 and the voice-licence handling are unchanged. Reopening terminal tasks (D-12) stays unresolved. No code, policy, ruleset or test change; no tests rerun (documents only).
+
 ## 0. Instructions for the reviewer
 
 You are asked to verify, not to take over. Treat section 2 as fixed constraints. Separate **verified** from **inferred** from **unknown**. Do not invent versions, licences or numbers. If you think a constraint should change, say so as a proposal for RK, the sole decision-maker. The committed repository documents are authoritative over this packet. Questions are in section 9.
@@ -52,6 +62,7 @@ Changes outside these files: only the register in `docs/decisions/README.md`. No
 
 ### 5.1 Localhost server — recommended: yes, separate process, read-only first
 - `ui/` outside `jarvis/`; stdlib `http.server`; `127.0.0.1` only; random port; per-launch token (not in a query string); Host check; Origin check on writes; no CORS; strict CSP; no CDN; no outbound calls; no direct filesystem or database access.
+- (Round 2: interpreter is an absolute path, no shell; Host/Origin exact; Origin required on writes; strict POST validation. See section 00.)
 - The UI reads and writes only by starting `python -m jarvis ...` as a child. **`jarvis/` itself never creates subprocesses or sockets.** Static guard extended to enforce this. Reasoning: ADR-0006 and X-13 stay true for the control plane; one controlled boundary; policy and audit apply to every UI action.
 - Stage A read-only first. Stage B (only after A passes security tests and RK says so): three existing commands (task create, note add, cancel). Residual risk: low to moderate (DNS rebinding, other local pages, XSS; each has a stated mitigation). **Unverified:** that the stdlib server meets the CSP/token design without friction.
 - Fallback if the ADR is not accepted: static read-only HTML file, no server.
@@ -101,6 +112,8 @@ UI cut line 14 Nov; voice cut line 19 Nov; cut order: local-model demo, voice, S
 | 11 | B-13 appeared undefined | Verified: defined in the Beta plan merged as PR #27 (`6df67be`) |
 | 12 | Film voice | Open and RK-owned: provenance recorded, status UNVERIFIED, Claude does not obtain the audio |
 | 13 | Whether interaction records go in the audit chain | Left open (ADR-0011 D8, off by default) |
+| 14 | Round 2: MCA-002 appended Beta wording but left "belongs to a later phase" / "Voice is not part of v0.1" / "— Later" headings in §23-§25 | Replaced; old and new text both listed in MCA-002 sections 1, 3 and 4 |
+| 15 | Round 2: "fixed interpreter" and "Origin must match" were underspecified | Absolute interpreter path, no shell, exact Origin/Host rules, strict POST validation (ADR-0011 D2, D3) |
 
 ## 7. Claim ledger
 
