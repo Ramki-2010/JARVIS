@@ -1,12 +1,12 @@
 # ADR-0012 — Voice Surface: Push-to-Talk, Local Speech, Private Voice Profile
 
-**STATUS: PROPOSED**
+**STATUS: ACCEPTED**
 
 | Field | Value |
 |---|---|
 | ID | ADR-0012 |
 | Title | Voice Surface for the v0.1 Beta: push-to-talk, local speech in and out, private voice profile only |
-| Status | PROPOSED |
+| Status | ACCEPTED |
 | Drafted | 2026-10-31, by Local Claude, from RK's chat instruction of the same day |
 | Authority class | USER AUTHORITY REQUIRED (G-05, G-06, G-13, G-15) |
 | Inputs | MCA-002 (PROPOSED). ADR-0011 (PROPOSED). ADR-0001 D3, D6. ADR-0006 sections 3.2, 6.1, 6.3. ADR-0007. ADR-0008. ADR-0010 section 6. Master Context sections 25, 26. Two uploaded second-opinion reports of 2026-10-31 (input only). Beta plan Amendment 1 |
@@ -15,7 +15,15 @@
 
 ## Acceptance record
 
-Not accepted. Acceptance is RK's merge of a pull request that sets STATUS to ACCEPTED (ADR-0001 D6). RK's chat approval of 2026-10-31 is an input, not the record.
+| Field | Value |
+|---|---|
+| Status | ACCEPTED, effective only when RK merges the pull request that adds this change, and only after MCA-002 and ADR-0011 are in force |
+| Accepted by | RK, the owner of the project (the founder) |
+| Acceptance date | 2026-10-31 (the date of RK's instruction; the effective date is the merge date) |
+| How the acceptance was given | RK's chat instructions to Local Claude on 2026-10-31: approval of the direction, and the later instruction to prepare the acceptance pull requests. An independent second-opinion review passed the text unchanged; that review is input, not authority. Under ADR-0001 D6 these are inputs. The acceptance is recorded by RK's merge |
+| Recorded in the repository by | The merge commit of the pull request that adds this change. Effective only when RK merges it (ADR-0001 D6) |
+| Scope | The exact text of this document as added by that pull request. Labels such as PROPOSED inside the body are part of the accepted text and were not rewritten (ADR-0001 D6). The status line, the Status row and this record were the only edits |
+| Not done | **No speech tool is chosen, downloaded or installed.** The D7 spike has not run. The speech tool's licence stays `UNVERIFIED`. No voice asset exists; no Claude session obtains film audio. The firewall block (D-13), the pinned install (D-14) and the data-root layout (D-15) are RK's acts and are not done. No code, no `voice/` package, no policy change |
 
 **Labels:** `PROPOSED` · `USER AUTHORITY REQUIRED` · `ENGINEERING` · `UNKNOWN` · `RK ACT` (something only RK does).
 
