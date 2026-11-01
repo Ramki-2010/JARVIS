@@ -20,7 +20,7 @@ RK wants Beta conversation to be natural, real-time and fully local (speech-to-t
 | Driver | 592.00 | 591.91 |
 | Windows | 11 Home SL 10.0.26200 | 11 Home 10.0.26300 |
 
-Old-laptop values were pasted by RK on 2026-11-01 (idle readings, no benchmark). New-laptop values were measured by Claude on the same date. Neither has any benchmark result yet. CUDA runtime version is not yet measured on either.
+Old-laptop values are the inventory RK ran and pasted on 2026-11-01 (idle readings; Claude did not run them). New-laptop values were measured by Claude on the same date. Neither machine has any benchmark result yet. CUDA runtime version is not yet measured on either. A session cannot measure another machine: the old laptop must be measured by a session running on it.
 
 ## RK decisions received in chat (not yet governance records)
 
@@ -33,7 +33,7 @@ The proposed text is in two scratch documents outside the repo (conversational r
 
 ## What is NOT done
 
-- No ADR-0013 amendment, MCA-003 or Beta Plan Amendment 2 is drafted. RK has not approved drafting; RK wants the old-laptop inventory first.
+- No ADR-0013 amendment, MCA-003 or Beta Plan Amendment 2 is drafted. RK required the old-laptop inventory first; it was received on 2026-11-01 (RK-run commands, pasted in chat). RK has not yet approved drafting, so none is started.
 - No benchmark has run on either laptop. No benchmark script exists.
 - Nothing was installed. Installs and model downloads are RK's act (G-13).
 
@@ -42,6 +42,40 @@ The proposed text is in two scratch documents outside the repo (conversational r
 1. RK opens a Claude session on the old laptop with a self-contained measurement-only prompt (Tier 0: read-only measurements into `D:\JARVIS-BENCH-OLD`; Tier 1: a proposal only, no installs without RK's yes). That laptop has no copy of this repo and does not need one.
 2. RK pastes the resulting report to the main session.
 3. The main session compares it with the new laptop, writes the benchmark specification, and waits for RK's explicit approval before drafting any ADR, MCA, gate, script or code.
+
+## Cleanup when this note has done its job
+
+This note exists only to carry context until the old-laptop benchmark is recorded and the conversation governance is merged or dropped. After that it should be deleted and the items created only for this work removed. **No cleanup is performed now.** Nothing below may be done without RK's explicit word in chat, one item at a time, and each target must be listed and looked at before it is deleted.
+
+### Order and precondition
+
+1. **Record first.** All benchmark evidence (the old-laptop `old_laptop_report.md`, `idle.csv`, every later benchmark output and report) is copied into a durable record RK has approved (a repository record merged by RK, or a location RK names) before any wipe. Evidence and reports are preserved, never deleted by this cleanup. If a result has not been recorded, stop.
+2. Only then, the targets below, one at a time.
+
+### Exact targets (nothing else is a target)
+
+| # | Target | Where | Notes |
+|---|---|---|---|
+| 1 | `docs/plans/TEMP_HANDOFF_OLD_LAPTOP_BENCHMARK_2026-11-01.md` (this file) | repository | Deleted in its own docs-only PR, merged by RK. |
+| 2 | Remote and local branch `docs/temp-handoff-old-laptop-benchmark` | repository | Delete only after its PR is merged. |
+| 3 | Remote and local branch `docs/temp-handoff-cleanup-clause` | repository | Delete only after its PR is merged. |
+| 4 | Folder `D:\JARVIS-BENCH-OLD` | old laptop only | Created by the old-laptop Tier 0 session for scratch output. Delete only after item 1 of "Order" is satisfied. Delete by exact folder path after listing its contents; never by pattern. |
+| 5 | Tier-1 installs (defined below) | old laptop only | Only those named in RK's approved Tier-1 proposal. |
+| 6 | The two conversation proposal documents `JARVIS_CONVERSATIONAL_REQUIREMENT_ANALYSIS_2026-10-31.md` and `JARVIS_CONVERSATION_GOVERNANCE_PROPOSAL_2026-10-31.md` | outside the repository, in a Claude session scratchpad | Their exact current paths were not found on 2026-11-01 and must be located and listed before anything is touched. They are proposals, not benchmark evidence; delete only once their content is merged into a record or RK drops it. |
+| 7 | Memory pointer | Claude memory folder for this project | No pointer to this note exists on 2026-11-01. If one is added later (for example `jarvis-handoff-<date>.md` or a line in `MEMORY.md` naming this note), it must be named exactly here, in the PR that deletes this note, and removed or marked superseded only after RK's word. |
+
+### "Tier-1 installs" defined
+
+A Tier-1 install is any software, runtime, library, model weight, driver component or tool that is installed or downloaded onto the old laptop specifically to run the speech-to-text, language-model or text-to-speech benchmark, and that was approved by RK in the Tier-1 proposal before it was installed. It does not include anything already present before the benchmark (Windows, the NVIDIA driver, the Intel graphics driver, existing Python or git), which stays. If no Tier-1 proposal has been approved and executed, there are no Tier-1 installs and nothing to uninstall. Each one is removed by its own uninstaller or by deleting its exact install folder, with a before-listing.
+
+### Prohibited during cleanup
+
+- No wildcard or broad recursive deletion (no `*`, no `rm -rf`/`Remove-Item -Recurse` on a drive root, a parent folder or a pattern). Delete only an exact, previously listed path.
+- `D:\JARVIS` must never be touched.
+- `E:\JARVIS-PROJECT` must never be touched.
+- The JARVIS repository's code, policy, tests and governance records must never be touched by cleanup; the only repository change is deleting this file in its own PR.
+- The review branch `review/chatgpt-verification-2026-10-31` is preserved unless RK closes that review and explicitly says to remove it.
+- Do not delete anything that holds a result RK still needs.
 
 ## Do not
 
