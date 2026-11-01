@@ -2,7 +2,7 @@
 
 **Status: TEMPORARY and NON-AUTHORITATIVE. Delete this file once the old-laptop benchmark is recorded and the governance changes below are merged or dropped.**
 
-This note grants no authority. It cannot amend governance. If it conflicts with the Master Context, an accepted ADR or MCA, or RK's chat word, the record wins and this note is wrong. Written 2026-11-01 on `main` = `7afb07e`.
+This note grants no authority. It cannot amend governance. If it conflicts with the Master Context, an accepted ADR or MCA, or RK's chat word, the record wins and this note is wrong. Written 2026-11-01. `7afb07e` is this note's creation baseline (the `main` commit it was written against), not the current `main`; later merges, including this note's own, move `main` on.
 
 ## Why this note exists
 
@@ -50,7 +50,8 @@ This note exists only to carry context until the old-laptop benchmark is recorde
 ### Order and precondition
 
 1. **Record first.** All benchmark evidence (the old-laptop `old_laptop_report.md`, `idle.csv`, every later benchmark output and report) is copied into a durable record RK has approved (a repository record merged by RK, or a location RK names) before any wipe. Evidence and reports are preserved, never deleted by this cleanup. If a result has not been recorded, stop.
-2. Only then, the targets below, one at a time.
+2. **Checksum and verified backup.** Before any cleanup, every evidence file gets a SHA-256 checksum, listed with its exact path, size and date in the approved record. A backup copy is made in a location RK names, each copy's SHA-256 is recomputed and compared with the original, and the match is reported. A backup that is not verified identical counts as no backup, and the cleanup stops.
+3. Only then, the targets below, one at a time.
 
 ### Exact targets (nothing else is a target)
 
@@ -59,14 +60,24 @@ This note exists only to carry context until the old-laptop benchmark is recorde
 | 1 | `docs/plans/TEMP_HANDOFF_OLD_LAPTOP_BENCHMARK_2026-11-01.md` (this file) | repository | Deleted in its own docs-only PR, merged by RK. |
 | 2 | Remote and local branch `docs/temp-handoff-old-laptop-benchmark` | repository | Delete only after its PR is merged. |
 | 3 | Remote and local branch `docs/temp-handoff-cleanup-clause` | repository | Delete only after its PR is merged. |
-| 4 | Folder `D:\JARVIS-BENCH-OLD` | old laptop only | Created by the old-laptop Tier 0 session for scratch output. Delete only after item 1 of "Order" is satisfied. Delete by exact folder path after listing its contents; never by pattern. |
-| 5 | Tier-1 installs (defined below) | old laptop only | Only those named in RK's approved Tier-1 proposal. |
-| 6 | The two conversation proposal documents `JARVIS_CONVERSATIONAL_REQUIREMENT_ANALYSIS_2026-10-31.md` and `JARVIS_CONVERSATION_GOVERNANCE_PROPOSAL_2026-10-31.md` | outside the repository, in a Claude session scratchpad | Their exact current paths were not found on 2026-11-01 and must be located and listed before anything is touched. They are proposals, not benchmark evidence; delete only once their content is merged into a record or RK drops it. |
+| 4 | Folder `D:\JARVIS-BENCH-OLD` | old laptop only | Created by the old-laptop Tier 0 session for scratch output. Delete only after items 1 and 2 of "Order" (record, then checksum and verified backup) are satisfied. Delete by exact folder path after listing its contents; never by pattern. |
+| 5 | Tier-1 installs (defined below), including downloaded model weights | old laptop only | Only those named in RK's approved Tier-1 proposal, each with the exact paths and removal method recorded as required below. |
+| 6 | The two conversation proposal documents `JARVIS_CONVERSATIONAL_REQUIREMENT_ANALYSIS_2026-10-31.md` and `JARVIS_CONVERSATION_GOVERNANCE_PROPOSAL_2026-10-31.md` | outside the repository, in a Claude session scratchpad | Their exact current paths were not found on 2026-11-01. Both documents stay untouched (not moved, edited, renamed or deleted) until they are located and their exact paths are listed and confirmed by RK. They are proposals, not benchmark evidence; delete only once their content is merged into a record or RK drops it. |
 | 7 | Memory pointer | Claude memory folder for this project | No pointer to this note exists on 2026-11-01. If one is added later (for example `jarvis-handoff-<date>.md` or a line in `MEMORY.md` naming this note), it must be named exactly here, in the PR that deletes this note, and removed or marked superseded only after RK's word. |
 
 ### "Tier-1 installs" defined
 
-A Tier-1 install is any software, runtime, library, model weight, driver component or tool that is installed or downloaded onto the old laptop specifically to run the speech-to-text, language-model or text-to-speech benchmark, and that was approved by RK in the Tier-1 proposal before it was installed. It does not include anything already present before the benchmark (Windows, the NVIDIA driver, the Intel graphics driver, existing Python or git), which stays. If no Tier-1 proposal has been approved and executed, there are no Tier-1 installs and nothing to uninstall. Each one is removed by its own uninstaller or by deleting its exact install folder, with a before-listing.
+A Tier-1 install is any software, runtime, library, model weight, driver component or tool that is installed or downloaded onto the old laptop specifically to run the speech-to-text, language-model or text-to-speech benchmark, and that was approved by RK in the Tier-1 proposal before it was installed. It does not include anything already present before the benchmark (Windows, the NVIDIA driver, the Intel graphics driver, existing Python or git), which stays. If no Tier-1 proposal has been approved and executed, there are no Tier-1 installs and nothing to uninstall.
+
+For every Tier-1 item the approved proposal, or an addendum RK approves before the install, must record:
+
+- **Exact install location:** the full folder or file path where it was installed, not a drive or parent folder.
+- **Exact path of every downloaded model weight:** the full file path of each weight file, with its size and SHA-256. A weight is never identified by a pattern or a folder of "models".
+- **Exact uninstall method:** the vendor uninstaller by name and version, or the single exact folder or file to delete, written so it can be carried out without guessing.
+- **Pre-removal listing:** the target's contents listed before removal, shown to RK.
+- **Post-removal verification, per item:** after removal, confirm the exact path no longer exists, the program is gone from the installed-programs list or no longer runs, any environment variable or PATH entry added for it is gone, and that nothing that existed before the benchmark (see the exclusions above) changed. Report each item's result separately. An item without a recorded verification is not counted as removed.
+
+If any of these were not recorded at install time, nothing for that item is removed until RK approves a recovered, listed path.
 
 ### Prohibited during cleanup
 
