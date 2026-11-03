@@ -1,7 +1,7 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `brief show`, `result add`, `result list`, `result show`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `view`, `brief show`, `result add`, `result list`, `result show`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
@@ -25,6 +25,7 @@ from . import planner
 from . import reading
 from . import results as results_mod
 from . import resume as resume_mod
+from . import view as view_mod
 from . import projects as projects_mod
 from . import reports
 from . import policy as policy_mod
@@ -187,6 +188,34 @@ def cmd_note_show(cfg, args, out) -> int:
     except notes_mod.NoteError as exc:
         _print(out, "note show: %s" % exc.code)
         return EXIT_NOTE
+    finally:
+        store.close()
+
+
+def cmd_view(cfg, args, out) -> int:
+    """Write (or print) the static, read-only HTML snapshot. Exit 5 if the audit chain has problems.
+
+    The page is a derived file, `<data_root>/views/index.html`, replaced atomically; it holds
+    no script and shows result metadata only. It is not part of the audit chain."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "view: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        snap = resume_mod.collect(cfg, store, args.policy, utc_now(), os_actor(), args.project)
+        page = view_mod.render_html(snap)
+        if args.stdout:
+            out.write(page)
+        else:
+            folder = os.path.join(cfg.data_root, "views")
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, "index.html")
+            temp = path + ".tmp"
+            with open(temp, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(page)
+            os.replace(temp, path)
+            _print(out, "view written: %s" % path, "open it in a browser; it is a static snapshot")
+        return EXIT_OK if snap.audit_ok else EXIT_AUDIT
     finally:
         store.close()
 
@@ -628,6 +657,11 @@ def build_parser() -> argparse.ArgumentParser:
     nlist.add_argument("--task")
     nshow = note_sub.add_parser("show", help="show one note after checking it against the chain")
     nshow.add_argument("id", type=int)
+    view = sub.add_parser("view", help="static read-only HTML snapshot (no script, no server)")
+    view.add_argument("--project", help="limit tasks and notes to one project")
+    view.add_argument("--stdout", action="store_true", help="print the page instead of writing views/index.html")
+    view.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                      help="policy file (default: policy/policy.toml in the repository)")
     resume = sub.add_parser("resume", help="cold-start summary: health, projects, tasks, notes")
     resume.add_argument("--project", help="limit tasks and notes to one project")
     resume.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
@@ -708,6 +742,8 @@ def main(argv=None, out=None) -> int:
             return cmd_result_show(cfg, args, out)
         if args.command == "brief":
             return cmd_brief_show(cfg, args, out)
+        if args.command == "view":
+            return cmd_view(cfg, args, out)
         if args.command == "resume":
             return cmd_resume(cfg, args, out)
         if args.command == "note":

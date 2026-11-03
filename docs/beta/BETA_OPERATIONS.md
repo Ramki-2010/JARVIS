@@ -64,6 +64,10 @@ scripts\jarvis.cmd doctor
 
 Rules that matter: reads happen only as steps of a task and only on a path that is allowed at the moment `task run` executes. A relayed result is stored word for word, labelled `UNTRUSTED, NOT VERIFIED`, and never changes a task, a policy or a brief. Nothing is ever `VERIFIED`: there is no independent verifier in the Beta.
 
+### 3a. The HTML snapshot
+
+`scripts\jarvis.cmd view` writes `D:\JARVIS\dataiews\index.html`: one self-contained page with the audit and health status, the projects, unfinished and recent tasks, the latest notes and relayed-result metadata. Open it from disk in any browser; it also prints cleanly. It has no script, no server and no network, a Content-Security-Policy that forbids everything but its own style, light and dark themes, and every status is also written as a word. Notes are labelled data; the text of a relayed result is never shown, only its metadata. It is a derived file, regenerated each time, not part of the audit chain or the backup. `--stdout` prints the page instead of writing it. This is the Beta plan's BS-3 item and the fallback if the localhost dashboard (ADR-0011) is cut; it does not replace that dashboard.
+
 ## 4. Commands
 
 | Command | Purpose |
@@ -77,6 +81,7 @@ Rules that matter: reads happen only as steps of a task and only on a path that 
 | `result add / list / show` | relayed results (untrusted) |
 | `note add / list / show` | notes (`--decision` marks a decision) |
 | `resume [--project]` | cold-start summary |
+| `view [--project] [--stdout]` | a static, read-only HTML page of the same snapshot (see section 3a) |
 | `report [<task>]` | task report, or a summary |
 
 Exit codes: 0 ok, 1 unexpected error, 2 usage, 3 configuration error, 4 store missing, 5 audit failure or store halted, 6 store busy, 7 task error, 8 init refused, 9 doctor found a failure, 10 project registry unavailable or project unknown, 11 note refused, 12 brief unavailable, 13 result refused.
