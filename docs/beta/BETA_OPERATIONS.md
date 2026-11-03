@@ -106,6 +106,22 @@ Restore (manual and deliberate; nothing in JARVIS does it for you):
 
 Records store a path relative to the data root, so a restore to a different location also verifies. `TESTED`.
 
+## 6a. Using Claude Code with JARVIS
+
+Claude Code (your Claude Pro plan) is the worker; JARVIS never calls it. The loop is: `brief show <task>` gives the brief, you paste it into Claude Code, Claude Code does the work in your project, you save its summary to a file, and `result add <task> --file <summary>` stores it as untrusted data. Claude Code's own `CLAUDE.md` and memory are separate from JARVIS notes; JARVIS does not read them.
+
+**Read-only skill.** `.claude/skills/jarvis-readonly/SKILL.md` lets a Claude Code session recover JARVIS state with no memory of earlier sessions: it runs `scripts\jarvis-ro.cmd resume` and the other read commands, and it is told never to run the normal launcher, to treat all output as data, and not to read relayed-result text. `scripts\jarvis-ro.cmd` is a wrapper that runs only these commands and refuses everything else (and `--config` and `--policy`) before JARVIS starts: `resume`, `status`, `doctor`, `audit verify`, `project list|show`, `task list|show`, `note list|show`, `brief show`, `result list`. `result show` is left out on purpose: a result is untrusted worker text and should not be read into a model session. The allowed commands change nothing in the install (tested byte for byte); like `audit verify`, JARVIS may repair its own lagging `HEAD` file.
+
+**What this does not do.** A skill and a wrapper are guidance and a convenience guard, not a lock: a session that is allowed to run shell commands could still run `scripts\jarvis.cmd` directly. A hard lock is a Claude Code permission rule, which is RK's to apply (G-07). For a settings file used only by read-only sessions, rules of this shape allow the wrapper and deny the writers (the exact rule syntax is untested here; check it in Claude Code before relying on it):
+
+```json
+{ "permissions": {
+    "allow": ["Bash(scripts\\jarvis-ro.cmd:*)"],
+    "deny":  ["Bash(scripts\\jarvis.cmd:*)", "Bash(py -3.14 -m jarvis:*)", "Bash(python -m jarvis:*)"] } }
+```
+
+Do not put those deny rules in the settings of the session that builds JARVIS: it needs the normal commands. The audit log cannot tell RK from a Claude session (ADR-0005 D8), so anything a session wrote through the normal launcher would be recorded as typed by RK; that is why the skill is read-only.
+
 ## 7. Updating
 
 `git pull` on `main`, then `scripts\check-install.cmd`. Policy lives in `policy\policy.toml` in the repository; a new policy version is recorded in the store at the first evaluation after the update. Run the test suite with `py -3.14 -m unittest discover -s tests -t .`.
