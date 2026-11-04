@@ -622,6 +622,17 @@ class GuardedCommandTests(ChildCase):
         self.assertIn("results: 1", self.run_guarded(["result", "list", "--task", "t1"]))
         self.assertIn("PASS results: 1 recorded", self.run_guarded(["doctor", "--policy", policy]))
 
+    def test_view_runs_under_the_guard(self):
+        self.run_guarded(["init"])
+        self.create("t1", "CREATE_TASK")
+        page = self.run_guarded(["view", "--stdout", "--project", "p"])
+        self.assertIn("<!doctype html>", page)
+        self.assertIn("Audit OK", page)
+        self.assertNotIn("<script", page)
+        written = self.run_guarded(["view"])
+        self.assertIn("view written:", written)
+        self.assertTrue(os.path.isfile(os.path.join(self.data, "views", "index.html")))
+
     def test_task_evaluate_run_and_report_run_under_the_guard(self):
         self.run_guarded(["init"])
         self.create("t1", "CREATE_TASK", "CREATE_REPORT")

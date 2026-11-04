@@ -278,12 +278,12 @@ class ResultsAreNotAuthorityTests(unittest.TestCase):
                 self.assertNotIn("results", self.imports(module))
                 self.assertNotIn("jarvis.results", self.imports(module))
 
-    def test_only_the_cli_the_resume_the_report_path_and_doctor_know_about_results(self):
+    def test_only_display_and_health_code_know_about_results(self):
         users = []
         for name in sorted(os.listdir(os.path.join(self.REPO, "jarvis"))):
             if name.endswith(".py") and "results" in self.imports(name[:-3]) and name != "results.py":
                 users.append(name)
-        self.assertEqual(users, ["cli.py", "doctor.py", "resume.py"])
+        self.assertEqual(users, ["cli.py", "doctor.py", "resume.py", "view.py"])
 
 
 if __name__ == "__main__":
