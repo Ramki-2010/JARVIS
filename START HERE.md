@@ -35,7 +35,7 @@ Continuity rules that add to it:
    git ls-remote --tags origin
    gh pr list --state open
    ```
-3. Check what changed since the last gate: `git diff --stat phase-0-freeze..origin/main`.
+3. Check what changed since the last gate: `git diff --stat phase-0-freeze..origin/main`. Run `git fetch` first: a clone restored from a backup or copied between machines can be behind `origin/main`, and repository state beats any local copy.
 4. Check the governance controls still in force: `gh api repos/{owner}/{repo}/rulesets`.
 5. Locate the Master Context and read the sections your task touches.
 6. Read the ADR register in `docs/decisions/README.md`, then any ADR or MCA relevant to the task.
@@ -54,7 +54,7 @@ Continuity rules that add to it:
 | Architecture draft | `docs/architecture/` | DRAFT — NON-AUTHORITATIVE. Merged to `main` in PR #5; it is absent at `phase-0-freeze`. Merging it accepted no decision in it. Verify with `git log -- docs/architecture/`. |
 | Phase 1 control plane | `jarvis/`, `tests/`, `policy/policy.toml` | Implementation in progress, not complete. Policy changes are RK's decision (G-03). Tests: `py -3.14 -m unittest discover -s tests -t .` |
 | Source repository | `D:\J.A.R.V.I.S AI Assistant\` | Code and version-controlled documentation only |
-| External operational storage | `D:\JARVIS\` (`governance\`, `data\`) | Outside the repository, never a repository folder. Governed by ADR-0007. Creating it is a separate step: verify live whether it exists |
+| External operational storage | `D:\JARVIS\` (`governance\`, `data\`) | Outside the repository, never a repository folder. Governed by ADR-0007. It exists per machine: verify live whether it exists on the machine you are on. Creation is RK's instruction; one record: `docs/environment/external-storage-lf14-2026-11-04.md` |
 | Governance controls | `.github/CODEOWNERS` and the GitHub ruleset | Verify live; do not rely on this file |
 
 ## STATE AT LAST GATE
