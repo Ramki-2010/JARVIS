@@ -32,6 +32,7 @@ The Beta is JARVIS as a governed, human-in-the-loop project assistant (Beta plan
 - **Notes are plain text** in the data root. Do not type credentials into them. Refusing secret-looking note text is undecided.
 - **A local actor who can replace files inside the project during a read** is a residual race; the double re-resolve and identity check narrow it.
 - **A crash between writing a note, brief or result file and committing its record** leaves an unrecorded file that `doctor` reports, and a gap in brief numbering. Harmless, visible.
+- **The read-only skill and wrapper are guidance and a convenience guard, not a lock.** A Claude Code session that may run shell commands can still run the normal launcher; only a Claude Code permission rule (RK's, G-07) prevents it. The audit log cannot tell a Claude session from RK (ADR-0005 D8), which is why the skill is read-only and omits `result show`. `RK DECISION` (G-14, G-06).
 - **Single user, single machine.** No multi-user model.
 - **Planner is minimal**: fixed action per capability, reads before writes.
 
