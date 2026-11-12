@@ -151,3 +151,38 @@ Voice enters the Beta behind a cut line (19 Nov). B-13 lists its limits. A firew
 | 2 | Verify the speech tool's licence at source |
 | 3 | Whether transcript logging is enabled (ADR-0011 D8) |
 | 4 | External voice profile and adapter: later ADR |
+
+---
+
+## Amendment 1 (ACCEPTED, effective only when RK merges the pull request that adds it): an RK-supplied voice sample and model
+
+**Status: ACCEPTED, effective only when RK merges this change (ADR-0001 D6).** The accepted text above is unchanged. This section replaces the second and third bullets of D6 only as stated in A1. Drafted 2026-11-12 by Local Claude, on RK's chat instruction of the same day: "change this ADR to accept the voice sample and model I give you", with RK stating that the sample is **not film audio**: it is a roughly 35-second `.wav` that RK generated on Fish Audio ("i trained it and got the sample from the website"), "very similar to the voice of Jarvis from the movie". RK later described it as a voice from Fish Audio's library, with the text spoken taken from film dialogue lines, so that no film audio was used. The two descriptions (trained by RK, and a library voice) are both RK's statements; which voice model produced the sample, and what it was trained on, is not stated and no session has verified it. RK's chat words are an input; the record is RK's merge. Governance classification: G-06 (voice assets and privacy), G-13 (RK installs the tool), G-15 (Beta scope); **USER AUTHORITY REQUIRED**. This is a change RK decided before any asset exists; it is not made to ease an implementation (Beta criterion B-12).
+
+### A1. What changes in D6
+
+| Accepted text (D6) | Amendment |
+|---|---|
+| "No Claude session fetches, extracts, processes or clones film audio or any person's recorded voice" | **Still true for fetching and extracting:** no Claude session downloads audio from the internet, rips or extracts audio from a film, video or recording, or obtains any third party's recording. **New:** a session **may use a local voice sample file that RK supplies** as the input to a **local voice tool that RK has installed and listed** (D3 item 4, D5), to produce a voice asset for a profile. The session does this inside the voice runtime, offline, and keeps the sample and asset under the voice-asset location RK chooses (D-15), never in the repository |
+| "RK installs the tool and supplies the voice sample or model locally" | Unchanged. RK still installs the tool and supplies the sample and any model. A model RK supplies must appear in the profile record with its hash and licence status before JARVIS will use it |
+
+### A2. The provenance record (as RK states it; nothing here is verified by this ADR)
+
+For the sample, the profile record (D5) holds: source = "a voice on Fish Audio (RK trained it and, in a later statement, took it from Fish Audio's library), with the sample generated there from film dialogue text, as RK states"; **which voice model produced it and the data it was trained on** and the model's page and terms on Fish Audio, as RK records them (the page link is kept in the data-root record, not in the repository; a session that opened the link saw only the site's generic page, not the model's details); how the sample was exported; the date; SHA-256 of the sample and of every produced asset; licence and provenance status **`UNVERIFIED`** unless RK or a session reads the terms at source. **Whether the sample is an original synthetic voice or a platform voice made to resemble a real person, and what the platform's terms allow, are not established by this ADR. RK owns that answer.** A session that sees a conflict between the platform's terms or a model's acceptable-use terms and the intended use reports it and stops; it does not decide it.
+
+### A3. Conditions that stay
+
+1. **Private use.** This profile is a **private** profile (scope `private`, local playback device only). It never plays to an external destination, is never distributed or uploaded, and is never used for external communication. The **default profile stays the original British-inspired voice**; the RK-supplied voice is selected only by RK.
+2. **Honesty.** JARVIS speaks in this voice as JARVIS. It never presents itself as a real person, and no output is offered as a recording of a real person.
+3. **Local only.** The sample, the model and the produced asset never leave the machine. The voice runtime keeps no network module and no outbound connection (D2). No session uploads the sample to any service.
+4. **Hash pinning.** JARVIS refuses to speak with an asset whose hash differs from the record (D5).
+5. **Out of the repository.** The sample, model files and assets are never committed. A static check keeps audio and model files out of the repository (D3 item 4).
+6. **Terms of the tool and model.** The tool's and model's licences and acceptable-use terms are recorded with the profile. If a term forbids the intended use, the status is `UNVERIFIED` or `CONFLICT` and RK decides.
+7. **External voice.** Showing JARVIS to anyone other than RK in private still uses the default profile unless RK says otherwise for that session. An external profile and adapter remain a later ADR (D6, last bullet).
+
+### A4. What does not change
+
+`jarvis/`, policy, the evaluator, the audit model, ADR-0006, X-13, the governance zone, the ruleset. Voice identity still grants no authority (D4). Push-to-talk, no wake word, no always-listening, no barge-in, no cloud speech (D3). The D7 spike still chooses the tool, and D-13, D-14, D-15 remain RK's acts. Beta plan 12.4 is to be read with this amendment once it is in force.
+
+### A5. Not done by this amendment
+
+No sample is read, no tool is installed, no model is chosen, no asset exists, no code is written. Which tool will clone the sample (candidates and their memory fit on the 8 GB GPU) is decided by the spike and by RK.
