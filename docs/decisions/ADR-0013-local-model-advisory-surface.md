@@ -113,9 +113,9 @@ If accepted and built, BU-6 applies. If not, the Beta ships model-free and nothi
 
 ---
 
-## Amendment 1 (PROPOSED): conversational use, mandatory for the Beta
+## Amendment 1 (ACCEPTED, effective only when RK merges the pull request that adds it): conversational use, mandatory for the Beta
 
-**Status: PROPOSED. Not in force.** The accepted text above is unchanged. This section takes effect only when RK merges a pull request that sets it ACCEPTED (ADR-0001 D6), and only after MCA-003 is in force (an ADR cannot widen the Master Context, ADR-0001 D3). RK chose this form ("Option 1: amend ADR-0013, add a one-sentence MCA, no new ADR") in chat on 2026-11-01, and decided on 2026-11-12 that conversation is mandatory. Drafted 2026-11-12 by Local Claude. Classification: G-05, G-13, G-14, G-15 (as above). This amendment is a scope change decided by RK before any code exists; it is not made to ease an implementation (Beta criterion B-12).
+**Status: ACCEPTED (2026-11-12), effective only when RK merges this change (ADR-0001 D6), together with MCA-003 accepted in the same change (an ADR cannot widen the Master Context, ADR-0001 D3).** The accepted text above is unchanged. RK chose this form ("Option 1: amend ADR-0013, add a one-sentence MCA, no new ADR") in chat on 2026-11-01, and decided on 2026-11-12 that conversation is mandatory. Drafted 2026-11-12 by Local Claude. Classification: G-05, G-13, G-14, G-15 (as above). This amendment is a scope change decided by RK before any code exists; it is not made to ease an implementation (Beta criterion B-12).
 
 ### A1. What changes
 

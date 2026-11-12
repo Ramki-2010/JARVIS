@@ -267,9 +267,9 @@ Wake word, always-listening, barge-in, phone calling, external communication, cl
 | D-14 | Install the speech tool from a pinned release with checked hashes (G-13, RK's act) |
 | D-15 | Where the voice asset and model files live under `D:\JARVIS` (ADR-0007) |
 
-## 12. Amendment 2 (PROPOSED): conversation, galaxy and voice quality are Beta-required; LAN stays out
+## 12. Amendment 2 (ACCEPTED, effective only when RK merges the pull request that adds it): conversation, galaxy and voice quality are Beta-required; LAN stays out
 
-**Status: PROPOSED. Not in force.** It takes effect only when RK merges a pull request that sets it ACCEPTED (ADR-0001 D6), and the items marked "needs" also need the named record. Drafted 2026-11-12 by Local Claude from RK's chat of 2026-11-01 and 2026-11-12. Matched triggers: **G-15** (scope). It depends on MCA-003 and ADR-0013 Amendment 1 (both PROPOSED). Core criteria B-01 to B-13 and the dates of Gates 2 to 8 are unchanged. **Scope is cut, never acceptance criteria.** "RK CHAT" marks a decision given in chat and not yet a record.
+**Status: ACCEPTED (2026-11-12), effective only when RK merges this change (ADR-0001 D6).** It is accepted together with MCA-003 and ADR-0013 Amendment 1 in the same change. RK's later chat decisions of 2026-11-12 are read with it: the single Beta machine is the new laptop; the Beta voice is chosen from the RK-supplied sample under ADR-0012 Amendment 1; installs may be performed by a session on RK's explicit approval under ADR-0001 Amendment 1; sections 11.6 (D-14) and 12.4 are read with those two amendments. Drafted 2026-11-12 by Local Claude from RK's chat of 2026-11-01 and 2026-11-12. Matched triggers: **G-15** (scope). It depends on MCA-003 and ADR-0013 Amendment 1 (both accepted in the same change). Core criteria B-01 to B-13 and the dates of Gates 2 to 8 are unchanged. **Scope is cut, never acceptance criteria.** "RK CHAT" marks a decision given in chat and not yet a record.
 
 ### 12.1 RK's decisions (RK CHAT)
 
