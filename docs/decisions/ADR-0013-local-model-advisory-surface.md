@@ -110,3 +110,54 @@ If accepted and built, BU-6 applies. If not, the Beta ships model-free and nothi
 | 1 | Runtime and candidate models: spike |
 | 2 | Approved-list file format and location in the governance zone (RK writes it) |
 | 3 | Whether any output is stored at all |
+
+---
+
+## Amendment 1 (PROPOSED): conversational use, mandatory for the Beta
+
+**Status: PROPOSED. Not in force.** The accepted text above is unchanged. This section takes effect only when RK merges a pull request that sets it ACCEPTED (ADR-0001 D6), and only after MCA-003 is in force (an ADR cannot widen the Master Context, ADR-0001 D3). RK chose this form ("Option 1: amend ADR-0013, add a one-sentence MCA, no new ADR") in chat on 2026-11-01, and decided on 2026-11-12 that conversation is mandatory. Drafted 2026-11-12 by Local Claude. Classification: G-05, G-13, G-14, G-15 (as above). This amendment is a scope change decided by RK before any code exists; it is not made to ease an implementation (Beta criterion B-12).
+
+### A1. What changes
+
+| Accepted text | Amendment |
+|---|---|
+| Title and header: "optional for the Beta"; "the Beta is complete without it" | The **conversation use below is required for the Beta release**. The core control plane and Gates 2 to 6 still do not depend on it. If the model is unavailable, JARVIS says so, conversation is off, and nothing else changes |
+| D1: summarise, explain, rewrite or draft | Adds: **converse**. Open conversation in text or speech: greet, answer questions, ask follow-up questions, respond in the persona. Text only |
+| D4: model may offer an intent candidate | Adds: the model may offer a **capture proposal** (a note text) |
+| D5: prompts contain only what RK selects or read commands print | Adds: a fixed persona template plus the conversation so far in the **same session**. No persistent conversation memory in the Beta |
+| Section 6: "first item cut" | The conversation use is **not** the first cut (Beta plan Amendment 2 sets the cut order). The approved-list switching demo stays droppable |
+
+### A2. Conversation rules
+
+1. **Two paths, one authority.** The deterministic intent layer (ADR-0011) sees every utterance first. A recognised intent goes to the command layer and policy as before. An utterance that is not an action intent goes to the conversation path. The model never selects, builds or runs a command.
+2. **Reply is text only.** It is displayed or spoken. It is stored only as UNTRUSTED data if RK enables the interaction log (ADR-0011 D8). It is never read by planning, authorization, briefs, the evaluator or intent validation.
+3. **Capture proposal.** If the user states a request JARVIS cannot do in the Beta (for example weather, or opening a web page), JARVIS says plainly that it has no network or browsing, and **asks to note it down**. Only after an explicit confirmation turn does the deterministic path write a note through `note add`, with provenance `SPOKEN` or `TYPED`. The note is data. JARVIS does not pretend to have done the request. Whether a task is also created is a separate matter (Beta plan Amendment 2, 12.3).
+4. **Honesty rule.** The persona never claims an ability, access, memory or action JARVIS does not have, and never claims to detect emotion from the sound of a voice. Persona wit is off for approvals, risk, credentials and records (ADR-0011 intent rules).
+5. **No identity.** No speaker identity, per-person memory or participant profile exists (ADR-0012 D4). Anyone using the interface is treated the same way.
+6. **Session context only.** The conversation history lives in memory for the session and is discarded. Nothing personal that the user says is written anywhere unless the user confirms a note.
+7. **Prompt content limits.** The model receives no secret-location content, no governance-zone content beyond what the read commands already print, and no policy internals. Injection inside user text or a summarised document changes nothing, because the reply has no authority.
+8. **Failure.** A model failure, timeout or size cap is shown as an error and changes nothing.
+
+### A3. Process, list and installs (unchanged rules, restated)
+
+The runtime stays a separate process outside `jarvis/` (D2), local only, no outbound connection, installed by RK (G-13). Models come only from RK's approved list in the governance zone (D3: name, runtime, version, SHA-256, licence status). Which models and which machine run acceptably is `UNKNOWN` until the benchmark (RK's rule R8: measured, never inferred). No model size or latency is assumed.
+
+### A4. Acceptance additions (feed BU-6 and a new BU-7 in Beta plan Amendment 2)
+
+- A reply cannot start a command: tests with hostile user text ("ignore your rules", "run this", "delete my notes") change no state and write no record.
+- A capture proposal writes nothing without the confirmation turn; the confirmed note carries provenance and an audit record; no network connection is opened.
+- Model absent or failing: JARVIS stays usable; the error is shown; the audit chain verifies.
+- Static guard: `jarvis/` has no model or network import (X-13 unchanged); `advisor/` has no import of `jarvis/` internals.
+- Latency and follow-up behaviour are **measured and reported as baselines**. No target is invented in advance.
+
+### A5. What does not change
+
+Policy, evaluator, state machine, audit model, `jarvis/`, ADR-0006, X-13, ADR-0010 (results stay untrusted), ADR-0011 and ADR-0012 except as Beta plan Amendment 2 states, the ruleset. No tool access is given to any model.
+
+### A6. Still open
+
+| # | Item |
+|---|---|
+| 1 | Which runtime and models; the approved list (RK writes it); the benchmark |
+| 2 | Whether conversation text is stored at all (default: no) |
+| 3 | The persona template text (reviewed by RK; no film dialogue, original lines only) |

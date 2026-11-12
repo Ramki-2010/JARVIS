@@ -266,3 +266,94 @@ Wake word, always-listening, barge-in, phone calling, external communication, cl
 | D-13 | Firewall rule to block outbound traffic for the voice runtime (G-05, RK's act) |
 | D-14 | Install the speech tool from a pinned release with checked hashes (G-13, RK's act) |
 | D-15 | Where the voice asset and model files live under `D:\JARVIS` (ADR-0007) |
+
+## 12. Amendment 2 (PROPOSED): conversation, galaxy and voice quality are Beta-required; LAN stays out
+
+**Status: PROPOSED. Not in force.** It takes effect only when RK merges a pull request that sets it ACCEPTED (ADR-0001 D6), and the items marked "needs" also need the named record. Drafted 2026-11-12 by Local Claude from RK's chat of 2026-11-01 and 2026-11-12. Matched triggers: **G-15** (scope). It depends on MCA-003 and ADR-0013 Amendment 1 (both PROPOSED). Core criteria B-01 to B-13 and the dates of Gates 2 to 8 are unchanged. **Scope is cut, never acceptance criteria.** "RK CHAT" marks a decision given in chat and not yet a record.
+
+### 12.1 RK's decisions (RK CHAT)
+
+| # | Decision |
+|---|---|
+| 1 | Conversation (text and push-to-talk voice), natural and open-ended, is **mandatory** for the Beta and cannot be cut. A model of 9 billion parameters or more is wanted if the hardware allows (RK is researching candidates) |
+| 2 | A minimal working **read-only galaxy** is mandatory |
+| 3 | **Voice polish comes first** in voice work; the voice must be natural and nuanced |
+| 4 | **LAN access is given up for the Beta.** The two-laptop host-and-console design (option A) becomes a post-Beta item |
+| 5 | **Stage B is limited to notes and task creation** from the interface and from conversation, locally. Cancel from the interface is not requested |
+| 6 | Voice profiles: the default is an **original British-inspired voice**. A private character-voice profile is RK's own act under ADR-0012 D6 |
+| 7 | ADR-0013 Amendment 1 and MCA-003 are approved for drafting (this pull request is the draft) |
+
+### 12.2 Scope changes
+
+| ID | Change |
+|---|---|
+| BR-12 (new, Beta-required) | **Conversation.** Needs MCA-003 and ADR-0013 Amendment 1. Replaces BS-10 as a demo |
+| BR-13 (new, Beta-required) | **Read-only galaxy, minimal**, over real records (ADR-0011 galaxy rules). Replaces BS-7 |
+| BR-14 (new, Beta-required) | **Push-to-talk voice in and out** under ADR-0012, with voice output quality reviewed by RK before the breadth of intents grows. Replaces BS-9. Quality is judged by RK by listening; no score is invented |
+| BS-5, BS-6, BS-8 | Stay Beta-supporting items but are now needed by BR-12 to BR-14 (dashboard Stage A, status ring, intent layer). Their cut order is in 12.5 |
+| LAN | **Removed from the Beta.** ADR-0011 and the section 11.5 exclusion stand; no LAN ADR is needed now. Host-and-console is a post-Beta proposal. The Beta runs on one machine |
+| Stage B | Narrowed from three routes to two: **note add** and **task create**, each an existing CLI command, evaluated by policy and audited. It still needs Stage A to pass its security tests and RK's go-ahead (ADR-0011 D3 item 9). RK's chat go-ahead of 2026-11-12 is an input; the record is RK's merge of this section |
+
+### 12.3 Notes and tasks from conversation (needs ADR-0013 Amendment 1)
+
+- The deterministic intent layer decides; the model may only propose a note text. JARVIS asks "Shall I note that down?" and writes only after an explicit confirmation turn. The note is data with provenance `SPOKEN` or `TYPED`.
+- A request that needs a capability the Beta lacks (weather, opening a web page, checking a listing): JARVIS states plainly that it has no network or browsing access, and offers to note the request. It never pretends it did it.
+- **Tasks:** `task create` records a task whose plan is limited to existing capabilities. Whether a free-text request such as "weather for the next five days" can become a task, and how the evaluator would decide it, is `UNKNOWN` until tested. Default: such requests become notes, not tasks.
+
+### 12.4 Voice profiles (ADR-0012 D5, D6; no change to the ADR)
+
+- The default profile is an original British-inspired voice. It needs a chosen local speech tool and voice asset, installed by RK (G-13), with a profile record (scope, hashes, provenance, licence status).
+- The character-voice profile is a separate profile record. **No Claude session fetches, extracts, processes or clones film audio or any recorded voice** (ADR-0012 D6, accepted). RK installs the tool and supplies the sample locally. Provenance and licence status are recorded as RK states them, `UNVERIFIED` unless read at source.
+- Anything shown outside RK's own private use uses the default profile, not the character-voice profile. A distinct external profile needs its own ADR and an external adapter; none exists in the Beta.
+- Honesty limit for the release notes: the speech tool turns audio into text, and JARVIS answers the words. It does not detect emotion from sound.
+
+### 12.5 Cut order (revised)
+
+Conversation, the galaxy and voice are not cuttable. If the date cannot hold with them, the date moves, and it is reported the same day with a proposal. The date is never extended silently. If something must be reduced before that, in this order:
+
+1. Stage B task create (keep note add).
+2. Number of intent families shipped (report the measured result for those that ship; no family is claimed that was not measured).
+3. Galaxy richness (keep it minimal, read-only, labelled).
+4. Voice breadth (keep push-to-talk, one default profile).
+5. Status ring detail.
+
+The Stage A dashboard is the last to go.
+
+### 12.6 Acceptance additions (they do not replace B-01 to B-13)
+
+| ID | Criterion |
+|---|---|
+| BU-7 | Conversation tests from ADR-0013 Amendment 1 A4 pass: hostile text changes nothing; capture needs a confirmation turn; model absent leaves JARVIS usable; guards pass. Latency and follow-up behaviour are reported as measured baselines |
+| BU-8 | Stage B: only note add and task create routes exist; exact field whitelist; Origin required; every write maps to an existing CLI command, is evaluated by policy and audited (BU-1 applies) |
+| BU-9 | Voice profile record present with hashes and provenance status; JARVIS refuses an asset whose hash differs; the default profile is the one used unless RK selects the private profile |
+| B-13 (extended) | Release notes also state: no persistent conversation memory; no emotion-from-voice; no network or browsing, so requests needing them are only noted; LAN excluded; the Beta runs on one machine |
+
+### 12.7 Schedule (PROPOSED targets, not estimates)
+
+No estimate exists until the benchmark measures the models and speech on the real hardware. Targets, from 2026-11-13:
+
+| Window | Work | Note |
+|---|---|---|
+| 13 to 15 Nov | RK decisions; benchmark spec; dry run; amendments reviewed | Gates the model and speech choice |
+| 13 to 19 Nov | Dashboard Stage A, then the ring | Replaces the 14 Nov UI cut line, which falls too early now that scope grew |
+| 15 to 22 Nov | Conversation (text first), then voice with polish first | New voice cut line proposed 22 Nov |
+| 16 to 22 Nov | Galaxy, minimal | |
+| 20 to 24 Nov | Stage B notes, then task create | After Stage A security tests |
+| 22 to 25 Nov | Cross-surface tests; security review of `ui/`, `voice/`, `advisor/` | |
+| Gates 2 to 8 | Unchanged: 23 Nov end-to-end, 26 Nov Gate 6, 28 Nov freeze, 29 Nov Beta | If these cannot hold, report and propose |
+
+### 12.8 Decisions that still need RK
+
+| ID | Decision |
+|---|---|
+| D-16 | Merge MCA-003 and ADR-0013 Amendment 1 (accept) |
+| D-17 | Merge this amendment |
+| D-18 | Which machine hosts the single-machine Beta (benchmark decides; RK confirms) |
+| D-19 | The approved model list and the installs (RK's G-13 act); the speech tool and voice asset |
+| D-20 | Whether any conversation text may be logged (default off) |
+| D-21 | Persona template review (original lines only) |
+| D-13, D-14, D-15 | As in section 11.6 |
+
+### 12.9 What this section does not do
+
+It changes no code, policy, ruleset, CODEOWNERS or governance file, enables no Stage B write, installs nothing, and obtains no audio. It does not claim the Beta is v0.1.
