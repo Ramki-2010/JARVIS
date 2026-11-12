@@ -718,8 +718,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _show_unencodable_as_escapes(stream) -> None:
+    """Piped output on Windows can be cp1252. A character it cannot hold is shown as an
+    escape (for example \\u2192) instead of crashing the command after its work is done."""
+    try:
+        stream.reconfigure(errors="backslashreplace")
+    except (AttributeError, ValueError, OSError):
+        pass
+
+
 def main(argv=None, out=None) -> int:
     out = out or sys.stdout
+    _show_unencodable_as_escapes(out)
     try:
         args = build_parser().parse_args(argv)
     except SystemExit as exc:

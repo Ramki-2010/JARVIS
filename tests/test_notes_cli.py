@@ -159,6 +159,21 @@ class NoteTests(NotesCase):
         self.assertEqual(code, cli.EXIT_OK, text)
         self.assertEqual(len(self.memory_files()), 1)
 
+    def test_an_output_stream_that_cannot_encode_a_character_does_not_crash(self):
+        """Piped output on Windows uses cp1252. A note with an arrow must be shown escaped, not crash."""
+        code, text = self.add("--project", "p", text="step one → step two")
+        self.assertEqual(code, cli.EXIT_OK, text)
+        (path,) = self.memory_files()
+        seq = int(os.path.basename(path)[:-4])
+        raw = io.BytesIO()
+        out = io.TextIOWrapper(raw, encoding="cp1252", errors="strict", newline="\n")
+        code = cli.main(["--config", self.cfg, "note", "show", str(seq)], out)
+        out.flush()
+        self.assertEqual(code, cli.EXIT_OK)
+        shown = raw.getvalue().decode("cp1252")
+        self.assertIn("step one", shown)
+        self.assertIn("\\u2192", shown)
+
     def test_policy_version_1_does_not_allow_notes(self):
         for name in ("jarvis.db", "HEAD"):
             os.remove(os.path.join(self.data, name))
