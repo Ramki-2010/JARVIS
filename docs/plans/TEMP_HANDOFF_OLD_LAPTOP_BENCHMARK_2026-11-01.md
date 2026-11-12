@@ -91,3 +91,13 @@ If any of these were not recorded at install time, nothing for that item is remo
 ## Do not
 
 Touch `D:\JARVIS` or `E:\JARVIS-PROJECT`, create B-06 files, enable Stage B or D-12, or treat this note as approval for anything.
+
+## Update 2026-11-04 (non-authoritative; the text above is unchanged)
+
+Facts that change the picture above. Evidence is on the old laptop (`D:\JARVIS-BENCH-OLD\security_findings.md`, `status_2026-11-02.md`, `install_report.md`) and in the backup `OLD-LAPTOP-BACKUP-2026-11-02`; none of it is in this repository.
+
+- The old laptop was found to carry an unsigned `dcntel.dll` beside a `updater.exe` under `C:\ProgramData\Google\Chrome` (status check of 2026-11-02, section E.1). Defender quarantined the sample on 2026-11-03. Windows was then reinstalled (local account, host now `LAPTOP-ARE53VOA`). Data was backed up first and restored to the rebuilt system on 2026-11-04.
+- **"That laptop has no copy of this repo" is no longer true.** A clone exists at `D:\J.A.R.V.I.S AI Assistant` on the old laptop since 2026-11-04 (`main` at `9ac5732`), and `D:\JARVIS\governance\` and `data\` were created there on RK's instruction (record: `docs/environment/external-storage-lf14-2026-11-04.md`).
+- Cleanup target 4 (`D:\JARVIS-BENCH-OLD`): restored from the backup onto the rebuilt system (reports, scripts and logs; no venv and no model files). The "Order" preconditions (durable record, then checksum and verified backup) are still not done.
+- Cleanup target 5 (Tier-1 installs): they were on the pre-reinstall system. Whether any of the benchmark components (faster-whisper venv, Piper, Ollama models) exist on the rebuilt system is `UNKNOWN`; no install was re-run for the benchmark.
+- The benchmark itself had not run as of `status_2026-11-02.md`, and nothing in this update changes that. The status check named the unresolved security items as a precondition for any backend role. That precondition is still RK's decision.
