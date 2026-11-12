@@ -186,3 +186,7 @@ For the sample, the profile record (D5) holds: source = "a voice on Fish Audio (
 ### A5. Not done by this amendment
 
 No sample is read, no tool is installed, no model is chosen, no asset exists, no code is written. Which tool will clone the sample (candidates and their memory fit on the 8 GB GPU) is decided by the spike and by RK.
+
+---
+
+Note (2026-11-12): the sentence in D2 that no Claude session installs or downloads the speech tool is modified by ADR-0001 Amendment 1 (G-13).
