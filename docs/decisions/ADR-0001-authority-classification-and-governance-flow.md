@@ -212,3 +212,40 @@ If accepted:
 | A second reviewer identity, so that "require review from code owners" can be enforced | `USER AUTHORITY REQUIRED` (G-12) |
 | Whether `permissionMode: "auto"` is acceptable for the build session | `USER AUTHORITY REQUIRED` (G-07) |
 | Recording mechanism for RK's approval (D6) | `USER AUTHORITY REQUIRED` |
+
+---
+
+## Amendment 1 (ACCEPTED, effective only when RK merges the pull request that adds it): G-13, installs by a session on RK's explicit approval
+
+**Status: ACCEPTED, effective only when RK merges this change (ADR-0001 D6).** The accepted text above is unchanged except as stated here. Drafted 2026-11-12 by Local Claude, on RK's chat instruction of the same day: "Amend the G13 rule. Keep it as installations can be done by you as well when I give you the explicit approval to do." RK's chat words are an input; the record is RK's merge. Matched triggers: **G-02** (this changes how an approval is expressed for one trigger), **G-13**. **USER AUTHORITY REQUIRED.** This is a deliberate change by RK to reduce hand-offs; it grants no capability to JARVIS itself and changes no policy.
+
+### A1. The rule
+
+For trigger **G-13** only, RK's approval of an install may be given **in chat, per item**, and the Claude session may then carry it out. The chat approval does not need a merged pull request. D6 is unchanged for every other trigger.
+
+An approval names, or the session states back before acting and RK confirms:
+1. the software, package or model file;
+2. the version (pinned) and the source (the exact public package index, repository or model page);
+3. the install location (it must be under a location RK has approved, for example `D:\JARVIS\voice\`);
+4. the approximate size.
+
+### A2. Limits that stay
+
+1. **No elevation, no system-wide change.** A session installs into user space only. It does not change Windows settings, drivers, services, the registry, the firewall or other security boundaries (G-05), Git configuration or Claude configuration. Those stay RK acts.
+2. **Not in the repository, the governance zone or the audit chain.** Installs live under the location RK approved (ADR-0007). Nothing installed or downloaded is committed.
+3. **Pinned and recorded.** Every install is pinned to an exact version. The session records, in the install record under the data root: item, version, source, install path, SHA-256 of downloaded artifacts where the source provides or allows it, the date, RK's approval (quoted) and the **exact removal method**. A failed or unverifiable item is reported, not worked around.
+4. **Named sources only.** A session does not run an unreviewed pipe-to-shell installer (`curl ... | sh`, `irm ... | iex`) or an unsigned installer from an unnamed source. If RK names such an installer, the session first reads what it does and reports it.
+5. **No credentials.** A session never enters credentials or tokens for an install.
+6. **Licence and provenance.** The session reads the licence at source and records it as `VERIFIED` or `UNVERIFIED`. A conflict with the intended use is reported and RK decides.
+7. **Scope of one approval.** An approval covers the named items only, not later upgrades or other software. An upgrade or removal needs its own approval.
+
+### A3. Where this changes other accepted text
+
+- ADR-0012 D2, last bullet ("Installing the speech tool, its dependencies and model files is a RK ACT (G-13). No Claude session installs or downloads them.") and its D9/open-items mentions of D-14: a session **may** perform these installs and downloads under A1 and A2. The firewall rule (D-13) and the data-root decision (D-15) stay RK's.
+- ADR-0013 D2 ("Model files are pulled by RK (G-13), not by a session"): a session may pull them under A1 and A2.
+- Beta plan sections 11.6 (D-14) and 12.4 ("installed by RK"): read with this amendment.
+- ADR-0012 D6 / Amendment 1 about film audio and recorded voices is **not** changed by this amendment.
+
+### A4. What does not change
+
+The authority hierarchy, D6 for every other trigger, D9 (rulesets, CODEOWNERS, bypass list), the policy and capability model, `jarvis/` and ADR-0006. JARVIS itself still has no install capability.

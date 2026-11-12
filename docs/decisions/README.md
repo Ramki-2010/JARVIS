@@ -34,7 +34,7 @@ ADRs are numbered records of architectural decisions. Each ADR records one meani
 
 | ID | Title | Status | Accepted | File |
 |---|---|---|---|---|
-| ADR-0001 | Authority Classification and Governance Flow | Accepted | 2026-10-11 | [`ADR-0001-authority-classification-and-governance-flow.md`](ADR-0001-authority-classification-and-governance-flow.md) |
+| ADR-0001 | Authority Classification and Governance Flow | Accepted; Amendment 1 (G-13: installs by a session on RK approval) ACCEPTED, effective on RK merge | 2026-10-11 | [`ADR-0001-authority-classification-and-governance-flow.md`](ADR-0001-authority-classification-and-governance-flow.md) |
 | MCA-001 | Master Context Phase-Order Amendment | Accepted | 2026-10-11 | [`MCA-001-master-context-phase-order-amendment.md`](MCA-001-master-context-phase-order-amendment.md) |
 | ADR-0004 | Contract and Governance-Zone Location | Accepted | 2026-10-11 | [`ADR-0004-contract-and-governance-zone-location.md`](ADR-0004-contract-and-governance-zone-location.md) |
 | ADR-0003 | Capability Evaluation Model | Accepted | 2026-10-11 | [`ADR-0003-capability-evaluation-model.md`](ADR-0003-capability-evaluation-model.md) |

@@ -161,3 +161,7 @@ Policy, evaluator, state machine, audit model, `jarvis/`, ADR-0006, X-13, ADR-00
 | 1 | Which runtime and models; the approved list (RK writes it); the benchmark |
 | 2 | Whether conversation text is stored at all (default: no) |
 | 3 | The persona template text (reviewed by RK; no film dialogue, original lines only) |
+
+---
+
+Note (2026-11-12): the sentence in D2 that model files are pulled by RK and not by a session is modified by ADR-0001 Amendment 1 (G-13).
