@@ -16,7 +16,7 @@ import re
 from typing import Dict, List, Optional
 
 TASK_LINE = re.compile(r"^(\S+) ([A-Z_]+) (L\d) (\S+)$")
-PROJECT_LINE = re.compile(r"^(\S+)\s+(.+?)\s+\[(\S+)\]$")
+PROJECT_LINE = re.compile(r"^(\S+)\s+(.+?)\s+\[([^\]]+)\]$")  # the state can hold spaces, e.g. [no root registered]
 NOTE_LINE = re.compile(r"^(\d+)\s+note\s+project/(\S+)\s+(\S+)\s+(\d+) bytes")
 RESULT_LINE = re.compile(r"^(\d+)\s+task (\S+)\s+(\S+)\s+(\d+) bytes")
 

@@ -52,6 +52,13 @@ class Records(unittest.TestCase):
         self.assertEqual(g["links"], [])
         self.assertTrue(all(n["kind"] == "preview" for n in g["nodes"]))
 
+    def test_a_project_whose_state_has_spaces_is_still_a_node(self):
+        g = build(p="jarvis  JARVIS  [ok]\nswaragam  Swaragam  [no root registered]\nprojects: 2\n", t="x RUNNING L2 swaragam\n", n="notes: 0\n", r="results: 0\n")
+        by = {n["id"]: n for n in g["nodes"]}
+        self.assertEqual(by["project:swaragam"]["status"], "NO ROOT REGISTERED")
+        self.assertIn({"from": "task:x", "to": "project:swaragam", "why": "task belongs to project"}, g["links"])
+        self.assertEqual(g["counts"]["projects"], 2)
+
     def test_a_task_of_an_unlisted_project_is_a_node_but_not_linked(self):
         g = build(t="orphan RUNNING L2 ghost\n")
         self.assertIn("task:orphan", {n["id"] for n in g["nodes"]})
