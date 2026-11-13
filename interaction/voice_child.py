@@ -45,6 +45,7 @@ class VoiceWorker:
         self.events: "queue.Queue[dict]" = queue.Queue()
         self.proc = None  # the worker process (no annotation: the process guard counts every reference)
         self.error = ""
+        self.ready_info = {}
 
     def start(self, ready_timeout: float = 180.0) -> bool:
         cmd = [interpreter(self.root), "-E", "-s", "-m", "voice", "--root", self.root]
@@ -61,6 +62,7 @@ class VoiceWorker:
                     return False
                 continue
             if ev.get("event") == "ready":
+                self.ready_info = ev
                 return True
             if ev.get("event") == "error":
                 self.error = str(ev.get("error", ""))

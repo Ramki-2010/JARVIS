@@ -22,6 +22,10 @@ PREBUFFER_S = 0.5
 LISTEN_WAIT_S = 20.0
 LISTEN_MAX_S = 30.0
 MIN_SPEECH_S = 0.3
+SILENT_PEAK = 330        # a piece whose loudest sample is below this (about 1% of full scale) counts as silence
+FADE_IN_S = 0.015
+FADE_OUT_S = 0.03
+PAUSE_S = 0.12           # the deliberate gap left after each sentence
 
 
 def emit(**obj) -> None:
@@ -44,6 +48,7 @@ class Worker:
             self.cfg = json.load(fh)
         self.jobs = queue.Queue()
         self.stt = None
+        self.stt_problem = ""
         self.tts = None
         self.player = None
 
@@ -71,11 +76,18 @@ class Worker:
         else:
             self.cache = self.tts.build_prompt_cache(prompt_text=None, prompt_wav_path=None, reference_wav_path=sample)
         from voice.winaudio import Player
-        self.player = Player(self.sr)
+        self.player = Player(int(self.sr * float(self.cfg.get("playback_factor", 1.0))))  # below 1.0: slower and lower
         for _ in self._pieces("Good evening, sir."):  # warm-up; discarded
             pass
-        from faster_whisper import WhisperModel
-        self.stt = WhisperModel(os.path.join(self.root, "models", "whisper", "small.en"), device="cpu", compute_type="int8")
+        # Speech in is optional: if its libraries cannot load (for example Windows Smart App Control blocks a
+        # compiled file), the voice still speaks and the keyboard still works.
+        try:
+            from faster_whisper import WhisperModel
+            self.stt = WhisperModel(os.path.join(self.root, "models", "whisper", "small.en"), device="cpu", compute_type="int8")
+            self.stt_problem = ""
+        except Exception as exc:
+            self.stt = None
+            self.stt_problem = type(exc).__name__ + ": " + str(exc)[:160]
 
     def _pieces(self, text):
         steps = int(self.cfg.get("inference_timesteps", 4))
@@ -84,7 +96,35 @@ class Worker:
                                                                 inference_timesteps=steps, cfg_value=cfg):
             a = ch[0] if isinstance(ch, tuple) else ch
             a = a.detach().float().cpu().numpy().reshape(-1)
-            yield (self.np.clip(a, -1.0, 1.0) * 32767).astype(self.np.int16).tobytes()
+            yield (self.np.clip(a, -1.0, 1.0) * 32767).astype(self.np.int16)
+
+    def _clean(self, pieces):
+        """Trim the model's leading silence, keep internal pauses, drop the trailing tail, and fade the
+        first and last pieces so a sentence neither pops in nor trails off; then leave a short fixed pause."""
+        np = self.np
+        started = False
+        held = []   # [last loud piece, then any silent pieces after it]
+        for a in pieces:
+            loud = int(np.abs(a).max()) >= SILENT_PEAK
+            if not started:
+                if not loud:
+                    continue
+                started = True
+                a = a.copy()
+                n = min(len(a), int(FADE_IN_S * self.sr))
+                a[:n] = (a[:n] * np.linspace(0.0, 1.0, n)).astype(np.int16)
+            if loud:
+                for h in held:
+                    yield h
+                held = [a]
+            else:
+                held.append(a)
+        if held:
+            last = held[0].copy()
+            n = min(len(last), int(FADE_OUT_S * self.sr))
+            last[-n:] = (last[-n:] * np.linspace(1.0, 0.0, n)).astype(np.int16)
+            yield last
+            yield np.zeros(int(PAUSE_S * self.sr), dtype=np.int16)
 
     def say(self, job_id: int, text: str, received_at: float) -> None:
         t0 = time.monotonic()
@@ -94,7 +134,8 @@ class Worker:
         made_s = 0.0
         gaps = 0
         need = max(0.0, PREBUFFER_S - self.player.queued_seconds())  # earlier speech still playing counts as buffer
-        for pcm in self._pieces(text):
+        for arr in self._clean(self._pieces(text)):
+            pcm = arr.tobytes()
             made_s += len(pcm) / (2.0 * self.sr)
             if not started:
                 held.append(pcm)
@@ -119,6 +160,9 @@ class Worker:
 
     def listen(self, job_id: int) -> None:
         from voice import winaudio
+        if self.stt is None:
+            emit(event="heard", id=job_id, text="", reason="speech recognition unavailable")
+            return
         self.player.drain()
         end = time.monotonic() + LISTEN_WAIT_S
         while not winaudio.key_down():
@@ -163,6 +207,8 @@ class Worker:
                 elif cmd == "wait":
                     self.player.drain()
                     emit(event="spoken", id=job["id"])
+                elif cmd == "hear_file" and self.stt is None:
+                    emit(event="heard", id=job["id"], text="", reason="speech recognition unavailable")
                 elif cmd == "hear_file":  # test hook: transcribe a WAV file given by path (no microphone)
                     import soundfile
                     data, rate = soundfile.read(job["path"], dtype="float32")
@@ -181,7 +227,7 @@ class Worker:
         except Exception as exc:
             emit(event="error", id=None, error="load failed: " + type(exc).__name__ + ": " + str(exc)[:200])
             return 2
-        emit(event="ready", sample_rate=self.sr)
+        emit(event="ready", sample_rate=self.sr, stt=self.stt is not None, stt_problem=self.stt_problem)
         t = threading.Thread(target=self.run_jobs, daemon=True)
         t.start()
         for line in sys.stdin:
