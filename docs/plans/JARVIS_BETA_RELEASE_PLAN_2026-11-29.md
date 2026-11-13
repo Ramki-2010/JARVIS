@@ -357,3 +357,43 @@ No estimate exists until the benchmark measures the models and speech on the rea
 ### 12.9 What this section does not do
 
 It changes no code, policy, ruleset, CODEOWNERS or governance file, enables no Stage B write, installs nothing, and obtains no audio. It does not claim the Beta is v0.1.
+
+## 13. Amendment 3 (PROPOSED, effective only when RK merges the pull request that adds it): public-data lookups, local launch, a to-do list, project awareness and manner join the Beta
+
+**Status: PROPOSED (2026-11-13).** RK's chat decisions of 2026-11-13 are the source; ADR-0014 holds the design and the limits. Sections 3, 12.3 and the B-13 text above are not rewritten; this section amends them.
+
+### 13.1 RK's decisions (RK CHAT, 2026-11-13)
+
+| # | Decision |
+|---|---|
+| 1 | Weather (Open-Meteo), tech news (Hacker News) and **all Indian news** are in the Beta, read-only, from a fixed list of sources. Google Keep and Google Tasks are skipped |
+| 2 | JARVIS keeps a **to-do list** it can read and update |
+| 3 | JARVIS knows RK's **projects**: what they are, their stage, what is being worked on, what has been done. Swaragam gets a minimal registry entry (RK's act); other projects wait until after the Beta |
+| 4 | JARVIS speaks with the **manner** of a British butler: dry wit, understatement, light idiom, never at the cost of accuracy. Light, affectionate teasing is allowed (option B) and can be switched off (`--no-teasing`); jokes come from a checked list |
+| 5 | ADR-0014 (public-data lookups) is approved by RK in chat; its merge makes it effective |
+| 6 | JARVIS can **open approved apps, folders, files and games** from RK's catalog, in the Beta, under ADR-0015: a handful of apps (Settings, Task Manager, VLC and others), folders (Downloads, Music, Videos and the D: folders RK names) and games RK lists |
+
+### 13.2 Scope changes
+
+| ID | Change |
+|---|---|
+| BR-15 (new, cuttable first) | **Public-data lookups** under ADR-0014: weather, Hacker News, five Indian news feeds. Needs ADR-0014 accepted, a policy entry, a firewall rule and a private Python copy (all RK acts) |
+| BR-16 (new) | **To-do list** kept as project notes, changed only through a confirmation turn and the existing audited `note add`. Built (pull request 68); one read-only control-plane option added (`note list --text-prefix`) |
+| BR-17 (new) | **Project briefings** by voice and text, from the registry and the project's own records, with no model. Built (pull request 67) |
+| BR-18 (new) | **Persona v2** and stock phrases for fixed replies. Persona text still needs RK's review (ADR-0013 open item A6.3). Built (pull request 68) |
+| BR-19 (new, cuttable second) | **Governed local launch** under ADR-0015: apps, folders, files and games from RK's catalog, with a confirmation turn for files and games. Needs ADR-0015 accepted, a `LAUNCH_LOCAL` policy entry and a catalog file (RK acts) |
+| Time zones | Offline, from the `tzdata` data package (RK's per-item approval, G-13); no network |
+
+### 13.3 Cut order (amends 12.5)
+
+If the date is at risk, **BR-15 is cut first and BR-19 second**, before Stage B task create. The conversation, the galaxy and voice stay not cuttable. A cut or a date change is reported the same day.
+
+### 13.4 Acceptance additions
+
+| ID | Criterion |
+|---|---|
+| BU-10 | Every limit in ADR-0014 D3 has a test; the process-creating sites (three with ADR-0014, four with ADR-0015) are named by the static test; denied policy or a missing firewall rule gives a plain failure sentence |
+| BU-11 | To-do tests pass: add, read, tick off and drop each need a confirmation turn; a hostile item cannot close another; a failed write is reported and changes nothing |
+| BU-12 | Every limit in ADR-0015 D2 to D5 has a test (path escape, forbidden extension, forged catalog entry, denied policy means no open, a failed start changes nothing, no file name in the audit record); the static test names the four process-creating sites |
+| B-13 (extended again) | Release notes state: no browsing and no arbitrary web address; three named read-only lookups, audited; a to-do list is a list of notes (closed, not edited or deleted) and JARVIS cannot nudge RK because it has no alarms; JARVIS opens only what RK's catalog lists and cannot close, control, install or type commands |
+

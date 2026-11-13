@@ -49,6 +49,8 @@ ADRs are numbered records of architectural decisions. Each ADR records one meani
 | ADR-0011 | Local Interaction Surfaces: Dashboard, Status Ring, Galaxy, Intent Layer | Accepted; Amendment 1 (child call uses -E -s) ACCEPTED, effective on RK merge | 2026-10-31 | [`ADR-0011-local-interaction-surfaces.md`](ADR-0011-local-interaction-surfaces.md) |
 | ADR-0012 | Voice Surface: Push-to-Talk, Local Speech, Private Voice Profile | Accepted; Amendment 1 (RK-supplied voice sample) ACCEPTED, effective on RK merge | 2026-10-31 | [`ADR-0012-voice-surface.md`](ADR-0012-voice-surface.md) |
 | ADR-0013 | Local Model Advisory Surface (optional for the Beta) | Accepted; Amendment 1 (conversational use) ACCEPTED, effective on RK merge | 2026-10-31 | [`ADR-0013-local-model-advisory-surface.md`](ADR-0013-local-model-advisory-surface.md) |
+| ADR-0014 | Allowlisted, read-only lookups of public data (weather, tech news, Indian news) | Approved by RK in chat 2026-11-13; effective on RK merge | 2026-11-13 | [`ADR-0014-allowlisted-public-data-lookups.md`](ADR-0014-allowlisted-public-data-lookups.md) |
+| ADR-0015 | Governed local launch (open approved apps, folders, files and games) | Proposed; effective only on RK merge | 2026-11-13 | [`ADR-0015-governed-local-launch.md`](ADR-0015-governed-local-launch.md) |
 | MCA-003 | v0.1 Beta Sub-Context: Natural Conversation (one sentence) | Accepted | 2026-11-12 | [`MCA-003-v0.1-beta-conversation-sentence.md`](MCA-003-v0.1-beta-conversation-sentence.md) |
 
 The order of the rows is the acceptance order; Proposed rows come last and are not in force. Acceptance takes effect when RK merges the pull request that adds the records (ADR-0001 D6).
