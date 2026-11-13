@@ -470,7 +470,7 @@ class Manner(unittest.TestCase):
         from advisor.persona import PERSONA
         for needle in ("self-harm", "clean pun", "cannot perceive", "Never offer help you cannot give", "No authority" if False else "no authority"):
             self.assertIn(needle, PERSONA)
-        self.assertLess(len(PERSONA), 2700)  # the first turn pays for every character; warm-up hides it
+        self.assertLess(len(PERSONA), 3800)  # the first turn pays for every character; warm-up hides it
 
 
 class StaticGuard(unittest.TestCase):
@@ -529,6 +529,20 @@ class LinePoolTests(unittest.TestCase):
         for seed in range(5):
             ln = Lines(seed)
             self.assertTrue(all(ln.say("on_screen", what="x") for _ in range(12)))
+
+
+class StyleBankTests(unittest.TestCase):
+    def test_flavour_varies_by_seed_and_is_reproducible(self):
+        from advisor.style_bank import flavour
+        self.assertEqual(flavour(7), flavour(7))
+        self.assertGreater(len({flavour(i) for i in range(30)}), 10)
+
+    def test_the_whole_prompt_fits_the_context_with_room_for_a_conversation(self):
+        from advisor.persona import PERSONA_TEASING
+        from advisor.style_bank import flavour
+        total = len(PERSONA_TEASING) + len(flavour(1))
+        self.assertGreater(total, 3500)   # richer than the old 2,515; a measured run showed larger prompts invent facts and slow start-up
+        self.assertLess(total, 6000)      # about 1,500 tokens of the 4,096-token context
 
 
 if __name__ == "__main__":

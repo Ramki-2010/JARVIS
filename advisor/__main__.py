@@ -20,6 +20,7 @@ from advisor.controller import UNAVAILABLE_TEXT, Controller
 from advisor.conversation import Conversation
 from advisor.lines import daypart
 from advisor.persona import PERSONA_PLAIN, PERSONA_TEASING
+from advisor.style_bank import flavour
 from advisor.runtime import ModelUnavailable, OllamaClient
 from interaction import child
 
@@ -70,7 +71,7 @@ def main(argv=None) -> int:
         options = {"num_gpu": args.num_gpu}
         if args.num_thread > 0:
             options["num_thread"] = args.num_thread
-        conversation = Conversation(client, args.model, options, persona=PERSONA_PLAIN if args.no_teasing else PERSONA_TEASING)
+        conversation = Conversation(client, args.model, options, persona=(PERSONA_PLAIN if args.no_teasing else PERSONA_TEASING) + flavour(int(time.time())))
         t0 = time.perf_counter()
         greeting = conversation.warm("Hello. It is %s here." % daypart(time.localtime().tm_hour))
         print("the model is ready" if greeting else "the model did not load")
