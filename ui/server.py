@@ -14,10 +14,11 @@ import re
 import secrets
 import threading
 import time
+import types
 from collections import deque
 
 from interaction import child
-from ui import page, ring
+from ui import galaxy, page, ring
 
 ROUTES = {
     "status": ["status"],
@@ -29,7 +30,7 @@ ROUTES = {
     "audit": ["audit", "verify"],
     "resume": ["resume"],
 }
-DETAIL = {"project": ["project", "show"], "task": ["task", "show"]}
+DETAIL = {"project": ["project", "show"], "task": ["task", "show"], "note": ["note", "show"]}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 TOKEN_HEADER = "X-JARVIS-Token"
 RATE_WINDOW_S = 5.0
@@ -114,6 +115,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             tasks = child.run(self.server.config, ["task", "list"])
             audit = child.run(self.server.config, ["audit", "verify"])
             return self._json(200, ring.derive(tasks.code, tasks.text, audit.code))
+        if len(parts) == 1 and parts[0] == "galaxy":
+            return self._json(200, self._galaxy())
         if len(parts) == 2 and parts[0] in DETAIL:
             if not ID_RE.match(parts[1]):
                 return self._refuse(400, "invalid id")
@@ -124,6 +127,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         result = child.run(self.server.config, args)
         return {"command": " ".join(args), "exit": result.code, "text": result.text,
                 "truncated": result.truncated}
+
+    def _galaxy(self):
+        """The galaxy is drawn from the same read-only list commands as the panels; a failed list shows as an error."""
+        outputs = {name: child.run(self.server.config, ROUTES[name]) for name in ("projects", "tasks", "notes", "results")}
+        # A store with no project registry yet answers REGISTRY_MISSING: that truly means no projects, not a fault.
+        if outputs["projects"].code != 0 and "REGISTRY_MISSING" in outputs["projects"].text:
+            outputs["projects"] = types.SimpleNamespace(code=0, text="projects: 0\n")
+        failed = [name for name, result in outputs.items() if result.code != 0]
+        if failed:
+            return {"error": "could not read: " + ", ".join(failed), "nodes": [], "links": [], "counts": {}}
+        return galaxy.build(outputs["projects"].text, outputs["tasks"].text, outputs["notes"].text, outputs["results"].text)
 
     def _method_not_allowed(self):
         self._refuse(405, "read-only: GET only")
