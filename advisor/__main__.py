@@ -50,7 +50,8 @@ def main(argv=None) -> int:
     ap.add_argument("--num-thread", type=int, default=0, help="CPU threads for the model (0 = the runtime's choice)")
     ap.add_argument("--port", type=int, default=11434)
     ap.add_argument("--voice-root", help="absolute path of the voice folder; omit for text only")
-    ap.add_argument("--fetch-root", help="absolute path of the fetcher folder (holds python314); omit and the public-data lookups are off")
+    ap.add_argument("--fetch-root", help="absolute path of the fetcher folder (holds python314); default: the 'fetcher' folder next to the governance folder")
+    ap.add_argument("--no-fetch", action="store_true", help="switch the public-data lookups (weather, news) off for this run")
     ap.add_argument("--listen", action="store_true", help="take input from the microphone (push-to-talk) instead of the keyboard")
     ap.add_argument("--timing", action="store_true")
     ap.add_argument("--no-teasing", action="store_true", help="plain wit only: JARVIS will not tease you")
@@ -90,11 +91,12 @@ def main(argv=None) -> int:
         print("the microphone is not available; using the keyboard")
 
     fetcher = None
-    if args.fetch_root:
-        from interaction.fetch_child import Fetcher, FetchRefused, interpreter
+    if not args.no_fetch:
+        from interaction.fetch_child import Fetcher, FetchRefused, default_root, interpreter
+        root = args.fetch_root or default_root(args.config)
         try:
-            interpreter(args.fetch_root)
-            fetcher = Fetcher(args.fetch_root)
+            interpreter(root)
+            fetcher = Fetcher(root)
         except FetchRefused as exc:
             print("the public-data lookups are off (%s)" % exc)
     ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing, fetcher=fetcher) if conversation else None

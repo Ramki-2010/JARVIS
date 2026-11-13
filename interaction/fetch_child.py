@@ -38,6 +38,11 @@ class FetchResult(NamedTuple):
     data: dict
 
 
+def default_root(config: str) -> str:
+    """The fetcher folder that sits next to the governance folder (install/governance/jarvis.toml gives install/fetcher)."""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(config))), "fetcher")
+
+
 def interpreter(root: str) -> str:
     exe = os.path.join(root, "python314", "python.exe")
     if not os.path.isabs(root) or not os.path.isfile(exe):

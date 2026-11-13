@@ -91,6 +91,11 @@ class FetchChildTests(unittest.TestCase):
                 with self.assertRaises(FetchRefused):
                     fetch_child.arguments(lookup, args)
 
+    def test_the_default_folder_sits_next_to_the_governance_folder(self):
+        base = os.path.abspath(os.path.join(REPO, "install"))
+        cfg = os.path.join(base, "governance", "jarvis.toml")
+        self.assertEqual(fetch_child.default_root(cfg), os.path.join(base, "fetcher"))
+
     def test_a_missing_private_python_means_not_set_up(self):
         with self.assertRaises(FetchRefused):
             fetch_child.interpreter(os.path.join(REPO, "no-such-folder"))
