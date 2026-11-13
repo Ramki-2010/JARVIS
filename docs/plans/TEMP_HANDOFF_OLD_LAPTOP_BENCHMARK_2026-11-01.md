@@ -101,3 +101,7 @@ Facts that change the picture above. Evidence is on the old laptop (`D:\JARVIS-B
 - Cleanup target 4 (`D:\JARVIS-BENCH-OLD`): restored from the backup onto the rebuilt system (reports, scripts and logs; no venv and no model files). The "Order" preconditions (durable record, then checksum and verified backup) are still not done.
 - Cleanup target 5 (Tier-1 installs): they were on the pre-reinstall system. Whether any of the benchmark components (faster-whisper venv, Piper, Ollama models) exist on the rebuilt system is `UNKNOWN`; no install was re-run for the benchmark.
 - The benchmark itself had not run as of `status_2026-11-02.md`, and nothing in this update changes that. The status check named the unresolved security items as a precondition for any backend role. That precondition is still RK's decision.
+
+## Update 2026-11-13 (non-authoritative; the text above is unchanged)
+
+RK decided that the new laptop is the single Beta machine, and the voice, model and GPU-sharing measurements were made there (`docs/environment/new-laptop-beta-evidence-2026-11-13.md`). The old-laptop benchmark described above is therefore **no longer needed to pick a machine** and has not run. The old laptop's remaining role (B-10 clean-machine install, second-machine suite run) is in `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md`. The cleanup rules above still apply unchanged and still need RK's word per item.
