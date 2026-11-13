@@ -215,6 +215,15 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(resp.status, 200)
         self.assertEqual(json.loads(data)["state"], "IDLE")
 
+    def test_galaxy_route_needs_the_token_and_is_read_only(self):
+        self.assertEqual(self.request("/api/galaxy", token=False)[0].status, 403)
+        self.assertEqual(self.request("/api/galaxy", method="POST")[0].status, 405)
+        resp, data = self.request("/api/galaxy")
+        self.assertEqual(resp.status, 200)
+        body = json.loads(data)
+        self.assertEqual(body["counts"]["live_nodes"], 0)  # an empty store: no invented records
+        self.assertEqual({n["kind"] for n in body["nodes"]}, {"preview"})
+
     def test_every_listed_route_runs_its_command(self):
         for name in ("doctor", "projects", "tasks", "notes", "results", "audit", "resume"):
             with self.subTest(route=name):
