@@ -13,12 +13,14 @@ Events yielded: ("say", text) is spoken and shown; ("show", text) is shown only;
 """
 
 import re
+from datetime import datetime, timedelta
 from typing import Callable, Iterator, List, Optional, Tuple
 
 from advisor.conversation import Conversation
 from advisor.lines import Lines
 from advisor.runtime import ModelUnavailable
 from advisor.sentences import sentences
+from fetcher import keys as fetch_keys
 from interaction import intents
 
 Event = Tuple[str, str]
@@ -39,15 +41,20 @@ TAG = re.compile(r"^\[(?:typed|spoken)\]\s*")
 MAX_SPOKEN_NOTE = 220
 GAP_TEXT = ("I have no network, browser or phone access in this version, sir, so I cannot do that. "
             "Shall I note it down for you instead?")
+LOOKUP_HELP = ("I can also read today's weather for my saved places, the top Hacker News stories and Indian news headlines. ")
+LOOKUP_GAP_TEXT = ("I can only look up today's weather for my saved places, Hacker News and the Indian headlines, sir, "
+                   "and nothing else online. Shall I note it down for you instead?")
+LOOKUP_NAMES = {"weather": "the weather service", "hn": "Hacker News", "news": "the news feeds"}
 UNAVAILABLE_TEXT = "The conversation model is unavailable, sir. The rest of JARVIS is unaffected."
 MAX_SHOWN = 6000
 
 
+NL = chr(10)
 TEASE_AT = 6  # open items before the list is gently teased about
 
 
 class Controller:
-    def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False, line_seed: Optional[int] = None, tease: bool = True):
+    def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False, line_seed: Optional[int] = None, tease: bool = True, fetcher: Optional[Callable] = None):
         self.conversation = conversation
         self.runner = runner
         self.project = project
@@ -55,6 +62,7 @@ class Controller:
         self.pending: Optional[str] = None  # a note text awaiting the confirmation turn
         self.pending_todo: Optional[Tuple[str, int, str]] = None  # ("add"|"done"|"drop", note seq or 0, item text)
         self.lines = Lines(line_seed)
+        self.fetcher = fetcher  # public-data lookups (ADR-0014); None means they are not set up
         self.tease = tease  # light teasing, only from counts JARVIS has actually read (switch: --no-teasing)
 
     def _write_note(self, text: str) -> Event:
@@ -106,11 +114,13 @@ class Controller:
             yield ("say", "You would like me to note: %s. Shall I note that down, sir?" % intent.text)
         elif intent.kind == intents.GAP:
             self.pending = intent.text
-            yield ("say", GAP_TEXT)
+            yield ("say", LOOKUP_GAP_TEXT if self.fetcher else GAP_TEXT)
         elif intent.kind == intents.JOKE:  # vetted clean puns, not the model: a 9B model ignored the safety rule once
             yield ("say", self.lines.say("joke"))
+        elif intent.kind in (intents.WEATHER, intents.HN, intents.NEWS):
+            yield from self._lookup(intent, text)
         elif intent.kind == intents.HELP:
-            yield ("say", HELP_TEXT)
+            yield ("say", HELP_TEXT + (" " + LOOKUP_HELP.strip() if self.fetcher else ""))
         elif intent.kind == intents.QUIT:
             yield ("say", "Very good, sir.")
             yield ("quit", "")
@@ -201,6 +211,89 @@ class Controller:
             if items is not None and len(items) >= TEASE_AT:
                 return ("say", self.lines.say("added_many", n=str(len(items))))
         return ("say", self.lines.say({"add": "added", "done": "done", "drop": "dropped"}[action]))
+
+    # ----- public-data lookups (ADR-0014). Authorised and audited by the control plane, made by the separate fetcher
+    # program, worded here from fixed fields only. Fetched text is shown and spoken, never given to the model.
+    def _lookup(self, intent, original: str) -> Iterator[Event]:
+        name = {intents.WEATHER: "weather", intents.HN: "hn", intents.NEWS: "news"}[intent.kind]
+        if self.fetcher is None:
+            self.pending = original.strip()[:intents.MAX_CAPTURE_CHARS]
+            yield ("say", GAP_TEXT)
+            return
+        if intent.kind == intents.WEATHER and intent.args == ("?",):
+            known = ", ".join(v[0] for v in fetch_keys.PLACES.values())
+            yield ("say", "I only know the weather for %s, sir." % known)
+            return
+        auth = self.runner(["fetch", "authorize", name])
+        if auth.code != 0:
+            yield ("say", "That lookup is not permitted, sir.")
+            return
+        res = self.fetcher(name, list(intent.args))
+        hosts = res.hosts if res.hosts else ""
+        result = "ok" if res.ok else ("refused" if res.error in ("RATE", "REFUSED", "NOT_SET_UP") else "failed")
+        if res.ok and res.data.get("failed"):
+            result = "partial"
+        rec = ["fetch", "record", name, "--result", result, "--bytes", str(res.nbytes), "--ms", str(res.ms)]
+        if hosts:
+            rec += ["--hosts", hosts]
+        self.runner(rec)
+        if not res.ok:
+            yield ("error", self._lookup_failure(name, res.error))
+            return
+        try:
+            shown, spoken = {"weather": self._weather_text, "hn": self._hn_text, "news": self._news_text}[name](res.data, intent)
+        except (KeyError, TypeError, ValueError, IndexError):
+            yield ("error", "I could not read the reply from %s, sir." % LOOKUP_NAMES[name])
+            return
+        yield ("show", shown)
+        for line in spoken:
+            yield ("say", line)
+
+    @staticmethod
+    def _lookup_failure(name: str, code: str) -> str:
+        if code == "NOT_SET_UP":
+            return "The lookups are not set up on this machine yet, sir."
+        if code == "RATE":
+            return "A little patience, sir; I am limited to six lookups a minute."
+        return "I could not reach %s, sir. Nothing else is affected." % LOOKUP_NAMES[name]
+
+    @staticmethod
+    def _weather_text(d: dict, intent):
+        name = fetch_keys.PLACES[d["place"]][0]
+        n = lambda v: str(int(round(v)))
+        shown = ("Weather in %s: %s degrees, %s. Feels like %s. Today: high %s, low %s. Wind %s km/h. Chance of rain %d%%."
+                 % (name, n(d["temp_c"]), d["conditions"], n(d["feels_c"]), n(d["high_c"]), n(d["low_c"]), n(d["wind_kmh"]), d["rain_pct"]))
+        rain = ("rain is %s" % ("likely" if d["rain_pct"] >= 60 else "possible" if d["rain_pct"] >= 30 else "unlikely"))
+        spoken = ["In %s it is %s degrees and %s, sir, feeling like %s." % (name, n(d["temp_c"]), d["conditions"], n(d["feels_c"])),
+                  "Today's high is %s and the low %s, and %s." % (n(d["high_c"]), n(d["low_c"]), rain)]
+        return shown, spoken
+
+    @staticmethod
+    def _hn_text(d: dict, intent):
+        stories = d["stories"]
+        shown = "Hacker News, top stories:" + NL + NL.join("%d. %s (%d points%s)" % (i, s["title"], s["score"], ", " + s["site"] if s["site"] else "")
+                                                          for i, s in enumerate(stories, 1))
+        spoken = ["The top stories on Hacker News, sir."] + ["%d. %s." % (i, s["title"].rstrip(".")) for i, s in enumerate(stories[:3], 1)]
+        return shown, spoken
+
+    @staticmethod
+    def _ist(stamp: str) -> str:
+        try:
+            return (datetime.strptime(stamp, "%Y-%m-%dT%H:%MZ") + timedelta(hours=5, minutes=30)).strftime("%d %b %H:%M IST")
+        except ValueError:
+            return ""
+
+    def _news_text(self, d: dict, intent):
+        items, kw = d["items"], d.get("keyword", "")
+        missing = d.get("failed") or []
+        tail = (NL + "(No answer from: %s.)" % ", ".join(missing)) if missing else ""
+        if not items:
+            return ("No headlines about '%s' just now.%s" % (kw, tail) if kw else "No headlines.%s" % tail,
+                    ["I find nothing on that in the current headlines, sir." if kw else "There are no headlines to read just now, sir."])
+        shown = (("Headlines about '%s':" % kw if kw else "Indian headlines:") + NL) + NL.join(
+            "%s: %s%s" % (i["source"], i["title"], " (%s)" % self._ist(i["time"]) if self._ist(i["time"]) else "") for i in items) + tail
+        lead = "Here is what the headlines say about %s, sir." % kw if kw else "The headlines, sir."
+        return shown, [lead] + ["%s: %s." % (i["source"], i["title"].rstrip(".")) for i in items[:5]]
 
     # ----- project briefings: read-only, deterministic, built from the project's own records
     def _registered(self) -> Optional[List[Tuple[str, str]]]:

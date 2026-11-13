@@ -1,13 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `view`, `brief show`, `result add`, `result list`, `result show`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `view`, `brief show`, `result add`, `result list`, `result show`, `fetch authorize`, `fetch record`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
 unknown or existing task, rejected transition); 8 init refused (store exists, data root
-missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 13 result refused or unavailable; 1 unexpected error.
+missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 13 result refused or unavailable; 14 fetch refused or invalid; 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 from . import config as config_mod
 from . import doctor as doctor_mod
+from . import fetches
 from . import briefs
 from . import display
 from . import notes as notes_mod
@@ -44,6 +45,7 @@ EXIT_PROJECT = 10
 EXIT_NOTE = 11
 EXIT_BRIEF = 12
 EXIT_RESULT = 13
+EXIT_FETCH = 14
 
 
 def utc_now() -> str:
@@ -154,6 +156,28 @@ def cmd_note_add(cfg, args, out) -> int:
     except notes_mod.NoteError as exc:
         _print(out, "note add: %s" % exc.code + (" (%s)" % exc.reason if exc.reason else ""))
         return EXIT_NOTE
+    finally:
+        store.close()
+
+
+def cmd_fetch(cfg, args, out) -> int:
+    """`fetch authorize` and `fetch record` (ADR-0014 D5). The lookup itself is made by another program."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "fetch: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        if args.fetch_command == "authorize":
+            seq = fetches.authorize_lookup(store, cfg, args.policy, utc_now(), os_actor(), args.lookup)
+            _print(out, "fetch authorized: %d" % seq, "lookup: %s" % args.lookup)
+        else:
+            seq = fetches.record_lookup(store, utc_now(), os_actor(), args.lookup, args.hosts, args.result,
+                                        args.bytes, args.ms)
+            _print(out, "fetch recorded: %d" % seq, "lookup: %s" % args.lookup, "result: %s" % args.result)
+        return EXIT_OK
+    except fetches.FetchError as exc:
+        _print(out, "fetch %s: %s" % (args.fetch_command, exc.code) + (" (%s)" % exc.reason if exc.reason else ""))
+        return EXIT_FETCH
     finally:
         store.close()
 
@@ -673,6 +697,18 @@ def build_parser() -> argparse.ArgumentParser:
     nlist.add_argument("--text-prefix", help="only notes whose text starts with this, printed with their text")
     nshow =note_sub.add_parser("show", help="show one note after checking it against the chain")
     nshow.add_argument("id", type=int)
+    fetch = sub.add_parser("fetch", help="authorise and record a public-data lookup (the lookup is made elsewhere)")
+    fetch_sub = fetch.add_subparsers(dest="fetch_command", required=True)
+    fauth = fetch_sub.add_parser("authorize", help="ask the policy about FETCH_PUBLIC_DATA for one lookup")
+    fauth.add_argument("lookup")
+    fauth.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                       help="policy file (default: policy/policy.toml in the repository)")
+    frec = fetch_sub.add_parser("record", help="record what a lookup reported")
+    frec.add_argument("lookup")
+    frec.add_argument("--hosts", default="", help="comma-separated host names contacted")
+    frec.add_argument("--result", required=True)
+    frec.add_argument("--bytes", type=int, default=0)
+    frec.add_argument("--ms", type=int, default=0)
     view = sub.add_parser("view", help="static read-only HTML snapshot (no script, no server)")
     view.add_argument("--project", help="limit tasks and notes to one project")
     view.add_argument("--stdout", action="store_true", help="print the page instead of writing views/index.html")
@@ -766,6 +802,8 @@ def main(argv=None, out=None) -> int:
             if args.result_command == "list":
                 return cmd_result_list(cfg, args, out)
             return cmd_result_show(cfg, args, out)
+        if args.command == "fetch":
+            return cmd_fetch(cfg, args, out)
         if args.command == "brief":
             return cmd_brief_show(cfg, args, out)
         if args.command == "view":

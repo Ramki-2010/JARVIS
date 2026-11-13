@@ -140,9 +140,56 @@ class Capture(unittest.TestCase):
         self.assertIsNone(recognise("note that " + "x" * 1200))
 
 
+class Lookups(unittest.TestCase):
+    """ADR-0014 D8: weather, Hacker News and Indian news. An utterance can only select a fixed key."""
+
+    def test_weather_with_and_without_a_place(self):
+        cases = {"what's the weather": "kumbakonam", "weather": "kumbakonam", "temperature": "kumbakonam",
+                 "weather in Hosur": "hosur", "How's the weather in Bengaluru today?": "bangalore",
+                 "what is the forecast for Tanjore": "thanjavur", "will it rain in Chennai": "chennai",
+                 "how hot is it in Madras": "chennai", "weather in nellai now": "tirunelveli",
+                 "Jarvis, what's the weather in Kumbakonam, sir": "kumbakonam"}
+        for text, key in cases.items():
+            got = recognise(text)
+            self.assertIsNotNone(got, text)
+            self.assertEqual((got.kind, got.args), (intents.WEATHER, (key,)), text)
+
+    def test_an_unknown_place_is_never_passed_on(self):
+        got = recognise("what's the weather in London")
+        self.assertEqual((got.kind, got.args), (intents.WEATHER, ("?",)))
+        got = recognise("weather in ../../etc")
+        self.assertTrue(got is None or got.kind == GAP or got.args == ("?",))
+
+    def test_hacker_news(self):
+        for text in ("hacker news", "what's on hacker news", "tech news", "show me the latest tech news", "what's happening in tech"):
+            self.assertEqual(recognise(text).kind, intents.HN, text)
+
+    def test_news_all_source_and_topic(self):
+        for text in ("the news", "give me the latest news", "headlines", "what's in the news", "read the news please, sir"):
+            self.assertEqual(recognise(text).args, ("all",), text)
+        self.assertEqual(recognise("news from the hindu").args, ("hindu",))
+        self.assertEqual(recognise("business news").args, ("hindu-business",))
+        self.assertEqual(recognise("times of india news").args, ("toi",))
+        self.assertEqual(recognise("news about cricket").args, ("all", "cricket"))
+
+    def test_ordinary_talk_is_not_taken_for_a_lookup(self):
+        for text in ("good news", "I have news", "I read the news yesterday", "the weather is lovely", "no news is good news"):
+            got = recognise(text)
+            self.assertTrue(got is None or got.kind not in (intents.NEWS, intents.WEATHER, intents.HN), text)
+
+    def test_the_arguments_can_only_be_fixed_keys_or_a_plain_keyword(self):
+        from fetcher import keys
+        for text in ("news about cricket; rm -rf", "news about http://evil.example", "news about " + "x" * 80, "weather in <script>"):
+            got = recognise(text)
+            if got is not None and got.kind == intents.NEWS:
+                self.assertTrue(got.args[0] == "all" or got.args[0] in keys.NEWS)
+                if len(got.args) == 2:
+                    self.assertRegex(got.args[1], r"^[a-z0-9 ]{1,30}$")
+
+
 class Gaps(unittest.TestCase):
     def test_requests_the_beta_cannot_do_are_gaps(self):
-        for text in ("what's the weather in Bali next week", "open the browser", "send an email to my landlord",
+        for text in ("weather is nice today", "open the browser", "send an email to my landlord",
                      "set a reminder for six", "order some pizza", "check the listing for that flat"):
             got = recognise(text)
             self.assertIsNotNone(got, text)

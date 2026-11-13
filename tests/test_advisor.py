@@ -518,7 +518,7 @@ class StaticGuard(unittest.TestCase):
         self.assertEqual(env["TRANSFORMERS_OFFLINE"], "1")
 
     def test_intent_layer_imports_nothing_but_the_standard_text_tools(self):
-        self.assertLessEqual(self.imports(os.path.join(ROOT, "interaction", "intents.py")), {"re", "typing"})
+        self.assertLessEqual(self.imports(os.path.join(ROOT, "interaction", "intents.py")), {"re", "typing", "fetcher"})
 
 class LinePoolTests(unittest.TestCase):
     def test_seed_varies_the_start_but_unseeded_is_fixed(self):

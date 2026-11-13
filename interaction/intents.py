@@ -13,6 +13,8 @@ here (the one place that does is `interaction/child.py`).
 import re
 from typing import NamedTuple, Optional, Tuple
 
+from fetcher import keys as fetch_keys
+
 READ = "READ"
 BRIEF = "BRIEF"
 TODO_LIST = "TODO_LIST"
@@ -26,6 +28,9 @@ DENY = "DENY"
 HELP = "HELP"
 QUIT = "QUIT"
 JOKE = "JOKE"
+WEATHER = "WEATHER"
+HN = "HN"
+NEWS = "NEWS"
 
 MAX_CAPTURE_CHARS = 1000
 
@@ -149,6 +154,74 @@ def _todo(text: str, t: str) -> Optional[Intent]:
     return None
 
 
+# Public-data lookups (ADR-0014 D8). An utterance can only pick a key from fetcher.keys (a saved place, a news
+# source) or give a short plain keyword that is used to filter headlines locally. It never supplies an address.
+_PLACE = r"(?: (?:in|at|for|of|around) (?:the )?(?P<p>[a-z][a-z .,'-]{0,40}?))?"
+_WHEN = r"(?: (?:now|today|right now|currently|outside|at the moment))*"
+_WEATHER = tuple(re.compile(p) for p in (
+    r"(?:(?:what(?:'s| is)|how(?:'s| is)|tell me|give me|show me|check|get me|read me) )?(?:the )?(?:current |today's |todays )?"
+    r"(?:weather|temperature|forecast)(?: like)?" + _WHEN + _PLACE + _WHEN,
+    r"(?:is it|will it|is it going to|will it be|is it going to be) (?:raining|rain|hot|warm|cold|sunny|cloudy)" + _WHEN + _PLACE + _WHEN,
+    r"how (?:hot|warm|cold|wet) is it" + _WHEN + _PLACE + _WHEN,
+))
+_PLACE_FILLER = frozenset({"the", "a", "an", "city", "town"})
+_HN = tuple(re.compile(p) for p in (
+    r"(?:(?:what(?:'s| is)|show me|give me|tell me|read me|read|check|any) )?(?:(?:on|new on|the latest on|the latest from|latest on|latest from|top on) )?(?:the )?(?:hacker ?news|hn|y combinator news)",
+    r"(?:(?:what(?:'s| is)|show me|give me|tell me|read me|read|any) )?(?:the )?(?:latest |top |today's |new )?(?:tech|technology|hacker) (?:news|stories|headlines)" + _WHEN,
+    r"what(?:'s| is) (?:happening|new|going on) in tech(?:nology)?" + _WHEN,
+))
+_NEWS_ALL = tuple(re.compile(p) for p in (
+    r"(?:(?:what(?:'s| is)|give me|tell me|show me|read me|read|any|got any|get me) )?(?:the )?(?:latest |top |today's |main |current |breaking )?"
+    r"(?:indian |india |national )?(?:news|headlines)(?: headlines)?(?: for)?" + _WHEN,
+    r"what(?:'s| is) (?:in|on) the news" + _WHEN,
+    r"what(?:'s| is) (?:happening|going on) in india" + _WHEN,
+))
+_NEWS_OF = tuple(re.compile(p) for p in (
+    r"(?:(?:what(?:'s| is)|give me|tell me|show me|read me|read|any|get me) )?(?:the )?(?:latest |top |today's )?(?:news|headlines) (?:from|on|about|of|for|regarding) (?:the )?(?P<s>[a-z0-9][a-z0-9 ]{0,40})" + _WHEN,
+    r"(?:(?:what(?:'s| is)|give me|tell me|show me|read me|read|any|get me) )?(?:the )?(?:latest |top |today's )?(?P<s>[a-z0-9][a-z0-9 ]{0,40}) (?:news|headlines)" + _WHEN,
+))
+_NOT_A_TOPIC = frozenset({"good", "bad", "great", "sad", "big", "fake", "old", "some", "any", "no", "more", "other", "more", "other",
+                          "latest", "top", "main", "current", "today", "indian", "india", "national", "breaking", "the", "my", "your",
+                          "hacker", "tech", "technology", "world", "global", "i", "we", "you", "he", "she", "they", "it", "there", "have", "has",
+                          "had", "got", "get", "is", "are", "was", "were", "what", "any", "that", "this", "your", "our", "his", "her"})
+_SOURCE_BY_ALIAS = {alias: key for key, aliases in fetch_keys.NEWS_ALIASES.items() for alias in aliases}
+
+
+def place_key(text: str) -> Optional[str]:
+    """The saved-place key a spoken name stands for, or None. Only fetcher.keys decides."""
+    words = [w for w in re.findall(r"[a-z]+", text.lower()) if w not in _PLACE_FILLER]
+    spoken = " ".join(words)
+    for key, (_name, _lat, _lon, aliases) in fetch_keys.PLACES.items():
+        if spoken in aliases:
+            return key
+    return None
+
+
+def _lookup(t: str) -> Optional[Intent]:
+    for pat in _WEATHER:
+        m = pat.fullmatch(t)
+        if m:
+            spoken = (m.groupdict().get("p") or "").strip(" .,'-")
+            if not spoken:
+                return Intent("weather", WEATHER, (fetch_keys.DEFAULT_PLACE,))
+            key = place_key(spoken)
+            return Intent("weather", WEATHER, (key,), "") if key else Intent("weather", WEATHER, ("?",), spoken)
+    if any(p.fullmatch(t) for p in _HN):
+        return Intent("hn", HN)
+    if any(p.fullmatch(t) for p in _NEWS_ALL):
+        return Intent("news", NEWS, ("all",))
+    for pat in _NEWS_OF:
+        m = pat.fullmatch(t)
+        if m:
+            topic = re.sub(r"\s+", " ", m.group("s")).strip()
+            if topic in _SOURCE_BY_ALIAS:
+                return Intent("news", NEWS, (_SOURCE_BY_ALIAS[topic],))
+            if set(topic.split()) & _NOT_A_TOPIC or len(topic) > fetch_keys.KEYWORD_MAX:
+                continue
+            return Intent("news", NEWS, ("all", topic))
+    return None
+
+
 _HELP = re.compile(r"help|what can you do|what are your commands|what can i say")
 _JOKE = re.compile(r"(?:tell me |say |give me |do you know |got )?(?:a |another |one more )?(?:joke|pun|funny joke)(?: for me)?|make me laugh|say something funny|tell me something funny")
 _QUIT = re.compile(r"quit|exit|goodbye|good bye|bye|that will be all|that is all")
@@ -159,7 +232,7 @@ _CAPTURE = re.compile(r"(?:make a note|take a note|note down|note|remember|write
 # Requests the Beta has no means to do. JARVIS must say so plainly and offer to note them down.
 _GAP = re.compile(
     r"\b(?:weather|forecast|browse|browser|website|web page|webpage|web site|google|search (?:the )?(?:web|internet|online)|"
-    r"look (?:it |that )?up online|news headlines|stock price|bitcoin price|e-?mail|send (?:a |an )?(?:message|text|whatsapp)|"
+    r"look (?:it |that )?up online|stock price|bitcoin price|e-?mail|send (?:a |an )?(?:message|text|whatsapp)|"
     r"phone call|call (?:my|him|her|them|mum|mom|dad)|play (?:some )?(?:music|a song|spotify)|set (?:a |an )?(?:alarm|timer|reminder)|"
     r"book (?:a |an )?(?:table|flight|hotel|cab|ticket)|order (?:some |a |an )?(?:food|pizza|groceries)|turn (?:on|off) the (?:light|lights|fan|tv)|"
     r"open (?:the )?(?:app|application|chrome|youtube|url|link)|check (?:the |this )?(?:listing|price|score))\b"
@@ -222,7 +295,7 @@ def recognise(text: str) -> Optional[Intent]:
         return Intent("joke", JOKE)
     if _HELP.fullmatch(t):
         return Intent("help", HELP)
-    found = _todo(text, t) or _brief(t) or _brief(normalise(text, keep_name=True))
+    found = _lookup(t) or _todo(text, t) or _brief(t) or _brief(normalise(text, keep_name=True))
     if found:
         return found
     for family, args, patterns in _READ_COMPILED:

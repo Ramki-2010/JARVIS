@@ -11,6 +11,7 @@ from jarvis.reasons import REASON_CODES
 
 from . import policy_d12 as d12
 from . import policy_v2 as v2
+from . import policy_v3 as v3
 from . import test_evaluator as te
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,13 +50,13 @@ class RealPolicyFileTests(unittest.TestCase):
 
     def test_versions_and_hash(self):
         snap = self.loaded.snapshot
-        self.assertEqual((snap.schema_version, snap.policy_version), (1, 2))
+        self.assertEqual((snap.schema_version, snap.policy_version), (1, 3))
         self.assertRegex(snap.sha256, r"^[0-9a-f]{64}$")
 
-    def test_rules_equal_the_adr_0003_d12_table_with_the_adr_0010_d2_changes(self):
+    def test_rules_equal_the_adr_0003_d12_table_with_the_adr_0010_d2_changes_and_the_adr_0014_d5_row(self):
         # Row order carries no meaning, so compare by capability name.
         loaded = {r.name: r for r in self.loaded.snapshot.rules}
-        expected = {r.name: r for r in v2.policy().rules}
+        expected = {r.name: r for r in v3.policy().rules}
         self.assertEqual(len(self.loaded.snapshot.rules), len(loaded))
         self.assertEqual(loaded, expected)
 
@@ -72,10 +73,10 @@ class RealPolicyFileTests(unittest.TestCase):
         """X-03 with the real file: same decisions as the golden file."""
         policy = self.loaded.snapshot
         out = {}
-        for key, (cap, target, contract_in, c) in te.golden_cases(v2.ROWS):
+        for key, (cap, target, contract_in, c) in te.golden_cases(v3.ROWS):
             out[key] = te.evaluate(cap, target, contract_in, policy,
                                    te.RevocationSnapshot(), c, te.NOW, te.EARLIER).as_record()
-        with open(te.GOLDEN_V2, "rb") as fh:
+        with open(te.GOLDEN_V3, "rb") as fh:
             expected = fh.read()
         self.assertEqual(canonical_json.dumps(out), expected)
 

@@ -50,6 +50,7 @@ def main(argv=None) -> int:
     ap.add_argument("--num-thread", type=int, default=0, help="CPU threads for the model (0 = the runtime's choice)")
     ap.add_argument("--port", type=int, default=11434)
     ap.add_argument("--voice-root", help="absolute path of the voice folder; omit for text only")
+    ap.add_argument("--fetch-root", help="absolute path of the fetcher folder (holds python314); omit and the public-data lookups are off")
     ap.add_argument("--listen", action="store_true", help="take input from the microphone (push-to-talk) instead of the keyboard")
     ap.add_argument("--timing", action="store_true")
     ap.add_argument("--no-teasing", action="store_true", help="plain wit only: JARVIS will not tease you")
@@ -88,7 +89,15 @@ def main(argv=None) -> int:
     if args.listen and not listening:
         print("the microphone is not available; using the keyboard")
 
-    ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing) if conversation else None
+    fetcher = None
+    if args.fetch_root:
+        from interaction.fetch_child import Fetcher, FetchRefused, interpreter
+        try:
+            interpreter(args.fetch_root)
+            fetcher = Fetcher(args.fetch_root)
+        except FetchRefused as exc:
+            print("the public-data lookups are off (%s)" % exc)
+    ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing, fetcher=fetcher) if conversation else None
     print("JARVIS conversation. Say or type 'help' for what I can do, 'quit' to leave.")
     if greeting:
         print("jarvis> " + greeting)

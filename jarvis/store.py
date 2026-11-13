@@ -53,7 +53,8 @@ _SCHEMA = (
 
 
 # Events whose named fields are mediated input rather than observed facts.
-_MEDIATED_DETAIL_EVENTS = {"NOTE_RECORDED": ("detail",), "RESULT_RECORDED": ("detail",)}
+_MEDIATED_DETAIL_EVENTS = {"NOTE_RECORDED": ("detail",), "RESULT_RECORDED": ("detail",),
+                           "FETCH_RECORDED": ("detail",)}
 
 
 class StoreError(RuntimeError):
@@ -358,6 +359,12 @@ class Store:
             assert got == seq
             return seq
         return self._write(fn)
+
+    def record_event(self, event: str, now_utc: str, actor: str, fields: dict) -> int:
+        """Append one audit record that has no data-root file (for example a public-data lookup, ADR-0014 D5)."""
+        _check_ts(now_utc)
+        self._require_open_for_work()
+        return self._write(lambda: self._append(event, now_utc, actor, dict(fields)))
 
     def records_of(self, event: str) -> List[dict]:
         """Audit records of one event type, in order."""
