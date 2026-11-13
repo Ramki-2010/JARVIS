@@ -36,6 +36,37 @@ class ReadIntents(unittest.TestCase):
             self.assertIsNone(recognise(text), text)
 
 
+class Briefs(unittest.TestCase):
+    def test_named_project_questions(self):
+        for text, name in (("Where are we on Swaragam?", "swaragam"), ("where are we with the jarvis project", None),
+                           ("what's the status of swaragam", "swaragam"), ("what stage is swaragam at", "swaragam"),
+                           ("what are we working on in swaragam", "swaragam"), ("catch me up on Swaragam", "swaragam"),
+                           ("brief me on jarvis", "jarvis"), ("what's happening with swaragam", "swaragam")):
+            got = recognise(text)
+            if name is None:
+                continue
+            self.assertIsNotNone(got, text)
+            self.assertEqual((got.kind, got.text, got.args), (intents.BRIEF, name, ()), text)
+
+    def test_all_projects_questions(self):
+        for text in ("what are my projects", "tell me about my projects", "what are we working on", "what have we been doing",
+                     "what's happening", "what stage are we at", "where are we with everything"):
+            got = recognise(text)
+            self.assertEqual((got.kind, got.text), (intents.BRIEF, ""), text)
+
+    def test_tell_me_about_is_soft(self):
+        got = recognise("tell me about Swaragam")
+        self.assertEqual((got.kind, got.text, got.args), (intents.BRIEF, "swaragam", ("soft",)))
+
+    def test_the_name_is_only_a_lookup_token(self):
+        for text in ("where are we on swaragam; del /s /q c:", "where are we on ../../governance", "tell me about x && format c:",
+                     "where are we on " + "a" * 80):
+            got = recognise(text)
+            self.assertTrue(got is None or got.kind != intents.BRIEF, text)
+        got = recognise("where are we on swaragam")
+        self.assertEqual(got.args, ())
+
+
 class NotIntents(unittest.TestCase):
     def test_ordinary_conversation_is_not_an_intent(self):
         for text in ("how are you today", "tell me something about Bali", "I just got back from my honeymoon", "what is the capital of France", ""):
