@@ -28,8 +28,11 @@ All installs and changes need RK's per-item chat word (ADR-0001 Amendment 1). A 
 | 4 | `py -3.14 -m unittest discover -s tests -t .` | read-only | test count, OK or failures, any skip (new laptop: 463 OK, 1 skipped at `06e65e3`; the number will differ if `main` has moved) |
 | 5 | Is `D:\JARVIS\` present on this machine, and what does `doctor` and `audit verify` say there? | read-only | the outputs, or "absent" |
 | 6 | Is Python 3.14 present, which `py -0p` entries, git and gh versions? | read-only | the list |
+| 6b | Smart App Control state and recent block events (the two commands in `docs/environment/smart-app-control-notes-2026-11-13.md`, section 5) | read-only | both outputs; whether SAC is on, off or in evaluation |
 | 7 | **B-10** at the release-candidate freeze (target 26 November): follow the clean-machine runbook RK holds (`B10_CLEAN_MACHINE_RUNBOOK`): fresh clone to a new folder, create the data root and governance files only on RK's instruction, run `doctor`, `audit verify` and the suite | change, RK-gated | doctor result, suite result, anything that failed, and the exact commands used |
 | 8 | Re-measure the old laptop inventory (hardware, free disk, driver) only if RK wants the benchmark question reopened | read-only | a dated inventory |
+
+**Read first:** `docs/environment/smart-app-control-notes-2026-11-13.md` (what Windows Smart App Control blocked on the new laptop, the workarounds, and the rules: do not turn SAC off, do not upgrade pinned packages, report blocks instead of working around them).
 
 ## 4. Unresolved on the old laptop (RK decisions, not steps)
 

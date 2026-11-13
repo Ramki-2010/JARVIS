@@ -44,11 +44,12 @@ class Conversation:
         self.history.append({"role": "user", "content": user_text.strip()[:MAX_USER_CHARS]})
         self.history.append({"role": "assistant", "content": jarvis_text.strip()[:MAX_USER_CHARS]})
 
-    def warm(self) -> bool:
-        """Load the model into memory ahead of the first turn. Changes no history. False if unavailable."""
+    def warm(self) -> str:
+        """Load the model and make a short greeting as the first real exchange, so the persona prompt is
+        already processed when the user's first line arrives (a continuation is much faster than a fresh
+        prompt on this model). Returns the greeting, or "" if the model is unavailable."""
         try:
-            for _ in self.client.chat_stream(self.model, [{"role": "user", "content": "Hello."}], dict(self.options, num_predict=1)):
-                pass
-            return True
+            greeting = "".join(self.stream_reply("Hello."))
+            return greeting.strip()
         except ModelUnavailable:
-            return False
+            return ""

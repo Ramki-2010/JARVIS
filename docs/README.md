@@ -14,7 +14,7 @@ Current Master Context version: 0.1-r3 (amended by MCA-001, MCA-002 and MCA-003)
 ## Other documentation
 
 - **Decisions:** architectural decisions are recorded as numbered ADRs, and changes to the Master Context as numbered MCAs, under [`decisions/`](decisions/). The register in that folder's README lists their status.
-- **Environment:** environment facts are recorded under [`environment/`](environment/). Latest Beta build evidence: [`new-laptop-beta-evidence-2026-11-13.md`](environment/new-laptop-beta-evidence-2026-11-13.md).
+- **Environment:** environment facts are recorded under [`environment/`](environment/). Latest Beta build evidence: [`new-laptop-beta-evidence-2026-11-13.md`](environment/new-laptop-beta-evidence-2026-11-13.md). Smart App Control blocks and workarounds: [`smart-app-control-notes-2026-11-13.md`](environment/smart-app-control-notes-2026-11-13.md).
 - **Beta:** operations guide and security/release notes under [`beta/`](beta/). Non-authoritative; the ADRs govern.
 - **Plans:** release plans are recorded under [`plans/`](plans/). They are non-authoritative until RK merges them. Current: [`JARVIS_BETA_RELEASE_PLAN_2026-11-29.md`](plans/JARVIS_BETA_RELEASE_PLAN_2026-11-29.md). Old-laptop next steps: [`OLD_LAPTOP_NEXT_STEPS_2026-11-13.md`](plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md).
 

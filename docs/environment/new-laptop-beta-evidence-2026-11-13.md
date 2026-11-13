@@ -38,6 +38,18 @@ Layout under `D:\JARVIS\voice\`: a Python 3.10 virtual environment (separate fro
 - **Smart App Control (INFERRED from the failures):** newest unsigned library builds are blocked, older pinned ones pass. Pins in use: `torch==2.10.0+cu128`, `av 16.0.1`, `numba 0.61.2`, `llvmlite 0.44.0`. Do not upgrade pinned packages without re-testing. Triton is not needed (`optimize=False`).
 - **Unplanned download, removed:** VoxCPM fetched a 19 MB denoiser into a ModelScope cache on `C:`. RK approved removal and it was done; clips now load with the denoiser off.
 
+### 4a. Voice quality and the conversation timing (MEASURED later on 2026-11-13)
+
+RK listened to the first wired voice and reported: sometimes a different voice from the one chosen, a slight echo, an aged or "cold" sound, and "two personalities". Findings (objective proxies; RK's ear decides):
+
+- Streaming and non-streaming generation give practically identical audio for the same seed, so streaming is **not** the cause.
+- The background noise floor of the output is very low (about -75 dB, below the sample's own -57.7 dB). A noise problem in the usual sense was **not** found. The cause of the "echo" is UNKNOWN; listening to a saved clip in an ordinary player versus through JARVIS will show whether it comes from playback.
+- The setting RK first chose (reference only, 4 steps) was the **least steady**: repeats of the same sentence varied by about 21 Hz in pitch, and the average pitch and brightness sat furthest from the sample (26 Hz and 264 away).
+- **Reference plus continuation** (the sample used both as the voice reference and as a spoken lead-in with its own transcript) at **6 steps** gave a spread of about 11 Hz, a distance of 13 Hz and 62, and ran faster than real time (rtf 0.88). Chosen as the new default (`voice_settings.json`; the old values are kept in its `previous` field). Listening files for RK's ear test are in `D:\JARVISoice\out\diag`.
+- No audio clean-up tool was installed: the sample is clean (noise floor -57.7 dB, signal-to-noise about 45 dB). A one-off clean-up of the sample is the next option only if RK still hears artefacts.
+
+Conversation timing, whole chain (typed line to first sound, 9B model on CPU, cloned voice on GPU): the fixed first-turn cost is processing the persona prompt on the CPU (about 3.7 s for the first long persona, 2.1 s for the compact one); follow-up turns continue the earlier prompt and cost under 1 s. The program now speaks a short greeting at start so the persona is already processed. A typed line to the first sentence took about 2.0 s, and the first sound came about 0.9 s after that (about 2.9 s in total); deterministic replies (status, notes, refusals) sound after about 0.5 to 0.8 s. These are single short runs, not a benchmark.
+
 ## 5. Language model (ADR-0013)
 
 Ollama v0.40.16 portable under `D:\JARVIS\ollama` (SHA-256 in its install record, publisher signature Valid), models under `D:\JARVIS\models\ollama`, served only on `127.0.0.1:11434`. **RK chose `qwen3.5:9b`** (Q4_K_M, 6.6 GB, Apache-2.0) as the conversation model on 2026-11-13. The approved model list is RK's governance file (ADR-0013 D3) and is not yet written: RK DECISION pending.
