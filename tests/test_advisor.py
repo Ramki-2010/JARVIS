@@ -146,13 +146,14 @@ class Routing(ServerCase):
     def says(self, ctl, text):
         return list(ctl.respond(text))
 
-    def test_warm_up_changes_no_history_and_reports_absence(self):
+    def test_warm_up_is_a_real_first_greeting_and_reports_absence(self):
         ctl = self.make()
-        self.assertTrue(ctl.conversation.warm())
-        self.assertEqual(ctl.conversation.history, [])
-        self.assertEqual(FakeOllama.seen[0]["options"]["num_predict"], 1)
+        greeting = ctl.conversation.warm()
+        self.assertEqual(greeting, "Good evening, sir. All is well. Rather quiet.")
+        self.assertEqual([m["role"] for m in ctl.conversation.history], ["user", "assistant"])
+        self.assertEqual(self.calls, [])
         ctl.conversation.client = OllamaClient(port=1, timeout=2)
-        self.assertFalse(ctl.conversation.warm())
+        self.assertEqual(ctl.conversation.warm(), "")
 
     def test_conversation_streams_sentences_and_calls_no_command(self):
         ctl = self.make()
@@ -255,6 +256,13 @@ class StaticGuard(unittest.TestCase):
                 self.assertEqual(used, {"http"}, path)
             else:
                 self.assertEqual(used, set(), path)
+
+    def test_voice_package_has_no_network_process_or_control_plane_import(self):
+        banned = {"subprocess", "socket", "urllib", "requests", "http", "ssl", "multiprocessing", "jarvis", "interaction", "advisor"}
+        folder = os.path.join(ROOT, "voice")
+        for name in os.listdir(folder):
+            if name.endswith(".py"):
+                self.assertEqual(self.imports(os.path.join(folder, name)) & banned, set(), name)
 
     def test_intent_layer_imports_nothing_but_the_standard_text_tools(self):
         self.assertLessEqual(self.imports(os.path.join(ROOT, "interaction", "intents.py")), {"re", "typing"})

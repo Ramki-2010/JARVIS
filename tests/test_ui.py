@@ -47,24 +47,28 @@ def imported(tree):
 
 
 class StaticTests(unittest.TestCase):
-    def test_exactly_one_process_creating_reference_and_no_shell(self):
+    def test_only_the_two_named_process_creating_references_and_no_shell(self):
+        """interaction/child.py starts the control plane (ADR-0011 D2); interaction/voice_child.py starts the
+        voice worker (ADR-0012 D2). No other place in ui/, interaction/, advisor/ or voice/ may start a process."""
         sites = []
-        for folder in ("ui", "interaction"):
+        for folder in ("ui", "interaction", "advisor", "voice"):
             for path in py_files(folder):
                 for finding in astguard.scan(parse(path)):
                     with self.subTest(file=path, finding=finding):
                         self.assertNotIn(finding.rule, ("dynamic", "star-import"))
                     if finding.rule == "process":
                         sites.append((os.path.relpath(path, REPO), finding.name))
-        self.assertEqual(sites, [(os.path.join("interaction", "child.py"), "subprocess.run")])
-        tree = parse(os.path.join(REPO, "interaction", "child.py"))
-        resolve = astguard.resolver(tree)
-        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and astguard.is_process(resolve(n.func) or "")]
-        self.assertEqual(len(calls), 1)
-        self.assertNotIn("shell", [kw.arg for kw in calls[0].keywords])
+        self.assertEqual(sites, [(os.path.join("interaction", "child.py"), "subprocess.run"),
+                                 (os.path.join("interaction", "voice_child.py"), "subprocess.Popen")])
+        for name in ("child.py", "voice_child.py"):
+            tree = parse(os.path.join(REPO, "interaction", name))
+            resolve = astguard.resolver(tree)
+            calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and astguard.is_process(resolve(n.func) or "")]
+            self.assertEqual(len(calls), 1, name)
+            self.assertNotIn("shell", [kw.arg for kw in calls[0].keywords], name)
 
     def test_network_imports_are_limited(self):
-        for folder, allowed in (("ui", {"http.server"}), ("interaction", set())):
+        for folder, allowed in (("ui", {"http.server"}), ("interaction", set()), ("voice", set())):
             for path in py_files(folder):
                 for name in imported(parse(path)):
                     if name.split(".")[0] in NETWORK_ROOTS:
