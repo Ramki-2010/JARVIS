@@ -47,6 +47,7 @@ Everything else stays unsupported: JARVIS says plainly that it cannot do it and 
 ### D4. The catalog is RK's file, and JARVIS never edits it
 A single file, `launch_catalog.toml`, lives in the governance zone beside the policy and registry. RK writes it; JARVIS reads it and **never writes it** (the same stance as the project registry). It is validated at start-up and again before each use; a bad entry is dropped with a plain notice, never guessed.
 
+- **Fixed addresses.** An `app` entry may carry a fixed `https://` address in its `args`, written by RK (for example YouTube). An address from speech, from a model or from a page is **never** passed. JARVIS opening such an entry starts the browser, and it is the browser, not JARVIS, that then reaches the network; JARVIS gains no network access and its firewall rules are unchanged. Only the catalog's own address is opened, nothing is searched, and JARVIS cannot choose a video or a track.
 - **Entries** (at most 64): `id`, `name`, `spoken` (alternative names), `kind`, and for apps and games `exe` (an absolute path on a local drive, ending `.exe`, existing) and `args` (a fixed list; the one placeholder `{file}` is allowed only for file types). For folders `path` (absolute, local, existing). For file types `extensions`, the program id to use, and the folders they apply to.
 - **File types allowed** (the allow list, ADR-level maximum; RK may narrow it): video `.mp4 .mkv .avi .mov .webm .m4v`; audio `.mp3 .flac .wav .m4a .ogg`; images `.jpg .jpeg .png .gif .webp`; documents `.pdf .txt .md`. Nothing outside this list can be added by the catalog alone; widening it is an amendment to this ADR.
 - Paths in the repository use environment variables or placeholders (`%USERPROFILE%`, `D:\<movies folder>`); a personal path appears only in RK's real catalog file, which is not in the repository.
@@ -64,7 +65,7 @@ New deterministic intents only (no model chooses a command): open an app, open a
 A missing program, a moved file, a refused policy check, a start-up failure each give one plain sentence and change nothing. No retry loop. `launch_enabled = false` in RK's configuration disables the whole feature.
 
 ## 3. What is deliberately not done
-No arbitrary program or path, no command line from speech, no shell, no script execution, no installers, no archives, no closing or killing of programs, no keystroke or mouse automation, no screen reading, no changing of Windows settings, no administrator elevation, no web address, no scanning of game libraries or folders for executables, no write to the catalog by JARVIS, no model-chosen action.
+No arbitrary program or path, no command line from speech, no shell, no script execution, no installers, no archives, no closing or killing of programs, no keystroke or mouse automation, no screen reading, no changing of Windows settings, no administrator elevation, no web address from speech, a model or a page (only the fixed addresses RK writes in the catalog), no scanning of game libraries or folders for executables, no write to the catalog by JARVIS, no model-chosen action.
 
 ## 4. Recommended catalog (RK edits it; nothing here is installed or created by this ADR)
 
@@ -79,7 +80,10 @@ States below were `MEASURED` by Local Claude from its own tool on 2026-11-13 (a 
 | `calc` | Calculator, `C:\Windows\System32\calc.exe` | present |
 | `notepad` | Notepad, `C:\Windows\notepad.exe` | present |
 | `vlc` | VLC media player, `C:\Program Files\VideoLAN\VLC\vlc.exe`; the program for video and audio files | present |
-| `browser` | Microsoft Edge, `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe` (opens its start page only; no address is ever passed) | present |
+| `browser` | Zen Browser, `C:\Program Files\Zen Browser\zen.exe` (opens its start page; RK's choice, replacing Edge, which is not listed) | present |
+| `claude` | Claude desktop app (a packaged app), started as `explorer.exe` with the fixed argument `shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude` | installed; a detached start of a packaged app is `UNVERIFIED` |
+| `spotify` | Spotify, `%APPDATA%\Spotify\Spotify.exe`; opens the app only, JARVIS cannot choose or play a track | present |
+| `youtube` | A **fixed web shortcut** (D4): the `browser` program with the fixed address `https://www.youtube.com/`, written by RK in the catalog | depends on `browser`; address is RK's text, not speech |
 | `steam` | Steam launcher, `C:\Program Files (x86)\Steam\steam.exe` | present |
 | `epic` | Epic Games Launcher (path to be pinned by RK) | folder present, executable path `UNVERIFIED` |
 
@@ -105,5 +109,5 @@ Not recommended for the Beta: Paint (its classic path was not found; it is a sto
 - **Gain:** the assistant can do the everyday desktop things RK asked for with a small, auditable, switch-off-able surface and no network.
 - **Cost:** a fourth process site, a new capability, two control-plane commands, a catalog file with a validator, a file-name matcher, new intents and the tests of BU-12. None is built until RK merges this ADR.
 - **Risk:** a launched program is outside JARVIS's control: it can do anything RK's account can. The catalog limits what can be started; it cannot limit what a started program does. Opening a media file hands it to a program that parses untrusted content; the allow list and the confirmation turn reduce that, they do not remove it.
-- **`UNVERIFIED`:** how a detached start behaves under Smart App Control for each program on the list (all listed programs are already installed and signed, but this was not tested); whether Windows treats `explorer.exe ms-settings:` identically from a detached child; the Epic launcher's executable path; that the real path check resolves every junction on this machine's drives.
+- **`UNVERIFIED`:** how a detached start behaves under Smart App Control for each program on the list (all listed programs are already installed and signed, but this was not tested); whether Windows treats `explorer.exe ms-settings:` identically from a detached child; the Epic launcher's executable path; that a detached start of the Claude packaged app and of a browser with a fixed address behave as expected; that the real path check resolves every junction on this machine's drives.
 - **`RK ACT` list:** write the catalog file (apps, folders, games, file-type rules); add `LAUNCH_LOCAL` to the policy; confirm the D: folders; decide whether the browser is on the list.
