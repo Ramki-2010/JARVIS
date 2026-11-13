@@ -29,5 +29,26 @@ NEWS_ALIASES = {
     "express": ("indian express", "the indian express", "express"), "ndtv": ("ndtv",),
     "toi": ("times of india", "the times of india", "toi"), "ht": ("hindustan times", "ht"),
 }
+# Time zones for "what time is it in ...": key -> (spoken name, IANA zone, aliases). Offline: the zone data comes from the
+# tzdata package (ADR-0014 section 4); no network is involved. HOME_ZONE is where "what time is it" is answered for.
+HOME_ZONE = ("India", "Asia/Kolkata")
+ZONES = {
+    "india": ("India", "Asia/Kolkata", ("india", "delhi", "new delhi", "mumbai", "kolkata", "calcutta", "chennai", "bangalore", "bengaluru",
+                                        "hosur", "kumbakonam", "thanjavur", "tanjore", "tirunelveli", "nellai", "madras", "ist")),
+    "london": ("London", "Europe/London", ("london", "uk", "britain", "england")),
+    "paris": ("Paris", "Europe/Paris", ("paris", "france")),
+    "berlin": ("Berlin", "Europe/Berlin", ("berlin", "germany")),
+    "moscow": ("Moscow", "Europe/Moscow", ("moscow", "russia")),
+    "dubai": ("Dubai", "Asia/Dubai", ("dubai", "uae", "abu dhabi")),
+    "singapore": ("Singapore", "Asia/Singapore", ("singapore",)),
+    "hong kong": ("Hong Kong", "Asia/Hong_Kong", ("hong kong",)),
+    "tokyo": ("Tokyo", "Asia/Tokyo", ("tokyo", "japan")),
+    "sydney": ("Sydney", "Australia/Sydney", ("sydney", "australia")),
+    "new york": ("New York", "America/New_York", ("new york", "new york city", "nyc", "washington")),
+    "chicago": ("Chicago", "America/Chicago", ("chicago",)),
+    "los angeles": ("Los Angeles", "America/Los_Angeles", ("los angeles", "la", "san francisco", "california", "seattle")),
+    "toronto": ("Toronto", "America/Toronto", ("toronto", "canada")),
+    "utc": ("UTC", "UTC", ("utc", "gmt", "greenwich")),
+}
 KEYWORD_MAX = 30
 LOOKUPS = ("weather", "hn", "news")

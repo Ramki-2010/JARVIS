@@ -16,6 +16,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Callable, Iterator, List, Optional, Tuple
 
+from advisor import clock
 from advisor.conversation import Conversation
 from advisor.lines import Lines
 from advisor.runtime import ModelUnavailable
@@ -28,6 +29,7 @@ Event = Tuple[str, str]
 HELP_TEXT = ("I can show the status, run the health check, list projects, tasks and notes, verify the audit "
              "trail and tell you where we were. Ask me about a project, for example where we are on it. "
              "I keep your to-do list: ask what is on it, add something, or tick something off, and I will confirm first. "
+             "I can tell you the time here or in other cities, and the date. "
              "I can note something down if you ask and then confirm. Beyond that we can simply talk, sir.")
 TODO_PREFIX = "[todo"
 TODO_LINE = re.compile(r"^(\d+)  (\S+)  (.*)$")
@@ -117,6 +119,8 @@ class Controller:
             yield ("say", LOOKUP_GAP_TEXT if self.fetcher else GAP_TEXT)
         elif intent.kind == intents.JOKE:  # vetted clean puns, not the model: a 9B model ignored the safety rule once
             yield ("say", self.lines.say("joke"))
+        elif intent.kind in (intents.TIME, intents.DATE):
+            yield from self._clock(intent)
         elif intent.kind in (intents.WEATHER, intents.HN, intents.NEWS):
             yield from self._lookup(intent, text)
         elif intent.kind == intents.HELP:
@@ -211,6 +215,20 @@ class Controller:
             if items is not None and len(items) >= TEASE_AT:
                 return ("say", self.lines.say("added_many", n=str(len(items))))
         return ("say", self.lines.say({"add": "added", "done": "done", "drop": "dropped"}[action]))
+
+    # ----- the time and the date, worked out offline from the machine clock (no lookup, nothing recorded)
+    def _clock(self, intent) -> Iterator[Event]:
+        if intent.kind == intents.TIME and intent.args == ("?",):
+            known = ", ".join(v[0] for v in fetch_keys.ZONES.values())
+            yield ("say", "I know the time in %s, sir." % known)
+            return
+        try:
+            shown, spoken = (clock.date_text() if intent.kind == intents.DATE else clock.time_text(intent.args[0]))
+        except clock.NoZoneData:
+            yield ("error", "I have no time-zone data on this machine, sir, so I can only say that it is on your clock.")
+            return
+        yield ("show", shown)
+        yield ("say", spoken)
 
     # ----- public-data lookups (ADR-0014). Authorised and audited by the control plane, made by the separate fetcher
     # program, worded here from fixed fields only. Fetched text is shown and spoken, never given to the model.
