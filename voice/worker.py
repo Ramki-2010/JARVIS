@@ -81,13 +81,56 @@ class Worker:
             pass
         # Speech in is optional: if its libraries cannot load (for example Windows Smart App Control blocks a
         # compiled file), the voice still speaks and the keyboard still works.
-        try:
-            from faster_whisper import WhisperModel
-            self.stt = WhisperModel(os.path.join(self.root, "models", "whisper", "small.en"), device="cpu", compute_type="int8")
-            self.stt_problem = ""
-        except Exception as exc:
-            self.stt = None
-            self.stt_problem = type(exc).__name__ + ": " + str(exc)[:160]
+        # The engine built on torch is preferred: it adds no compiled library of its own, so Smart App Control
+        # has nothing new to block. The older engine (ctranslate2) is only a fallback.
+        problems = []
+        for loader in (self._load_torch_stt, self._load_ct2_stt):
+            try:
+                self.stt = loader()
+                self.stt_problem = ""
+                return
+            except Exception as exc:
+                self.stt = None
+                root = exc
+                while (root.__cause__ or root.__context__) is not None:  # report the deepest cause, not the wrapper
+                    root = root.__cause__ or root.__context__
+                problems.append(type(root).__name__ + ": " + str(root)[:160])
+        self.stt_problem = " | ".join(problems)
+
+    def _load_torch_stt(self):
+        """Whisper through transformers and torch. The model file must match its recorded SHA-256."""
+        spec = self.cfg.get("stt") or {}
+        if not spec.get("dir") or not spec.get("sha256"):
+            raise RuntimeError("no speech-recognition model is recorded in voice_settings.json")
+        path = os.path.join(self.root, spec["dir"])
+        if sha256(os.path.join(path, "model.safetensors")) != spec["sha256"]:
+            raise RuntimeError("the speech-recognition model does not match its record; not loading it")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+        from transformers import WhisperForConditionalGeneration, WhisperProcessor
+        torch = self.torch
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        proc = WhisperProcessor.from_pretrained(path, local_files_only=True)
+        model = WhisperForConditionalGeneration.from_pretrained(
+            path, local_files_only=True, torch_dtype=torch.float16 if dev == "cuda" else torch.float32).to(dev).eval()
+
+        def run(audio) -> str:
+            feats = proc(audio, sampling_rate=16000, return_tensors="pt").input_features.to(dev, model.dtype)
+            with torch.no_grad():
+                ids = model.generate(feats, max_new_tokens=128)
+            return proc.batch_decode(ids, skip_special_tokens=True)[0].strip()
+
+        run(self.np.zeros(16000, dtype=self.np.float32))  # warm-up; discarded
+        return run
+
+    def _load_ct2_stt(self):
+        from faster_whisper import WhisperModel
+        model = WhisperModel(os.path.join(self.root, "models", "whisper", "small.en"), device="cpu", compute_type="int8")
+
+        def run(audio) -> str:
+            segments, _ = model.transcribe(audio, language="en", beam_size=1, vad_filter=False, condition_on_previous_text=False)
+            return " ".join(s.text.strip() for s in segments).strip()
+
+        return run
 
     def _pieces(self, text):
         steps = int(self.cfg.get("inference_timesteps", 4))
@@ -188,8 +231,7 @@ class Worker:
 
     def transcribe(self, job_id: int, audio, seconds: float) -> None:
         t0 = time.monotonic()
-        segments, _ = self.stt.transcribe(audio, language="en", beam_size=1, vad_filter=False, condition_on_previous_text=False)
-        text = " ".join(s.text.strip() for s in segments).strip()
+        text = self.stt(audio)
         emit(event="heard", id=job_id, text=text, audio_s=round(seconds, 2), stt_s=round(time.monotonic() - t0, 2))
 
     def run_jobs(self) -> None:
