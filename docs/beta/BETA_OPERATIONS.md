@@ -64,6 +64,14 @@ scripts\jarvis.cmd doctor
 
 Rules that matter: reads happen only as steps of a task and only on a path that is allowed at the moment `task run` executes. A relayed result is stored word for word, labelled `UNTRUSTED, NOT VERIFIED`, and never changes a task, a policy or a brief. Nothing is ever `VERIFIED`: there is no independent verifier in the Beta.
 
+### 3c. Text conversation (ADR-0013 Amendment 1; first cut, 2026-11-13)
+
+```
+py -3.14 -m advisor --config D:\JARVIS\governance\jarvis.toml --timing
+```
+
+Needs the local model server running on 127.0.0.1:11434 and an **approved model list** (`models.toml` next to `jarvis.toml`, RK's governance file; see `advisor/approved.py` for the format). Without that file, or if the listed digest differs, conversation is off and the rest of JARVIS is unchanged. The model runs on the CPU by default (`--num-gpu 0`, Setup A). Every line is seen first by the deterministic intent layer (`interaction/intents.py`: status, health check, projects, tasks, notes, audit verify, resume, help, quit, note capture, unsupported requests); anything else is conversation. A note is written only after you say yes to "Shall I note that down?", through the existing `note add` command (policy-evaluated and audited); it is tagged `[typed]` or `[spoken]` in its text as an interim provenance marker until a provenance field exists. The model's reply is text with no authority.
+
 ### 3a. The HTML snapshot
 
 `scripts\jarvis.cmd view` writes `D:\JARVIS\data\views\index.html`: one self-contained page with the audit and health status, the projects, unfinished and recent tasks, the latest notes and relayed-result metadata. Open it from disk in any browser; it also prints cleanly. It has no script, no server and no network, a Content-Security-Policy that forbids everything but its own style, light and dark themes, and every status is also written as a word. Notes are labelled data; the text of a relayed result is never shown, only its metadata. It is a derived file, regenerated each time, not part of the audit chain or the backup. `--stdout` prints the page instead of writing it. This is the Beta plan's BS-3 item and the fallback if the localhost dashboard (ADR-0011) is cut; it does not replace that dashboard.
