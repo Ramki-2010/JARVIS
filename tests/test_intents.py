@@ -189,7 +189,7 @@ class Lookups(unittest.TestCase):
 
 class Gaps(unittest.TestCase):
     def test_requests_the_beta_cannot_do_are_gaps(self):
-        for text in ("weather is nice today", "open the browser", "send an email to my landlord",
+        for text in ("weather is nice today", "send an email to my landlord",
                      "set a reminder for six", "order some pizza", "check the listing for that flat"):
             got = recognise(text)
             self.assertIsNotNone(got, text)

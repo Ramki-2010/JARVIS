@@ -286,7 +286,7 @@ class ActivationOnTheRealInstallTests(ReadCase):
     def test_a_store_initialized_under_version_1_evaluates_under_the_current_version(self):
         self.make_task("t0", "CREATE_TASK")      # evaluated with the test default (version 2 file)
         text = self.run_cli("task", "show", "t0")[1]
-        self.assertIn("policy_version: 3", text)
+        self.assertIn("policy_version: 4", text)
         self.assertIn("state: RUNNING", text)
         self.assertEqual(self.run_cli("audit", "verify")[0], cli_ok())
 
@@ -298,7 +298,7 @@ class ActivationOnTheRealInstallTests(ReadCase):
             known = store.known_policy_hashes()
         finally:
             store.close()
-        self.assertEqual(sorted(known), [1, 3])
+        self.assertEqual(sorted(known), [1, 4])
         self.assertIsInstance(pol.load(V1_POLICY, known), pol.LoadedPolicy)
         self.assertIsInstance(pol.load(POLICY_PATH, known), pol.LoadedPolicy)
 

@@ -1,13 +1,13 @@
 """Command-line interface (ADR-0002 D1 row 9). Record voice only.
 
 This milestone implements `init`, `status`, `doctor`, `audit verify`, `task create`, `task evaluate`,
-`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `view`, `brief show`, `result add`, `result list`, `result show`, `fetch authorize`, `fetch record`, `report` and `cancel`. `task run` carries a RUNNING
+`task run`, `task show`, `task list`, `project list`, `project show`, `note add`, `note list`, `note show`, `resume`, `view`, `brief show`, `result add`, `result list`, `result show`, `fetch authorize`, `fetch record`, `launch authorize`, `launch record`, `report` and `cancel`. `task run` carries a RUNNING
 task through its plan to COMPLETED_UNVERIFIED (or FAILED).
 
 Exit codes: 0 ok; 2 usage; 3 configuration error; 4 store missing;
 5 audit verification failed or store halted; 6 store busy; 7 task error (bad input,
 unknown or existing task, rejected transition); 8 init refused (store exists, data root
-missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 13 result refused or unavailable; 14 fetch refused or invalid; 1 unexpected error.
+missing, policy invalid); 9 doctor found a failure; 10 project registry unavailable or project unknown; 11 note refused or unavailable; 12 brief unavailable; 13 result refused or unavailable; 14 fetch refused or invalid; 15 launch refused or invalid; 1 unexpected error.
 Every unexpected error fails closed.
 """
 
@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from . import config as config_mod
 from . import doctor as doctor_mod
 from . import fetches
+from . import launches
 from . import briefs
 from . import display
 from . import notes as notes_mod
@@ -46,6 +47,7 @@ EXIT_NOTE = 11
 EXIT_BRIEF = 12
 EXIT_RESULT = 13
 EXIT_FETCH = 14
+EXIT_LAUNCH = 15
 
 
 def utc_now() -> str:
@@ -178,6 +180,27 @@ def cmd_fetch(cfg, args, out) -> int:
     except fetches.FetchError as exc:
         _print(out, "fetch %s: %s" % (args.fetch_command, exc.code) + (" (%s)" % exc.reason if exc.reason else ""))
         return EXIT_FETCH
+    finally:
+        store.close()
+
+
+def cmd_launch(cfg, args, out) -> int:
+    """`launch authorize` and `launch record` (ADR-0015 D5). The program is started by another component."""
+    if not Store.exists(cfg.data_root):
+        _print(out, "launch: store missing")
+        return EXIT_STORE_MISSING
+    store = _open_store(cfg)
+    try:
+        if args.launch_command == "authorize":
+            seq = launches.authorize_launch(store, cfg, args.policy, utc_now(), os_actor(), args.kind, args.id)
+            _print(out, "launch authorized: %d" % seq, "kind: %s" % args.kind)
+        else:
+            seq = launches.record_launch(store, utc_now(), os_actor(), args.kind, args.id, args.result, args.ext, args.hash)
+            _print(out, "launch recorded: %d" % seq, "kind: %s" % args.kind, "result: %s" % args.result)
+        return EXIT_OK
+    except launches.LaunchError as exc:
+        _print(out, "launch %s: %s" % (args.launch_command, exc.code) + (" (%s)" % exc.reason if exc.reason else ""))
+        return EXIT_LAUNCH
     finally:
         store.close()
 
@@ -709,6 +732,19 @@ def build_parser() -> argparse.ArgumentParser:
     frec.add_argument("--result", required=True)
     frec.add_argument("--bytes", type=int, default=0)
     frec.add_argument("--ms", type=int, default=0)
+    launch = sub.add_parser("launch", help="authorise and record a local launch (the program is started elsewhere)")
+    launch_sub = launch.add_subparsers(dest="launch_command", required=True)
+    lauth = launch_sub.add_parser("authorize", help="ask the policy about LAUNCH_LOCAL for one kind and catalog id")
+    lauth.add_argument("kind")
+    lauth.add_argument("id")
+    lauth.add_argument("--policy", default=tasks_mod.DEFAULT_POLICY_PATH,
+                       help="policy file (default: policy/policy.toml in the repository)")
+    lrec = launch_sub.add_parser("record", help="record what a launch reported")
+    lrec.add_argument("kind")
+    lrec.add_argument("id")
+    lrec.add_argument("--result", required=True)
+    lrec.add_argument("--ext", default="", help="a file's extension (files only)")
+    lrec.add_argument("--hash", default="", help="a short hash of a file's path (files only)")
     view = sub.add_parser("view", help="static read-only HTML snapshot (no script, no server)")
     view.add_argument("--project", help="limit tasks and notes to one project")
     view.add_argument("--stdout", action="store_true", help="print the page instead of writing views/index.html")
@@ -804,6 +840,8 @@ def main(argv=None, out=None) -> int:
             return cmd_result_show(cfg, args, out)
         if args.command == "fetch":
             return cmd_fetch(cfg, args, out)
+        if args.command == "launch":
+            return cmd_launch(cfg, args, out)
         if args.command == "brief":
             return cmd_brief_show(cfg, args, out)
         if args.command == "view":

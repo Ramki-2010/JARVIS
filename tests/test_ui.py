@@ -47,9 +47,9 @@ def imported(tree):
 
 
 class StaticTests(unittest.TestCase):
-    def test_only_the_three_named_process_creating_references_and_no_shell(self):
+    def test_only_the_four_named_process_creating_references_and_no_shell(self):
         """interaction/child.py starts the control plane (ADR-0011 D2); interaction/voice_child.py starts the
-        voice worker (ADR-0012 D2); interaction/fetch_child.py starts the public-data fetcher (ADR-0014 D2). No other place in ui/, interaction/, advisor/ or voice/ may start a process."""
+        voice worker (ADR-0012 D2); interaction/fetch_child.py starts the public-data fetcher (ADR-0014 D2); interaction/launch_child.py starts one catalog program (ADR-0015 D2). No other place in ui/, interaction/, advisor/ or voice/ may start a process."""
         sites = []
         for folder in ("ui", "interaction", "advisor", "voice"):
             for path in py_files(folder):
@@ -60,8 +60,9 @@ class StaticTests(unittest.TestCase):
                         sites.append((os.path.relpath(path, REPO), finding.name))
         self.assertEqual(sites, [(os.path.join("interaction", "child.py"), "subprocess.run"),
                                  (os.path.join("interaction", "fetch_child.py"), "subprocess.run"),
+                                 (os.path.join("interaction", "launch_child.py"), "subprocess.Popen"),
                                  (os.path.join("interaction", "voice_child.py"), "subprocess.Popen")])
-        for name in ("child.py", "voice_child.py", "fetch_child.py"):
+        for name in ("child.py", "voice_child.py", "fetch_child.py", "launch_child.py"):
             tree = parse(os.path.join(REPO, "interaction", name))
             resolve = astguard.resolver(tree)
             calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and astguard.is_process(resolve(n.func) or "")]

@@ -1,0 +1,126 @@
+# JARVIS launch catalog: EXAMPLE (ADR-0015). Copy to <governance folder>\launch_catalog.toml and edit.
+# This file is RK's. JARVIS reads it afresh before each use and never writes it. At most 64 entries.
+# Paths use only these variables: %USERPROFILE% %APPDATA% %LOCALAPPDATA% %PROGRAMFILES% %PROGRAMFILES(X86)% %SYSTEMROOT% %PROGRAMDATA%
+# An entry whose program or folder is missing is dropped with a notice and the rest still work.
+#
+# kind app:    exe = absolute local .exe path; args = fixed arguments (a fixed https:// address may be written here by RK)
+# kind game:   as app, plus a launcher address such as steam://rungameid/<number> may be written by RK
+# kind folder: path = absolute local folder
+# filetype:    which app opens which file types found in which folders; extensions must be on the ADR-0015 allow list:
+#              .mp4 .mkv .avi .mov .webm .m4v .mp3 .flac .wav .m4a .ogg .jpg .jpeg .png .gif .webp .pdf .txt .md
+
+schema_version = 1
+
+[[app]]
+id = "settings"
+name = "Settings"
+exe = '%SYSTEMROOT%\explorer.exe'
+args = ["ms-settings:"]
+
+[[app]]
+id = "taskmgr"
+name = "Task Manager"
+spoken = ["task manager", "processes"]
+exe = '%SYSTEMROOT%\System32\taskmgr.exe'
+
+[[app]]
+id = "explorer"
+name = "File Explorer"
+spoken = ["explorer", "files"]
+exe = '%SYSTEMROOT%\explorer.exe'
+
+[[app]]
+id = "calc"
+name = "Calculator"
+spoken = ["calculator"]
+exe = '%SYSTEMROOT%\System32\calc.exe'
+
+[[app]]
+id = "notepad"
+name = "Notepad"
+exe = '%SYSTEMROOT%\notepad.exe'
+
+[[app]]
+id = "vlc"
+name = "VLC"
+spoken = ["vlc media player", "video player"]
+exe = '%PROGRAMFILES%\VideoLAN\VLC\vlc.exe'
+file_args = ["{file}"]
+
+[[app]]
+id = "browser"
+name = "Zen Browser"
+spoken = ["browser", "zen", "zen browser", "the browser"]
+exe = '%PROGRAMFILES%\Zen Browser\zen.exe'
+
+[[app]]
+id = "youtube"
+name = "YouTube"
+exe = '%PROGRAMFILES%\Zen Browser\zen.exe'
+args = ["https://www.youtube.com/"]
+
+[[app]]
+id = "claude"
+name = "Claude"
+exe = '%SYSTEMROOT%\explorer.exe'
+args = ['shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude']
+
+[[app]]
+id = "spotify"
+name = "Spotify"
+exe = '%APPDATA%\Spotify\Spotify.exe'
+
+[[game]]
+id = "steam"
+name = "Steam"
+exe = '%PROGRAMFILES(X86)%\Steam\steam.exe'
+
+# A single game, by launcher and game number typed here by RK (JARVIS never scans a library):
+# [[game]]
+# id = "mygame"
+# name = "My Game"
+# spoken = ["my game"]
+# exe = '%PROGRAMFILES(X86)%\Steam\steam.exe'
+# args = ["steam://rungameid/12345"]
+
+[[folder]]
+id = "downloads"
+name = "Downloads"
+path = '%USERPROFILE%\Downloads'
+
+[[folder]]
+id = "documents"
+name = "Documents"
+path = '%USERPROFILE%\Documents'
+
+[[folder]]
+id = "pictures"
+name = "Pictures"
+path = '%USERPROFILE%\Pictures'
+
+[[folder]]
+id = "music"
+name = "Music"
+path = '%USERPROFILE%\Music'
+
+[[folder]]
+id = "videos"
+name = "Videos"
+path = '%USERPROFILE%\Videos'
+
+[[folder]]
+id = "desktop"
+name = "Desktop"
+path = '%USERPROFILE%\Desktop'
+
+# Folders on another drive (RK supplies these), for example:
+# [[folder]]
+# id = "movies"
+# name = "Movies"
+# path = 'D:\<movies folder>'
+
+# Files are opened by name inside the folders a filetype rule lists, after a "yes". Add your own folders to the lists.
+[[filetype]]
+program = "vlc"
+extensions = [".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".mp3", ".flac", ".wav", ".m4a", ".ogg"]
+folders = ["music", "videos"]

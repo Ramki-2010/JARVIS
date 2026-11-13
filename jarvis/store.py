@@ -54,7 +54,7 @@ _SCHEMA = (
 
 # Events whose named fields are mediated input rather than observed facts.
 _MEDIATED_DETAIL_EVENTS = {"NOTE_RECORDED": ("detail",), "RESULT_RECORDED": ("detail",),
-                           "FETCH_RECORDED": ("detail",)}
+                           "FETCH_RECORDED": ("detail",), "LAUNCH_RECORDED": ("detail",)}
 
 
 class StoreError(RuntimeError):
