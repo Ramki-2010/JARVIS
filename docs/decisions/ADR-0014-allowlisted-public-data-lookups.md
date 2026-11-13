@@ -1,6 +1,6 @@
 # ADR-0014 — Allowlisted, Read-Only Lookups of Public Data (weather, tech news, Indian news)
 
-**STATUS: PROPOSED, approved by RK in chat on 2026-11-13** ("for others, yes, I give the approval for the ADR"). The chat approval is an input; it becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6. The feed list and the default place in section 6 still need RK's explicit confirmation.
+**STATUS: PROPOSED, approved by RK in chat on 2026-11-13** ("for others, yes, I give the approval for the ADR"). The chat approval is an input; it becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6. RK confirmed the feed list, the saved places and `tzdata` in chat on 2026-11-13 (Amendment 1).
 
 | Field | Value |
 |---|---|
@@ -85,3 +85,26 @@ The control plane's Python has no time-zone database on this machine (`MEASURED`
 - **Privacy:** a weather lookup for a named place sends that place name (or coordinates) to Open-Meteo. RK sets a default place; nothing else about RK is sent.
 - **`UNVERIFIED`:** that the Python standard library's compiled modules in a private 3.14 copy load under Smart App Control (the voice's 3.10 copy did; the 3.14 copy is untested); the feed publishers' terms; FQDN firewall rules.
 - **`RK ACT` list:** confirm the feed list and a default place; add `FETCH_PUBLIC_DATA` to the policy; create the private Python copy's firewall rule; decide on `tzdata`.
+
+## 7. Amendment 1 (2026-11-13): RK's confirmations and what the build found
+
+Everything below narrows or fills in the decision above; nothing widens it.
+
+| Item | Result |
+|---|---|
+| Feed list (D1) | Confirmed by RK as written: The Hindu (national, business), The Indian Express, NDTV, The Times of India, Hindustan Times. Addresses pinned in `fetcher/keys.py`; each answered HTTP 200 with no redirect and as plain RSS 2.0 on 2026-11-13 (`MEASURED`, including Hindustan Times, whose content type says Atom but whose body is RSS) |
+| Places (D3 item 4) | RK's saved list: Kumbakonam (the default), Hosur, Bangalore, Thanjavur, Chennai, Tirunelveli. **Fixed coordinates in code, so the geocoding host is not used and not allowed.** Open-Meteo's own geocoder confirmed why: "Bangalore" resolves to a town in Sindh and "Hosur" has Karnataka namesakes (`MEASURED`). An unknown place is refused in plain words; changing the list is a reviewed code change |
+| Spoken names | Bengaluru, Tanjore, Madras and Nellai are accepted as the same places |
+| Hosts | `api.open-meteo.com`, `hacker-news.firebaseio.com`, and the five feed hosts. Nothing else is reachable: the code refuses any other host before a connection is made |
+| Hacker News | The five top stories, each fetched by id; the title, score and site name only |
+| News | "The news" reads one headline from each of five feeds; a source or a plain keyword narrows it; the keyword filters locally and is never sent anywhere |
+| Policy (D5) | Version 3 adds exactly one capability, `FETCH_PUBLIC_DATA` (L1, `CONTROL_PLANE_RECORD`). The scope by lookup name is the record id in the evaluation and the audit entry. Merging this change is RK's act |
+| Audit (D5) | `fetch authorize <lookup>` records FETCH_AUTHORIZED or FETCH_REFUSED; `fetch record` records the lookup, host names, result (ok, partial, refused, failed), bytes and milliseconds, marked MEDIATED because the fetcher reported it. The place and keyword have no path into the record |
+| Process (D2) | `interaction/fetch_child.py` is the third named process site (`python -E -s -m fetcher`, absolute interpreter, no shell, minimal environment, 25 s timeout, 64 KB output cap, at most 6 lookups a minute). `-E -s` replaces `-I` for the reason in ADR-0011 Amendment 1 |
+| Private Python (D6) | A copy of Python 3.14 at `D:\JARVISetcher\python314` (35 MB, Lib and DLLs, no packages) starts and makes HTTPS requests on this machine under Smart App Control (`MEASURED`: this resolves that `UNVERIFIED`) |
+| Firewall (D6) | On this machine the Windows firewall's outbound default is "not configured" (open) for all three profiles (`MEASURED`), so the private copy works with no rule. A rule is therefore a way to **block** it (the switch-off in D7), not a precondition. Whether to add a block rule when the lookups are not wanted is RK's choice (G-05) |
+| Switch-off (D7) | **On by default (RK, 2026-11-13).** The conversation looks for the fetcher folder next to the governance folder (`--fetch-root <folder>` overrides it). If the folder or its Python is missing, weather and news get the earlier plain answer ("no network"). `--no-fetch` switches the lookups off for one run; removing the policy row stops them for good. There is no new configuration key |
+| Headlines | RK decided that **no headline is skipped or filtered**: they are read as published (2026-11-13) |
+| `tzdata` | Installed 2026.6 into the control plane's Python 3.14 on RK's approval; `Asia/Kolkata` resolves. Time in other zones is not built yet |
+| Tests | `tests/test_fetcher.py` (every D3 limit: wrong host, redirect, bad status, oversize by header and by count, slow reply, malformed and hostile RSS, hostile headline text), `tests/test_lookups.py` (control-plane commands, child helper, conversation flow), the static guard (three process sites; only `fetcher/` may import network modules, and nothing outside it imports `fetcher.net`, `fetcher.lookups` or `fetcher.rss`) |
+| Still `UNVERIFIED` | The publishers' terms for feed use; Windows FQDN firewall rules; behaviour when a feed changes format (it fails with a plain sentence, by design) |

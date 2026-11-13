@@ -25,6 +25,7 @@ ROOT = "d:\\projects\\demo"
 
 GOLDEN = os.path.join(os.path.dirname(__file__), "golden", "evaluator_decisions_v1.json")
 GOLDEN_V2 = os.path.join(os.path.dirname(__file__), "golden", "evaluator_decisions_v2.json")
+GOLDEN_V3 = os.path.join(os.path.dirname(__file__), "golden", "evaluator_decisions_v3.json")
 
 CPR_TARGET = CanonicalTarget(TargetClass.CONTROL_PLANE_RECORD, "task/t-0001")
 PROJECT_TARGET = CanonicalTarget(TargetClass.PROJECT_ID, "demo", project_id="demo")

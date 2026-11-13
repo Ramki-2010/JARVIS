@@ -47,9 +47,9 @@ def imported(tree):
 
 
 class StaticTests(unittest.TestCase):
-    def test_only_the_two_named_process_creating_references_and_no_shell(self):
+    def test_only_the_three_named_process_creating_references_and_no_shell(self):
         """interaction/child.py starts the control plane (ADR-0011 D2); interaction/voice_child.py starts the
-        voice worker (ADR-0012 D2). No other place in ui/, interaction/, advisor/ or voice/ may start a process."""
+        voice worker (ADR-0012 D2); interaction/fetch_child.py starts the public-data fetcher (ADR-0014 D2). No other place in ui/, interaction/, advisor/ or voice/ may start a process."""
         sites = []
         for folder in ("ui", "interaction", "advisor", "voice"):
             for path in py_files(folder):
@@ -59,8 +59,9 @@ class StaticTests(unittest.TestCase):
                     if finding.rule == "process":
                         sites.append((os.path.relpath(path, REPO), finding.name))
         self.assertEqual(sites, [(os.path.join("interaction", "child.py"), "subprocess.run"),
+                                 (os.path.join("interaction", "fetch_child.py"), "subprocess.run"),
                                  (os.path.join("interaction", "voice_child.py"), "subprocess.Popen")])
-        for name in ("child.py", "voice_child.py"):
+        for name in ("child.py", "voice_child.py", "fetch_child.py"):
             tree = parse(os.path.join(REPO, "interaction", name))
             resolve = astguard.resolver(tree)
             calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and astguard.is_process(resolve(n.func) or "")]
@@ -74,6 +75,29 @@ class StaticTests(unittest.TestCase):
                     if name.split(".")[0] in NETWORK_ROOTS:
                         with self.subTest(file=path, module=name):
                             self.assertIn(name, allowed)
+
+    def test_only_the_fetcher_package_may_use_network_modules_or_its_network_code(self):
+        """ADR-0014 D2. fetcher/ is the one place with socket, ssl, http.client or urllib; nothing else imports
+        fetcher.net, fetcher.lookups or fetcher.rss (the fetcher runs as its own program), and the control plane
+        never imports fetcher at all. fetcher.keys is plain data and may be imported by the intent layer."""
+        fetcher_files = py_files("fetcher")
+        self.assertTrue(any(f.endswith("net.py") for f in fetcher_files))
+        for folder in ("jarvis", "advisor", "interaction", "voice", "ui"):
+            files = []
+            for dirpath, _d, names in os.walk(os.path.join(REPO, folder)):
+                files += [os.path.join(dirpath, n) for n in names if n.endswith(".py")]
+            for path in files:
+                for name in imported(parse(path)):
+                    with self.subTest(file=path, module=name):
+                        if folder == "jarvis":
+                            self.assertNotEqual(name.split(".")[0], "fetcher")
+                        elif name.split(".")[0] == "fetcher":
+                            self.assertEqual(name, "fetcher.keys" if name != "fetcher" else "fetcher")
+        for path in fetcher_files:
+            for name in imported(parse(path)):
+                self.assertNotIn(name.split(".")[0], {"jarvis", "advisor", "interaction", "voice", "ui", "subprocess", "multiprocessing", "ctypes"}, path)
+            for finding in astguard.scan(parse(path)):
+                self.assertNotIn(finding.rule, ("process", "dynamic", "star-import"), (path, finding))
 
     def test_control_plane_does_not_import_surfaces(self):
         for dirpath, _d, files in os.walk(os.path.join(REPO, "jarvis")):

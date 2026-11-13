@@ -26,7 +26,7 @@ from . import test_evaluator as te
 from .test_read_cli import V1_POLICY, ReadCase
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-POLICY_PATH = os.path.join(REPO, "policy", "policy.toml")
+POLICY_PATH = os.path.join(REPO, "tests", "golden", "policy_v2.toml")  # frozen: the real file is version 3 now
 
 NOT_BETA = tuple(row[0] for row in d12.ROWS if row[0] not in v2.BETA_ALLOW)
 
@@ -283,10 +283,10 @@ class ActivationOnTheRealInstallTests(ReadCase):
             os.remove(os.path.join(self.data, name))
         self.assertEqual(self.run_cli("init", "--policy", V1_POLICY)[0], cli_ok())
 
-    def test_a_store_initialized_under_version_1_evaluates_under_version_2(self):
+    def test_a_store_initialized_under_version_1_evaluates_under_the_current_version(self):
         self.make_task("t0", "CREATE_TASK")      # evaluated with the test default (version 2 file)
         text = self.run_cli("task", "show", "t0")[1]
-        self.assertIn("policy_version: 2", text)
+        self.assertIn("policy_version: 3", text)
         self.assertIn("state: RUNNING", text)
         self.assertEqual(self.run_cli("audit", "verify")[0], cli_ok())
 
@@ -298,7 +298,7 @@ class ActivationOnTheRealInstallTests(ReadCase):
             known = store.known_policy_hashes()
         finally:
             store.close()
-        self.assertEqual(sorted(known), [1, 2])
+        self.assertEqual(sorted(known), [1, 3])
         self.assertIsInstance(pol.load(V1_POLICY, known), pol.LoadedPolicy)
         self.assertIsInstance(pol.load(POLICY_PATH, known), pol.LoadedPolicy)
 

@@ -1,4 +1,4 @@
-# JARVIS policy, version 2 (Beta).
+# JARVIS policy, version 3 (Beta).
 #
 # Sources: ADR-0003 D12 (initial capability matrix) and D2, ADR-0008 D1 (initial
 # user-secret locations), Master Context section 13 and section 33, and ADR-0010 D2
@@ -10,6 +10,10 @@
 #   RECORD_RESULT, RECORD_NOTE    new, CONTROL_PLANE_RECORD
 # Every one is implemented and tested in this repository. Network, subprocess, model
 # calls, isolation-gated work, L4/L5 actions and every other row are unchanged.
+#
+# Version 3 adds exactly one capability and changes nothing else (ADR-0014 D5; RK approved in chat 2026-11-13):
+#   FETCH_PUBLIC_DATA             new, CONTROL_PLANE_RECORD. The control plane only authorises and records a
+#                                 lookup (weather, Hacker News, Indian news feeds); it opens no socket itself.
 #
 # Changing any row or entry here is a policy change (G-03) and, for the secret
 # locations, a credential decision (G-07). It is made only by RK, by pull request.
@@ -27,7 +31,7 @@
 #   non_goal               true: DENY (NON_GOAL_V01), Master Context section 33
 
 schema_version = 1
-policy_version = 2
+policy_version = 3
 
 # --- ALLOW set: the four Phase 1 capabilities (then the Beta additions below) -------------------------------
 
@@ -86,6 +90,18 @@ non_goal = false
 [[capability]]
 name = "RECORD_NOTE"
 base_level = "L2"
+requires_isolation = false
+allowed_classes = ["CONTROL_PLANE_RECORD"]
+phase_enabled = true
+mechanism_implemented = true
+forbidden_l5 = false
+non_goal = false
+
+# --- ADR-0014 addition: authorise and record one public-data lookup -----------------------------------------
+
+[[capability]]
+name = "FETCH_PUBLIC_DATA"
+base_level = "L1"
 requires_isolation = false
 allowed_classes = ["CONTROL_PLANE_RECORD"]
 phase_enabled = true
