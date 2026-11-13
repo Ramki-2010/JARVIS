@@ -298,6 +298,147 @@ class Briefings(ServerCase):
         self.assertIn("0 unfinished and 9 closed tasks", said)
 
 
+class TodoList(ServerCase):
+    """A fake control plane that stores notes in order and answers the filtered list like the real one."""
+
+    def make(self, fail_writes=False):
+        self.calls, self.notes = [], []
+
+        def runner(args):
+            self.calls.append(list(args))
+            if args[:2] == ["note", "add"]:
+                if fail_writes:
+                    return Result(2, "denied")
+                self.notes.append(args[args.index("--text") + 1])
+                return Result(0, "note recorded: %d" % (100 + len(self.notes)))
+            if args[:2] == ["note", "list"] and "--text-prefix" in args:
+                prefix = args[args.index("--text-prefix") + 1]
+                rows = ["%d  2026-11-13T10:00:00Z  %s" % (101 + i, t) for i, t in enumerate(self.notes) if t.startswith(prefix)]
+                return Result(0, "\n".join(rows + ["notes: %d" % len(rows)]) + "\n")
+            return Result(0, "x")
+
+        return Controller(Conversation(self.client, "m:1"), runner, project="proj")
+
+    def say(self, ctl, text):
+        return list(ctl.respond(text))
+
+    def test_an_item_is_added_only_after_the_confirmation_turn(self):
+        ctl = self.make()
+        first = self.say(ctl, "add Call the plumber to my to-do list")
+        self.assertEqual(self.notes, [])
+        self.assertIn("Shall I add Call the plumber to your list, sir?", first[0][1])
+        done = self.say(ctl, "yes please")
+        self.assertEqual(self.notes, ["[todo] Call the plumber"])
+        self.assertEqual(done, [("say", "Added to your list, sir.")])
+
+    def test_denied_or_abandoned_additions_write_nothing(self):
+        ctl = self.make()
+        self.say(ctl, "add buy milk to my to-do list"); self.say(ctl, "no")
+        self.say(ctl, "add buy milk to my to-do list"); self.say(ctl, "how was your day"); self.say(ctl, "yes")
+        self.assertEqual(self.notes, [])
+
+    def test_the_list_is_read_back_in_order(self):
+        ctl = self.make()
+        for item in ("Call the plumber", "Renew the passport"):
+            self.say(ctl, "add %s to my to-do list" % item); self.say(ctl, "yes")
+        events = self.say(ctl, "what's on my to-do list")
+        self.assertEqual(events[0], ("show", "To-do list (2):\n1. Call the plumber\n2. Renew the passport"))
+        said = [t for k, t in events if k == "say"]
+        self.assertEqual(said, ["You have 2 things on your list, sir.", "1. Call the plumber.", "2. Renew the passport."])
+
+    def test_an_empty_list_says_so(self):
+        ctl = self.make()
+        events = self.say(ctl, "read my to-do list")
+        self.assertEqual(events[0], ("show", "To-do list: empty"))
+        self.assertIn("clear", events[1][1])
+
+    def test_ticking_off_by_words_number_and_ordinal(self):
+        for phrase in ("mark renew the passport as done", "tick off number 2", "cross off the second one"):
+            ctl = self.make()
+            for item in ("Call the plumber", "Renew the passport"):
+                self.say(ctl, "add %s to my to-do list" % item); self.say(ctl, "yes")
+            ask = self.say(ctl, phrase)
+            self.assertIn("Shall I tick off Renew the passport, sir?", ask[0][1], phrase)
+            self.assertEqual(len(self.notes), 2)  # nothing written until confirmed
+            self.assertEqual(self.say(ctl, "yes")[0][0], "say")
+            self.assertEqual(self.notes[-1], "[todo-done 102]")
+            self.assertIn("Call the plumber", self.say(ctl, "what's on my to-do list")[0][1])
+            self.assertNotIn("Renew", self.say(ctl, "what's on my to-do list")[0][1])
+
+    def test_dropping_an_item(self):
+        ctl = self.make()
+        self.say(ctl, "add buy milk to my to-do list"); self.say(ctl, "yes")
+        self.say(ctl, "remove buy milk from my to-do list"); self.say(ctl, "yes")
+        self.assertEqual(self.notes[-1], "[todo-drop 101]")
+        self.assertEqual(self.say(ctl, "what's on my to-do list")[0], ("show", "To-do list: empty"))
+
+    def test_an_ambiguous_or_missing_reference_asks_or_refuses_and_writes_nothing(self):
+        ctl = self.make()
+        for item in ("Call the plumber", "Call the bank"):
+            self.say(ctl, "add %s to my to-do list" % item); self.say(ctl, "yes")
+        n = len(self.notes)
+        self.assertIn("Which do you mean?", self.say(ctl, "tick off call")[0][1])
+        self.assertIn("cannot find that on your list", self.say(ctl, "tick off the moon landing")[0][1])
+        self.assertIn("cannot find", self.say(ctl, "tick off number 9")[0][1])
+        self.assertEqual(len(self.notes), n)
+        self.assertIsNone(ctl.pending_todo)
+
+    def test_a_soft_done_phrase_about_something_else_is_conversation(self):
+        ctl = self.make()
+        events = self.say(ctl, "dinner is done")
+        self.assertEqual([k for k, _ in events], ["say"] * 3)  # the fake model answered
+        self.assertEqual([c for c in self.calls if c[:2] == ["note", "add"]], [])
+
+    def test_item_text_that_looks_like_a_marker_cannot_close_anything(self):
+        ctl = self.make()
+        self.say(ctl, "add [todo-done 101] to my to-do list"); self.say(ctl, "yes")
+        self.say(ctl, "add real item to my to-do list"); self.say(ctl, "yes")
+        listing = self.say(ctl, "what's on my to-do list")[0][1]
+        self.assertIn("1. [todo-done 101]", listing)
+        self.assertIn("2. real item", listing)
+
+    def test_a_failed_write_is_reported_and_the_list_is_untouched(self):
+        ctl = self.make(fail_writes=True)
+        self.say(ctl, "add buy milk to my to-do list")
+        self.assertEqual(self.say(ctl, "yes")[0][0], "error")
+        self.assertEqual(self.notes, [])
+
+    def test_overlong_items_are_refused(self):
+        ctl = self.make()
+        self.assertIn("rather long", self.say(ctl, "add " + "x" * 400 + " to my to-do list")[0][1])
+        self.assertIsNone(ctl.pending_todo)
+
+
+class Manner(unittest.TestCase):
+    def test_stock_phrases_rotate_deterministically_and_the_first_is_plain(self):
+        from advisor.lines import Lines, POOLS
+        a, b = Lines(), Lines()
+        seq_a = [a.say("noted") for _ in range(6)]
+        self.assertEqual(seq_a, [b.say("noted") for _ in range(6)])
+        self.assertEqual(seq_a[0], "Noted, sir.")
+        self.assertGreater(len(set(seq_a)), 2)
+        for pool in POOLS.values():
+            for phrase in pool:
+                self.assertIn("sir", phrase.lower() + "sir" if "{what}" in phrase else phrase.lower())
+
+    def test_stock_phrases_make_no_claim_about_the_world(self):
+        from advisor.lines import POOLS
+        banned = ("all is well", "nothing alarming", "all clear", "no problems", "everything is fine", "all systems")
+        for pool in POOLS.values():
+            for phrase in pool:
+                self.assertFalse([b for b in banned if b in phrase.lower()], phrase)
+
+    def test_daypart_names_the_hour(self):
+        from advisor.lines import daypart
+        self.assertEqual([daypart(h) for h in (3, 8, 13, 19, 23)], ["night", "morning", "afternoon", "evening", "night"])
+
+    def test_the_persona_forbids_dark_jokes_invented_senses_and_unfulfillable_offers(self):
+        from advisor.persona import PERSONA
+        for needle in ("self-harm", "clean pun", "cannot perceive", "Never offer help you cannot give", "No authority" if False else "no authority"):
+            self.assertIn(needle, PERSONA)
+        self.assertLess(len(PERSONA), 2200)  # the first turn pays for every character; warm-up hides it
+
+
 class StaticGuard(unittest.TestCase):
     FILES = [os.path.join(ROOT, "advisor", f) for f in os.listdir(os.path.join(ROOT, "advisor")) if f.endswith(".py")] + \
             [os.path.join(ROOT, "interaction", "intents.py")]

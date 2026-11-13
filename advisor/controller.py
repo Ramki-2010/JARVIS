@@ -16,6 +16,7 @@ import re
 from typing import Callable, Iterator, List, Optional, Tuple
 
 from advisor.conversation import Conversation
+from advisor.lines import Lines
 from advisor.runtime import ModelUnavailable
 from advisor.sentences import sentences
 from interaction import intents
@@ -24,7 +25,14 @@ Event = Tuple[str, str]
 
 HELP_TEXT = ("I can show the status, run the health check, list projects, tasks and notes, verify the audit "
              "trail and tell you where we were. Ask me about a project, for example where we are on it. "
+             "I keep your to-do list: ask what is on it, add something, or tick something off, and I will confirm first. "
              "I can note something down if you ask and then confirm. Beyond that we can simply talk, sir.")
+TODO_PREFIX = "[todo"
+TODO_LINE = re.compile(r"^(\d+)  (\S+)  (.*)$")
+TODO_ITEM = re.compile(r"^\[todo\] (.+)$")
+TODO_MARK = re.compile(r"^\[todo-(done|drop) (\d+)\]$")
+ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10}
+MAX_SPOKEN_ITEMS = 6
 PROJECT_LINE = re.compile(r"^(\S+)\s+(.+?)\s+\[([^\]]+)\]$")  # the state can hold spaces, e.g. [no root registered]
 NOTE_LINE = re.compile(r"^\s+#(\d+)\s+(\S+)\s+(\S+)\s+(\S+Z)\s+(.*)$")
 TAG = re.compile(r"^\[(?:typed|spoken)\]\s*")
@@ -42,24 +50,35 @@ class Controller:
         self.project = project
         self.provenance = "spoken" if spoken else "typed"
         self.pending: Optional[str] = None  # a note text awaiting the confirmation turn
+        self.pending_todo: Optional[Tuple[str, int, str]] = None  # ("add"|"done"|"drop", note seq or 0, item text)
+        self.lines = Lines()
 
     def _write_note(self, text: str) -> Event:
         tagged = "[%s] %s" % (self.provenance, text)
         res = self.runner(["note", "add", "--project", self.project, "--text", tagged])
         if res.code == 0:
-            return ("say", "Noted, sir.")
+            return ("say", self.lines.say("noted"))
         return ("error", "I could not record that note, sir. Nothing was written.")
 
     def respond(self, text: str) -> Iterator[Event]:
         intent = intents.recognise(text)
 
+        if self.pending_todo is not None:
+            action, self.pending_todo = self.pending_todo, None
+            if intent is not None and intent.kind == intents.CONFIRM:
+                yield self._write_todo(*action)
+                return
+            if intent is not None and intent.kind == intents.DENY:
+                yield ("say", self.lines.say("declined"))
+                return
+            # anything else abandons the proposal; fall through and treat the text normally
         if self.pending is not None:
             pending, self.pending = self.pending, None
             if intent is not None and intent.kind == intents.CONFIRM:
                 yield self._write_note(pending)
                 return
             if intent is not None and intent.kind == intents.DENY:
-                yield ("say", "Very well, sir. I have not noted it.")
+                yield ("say", self.lines.say("declined"))
                 return
             # anything else abandons the proposal; fall through and treat the text normally
 
@@ -71,9 +90,11 @@ class Controller:
             shown = res.text[:MAX_SHOWN]
             yield ("show", shown)
             if res.code == 0:
-                yield ("say", "The %s is on screen, sir." % intent.family)
+                yield ("say", self.lines.say("on_screen", what=intent.family))
             else:
                 yield ("error", "That command reported a problem, sir. The details are on screen.")
+        elif intent.kind in (intents.TODO_LIST, intents.TODO_ADD, intents.TODO_DONE, intents.TODO_DROP):
+            yield from self._todo(intent, text)
         elif intent.kind == intents.BRIEF:
             yield from self._brief(intent.text, soft=intent.args == ("soft",), original=text)
         elif intent.kind == intents.CAPTURE:
@@ -88,7 +109,88 @@ class Controller:
             yield ("say", "Very good, sir.")
             yield ("quit", "")
         elif intent.kind in (intents.CONFIRM, intents.DENY):
-            yield ("say", "There is nothing awaiting your answer, sir.")
+            yield ("say", self.lines.say("nothing_pending"))
+
+    # ----- the to-do list: kept as project notes. "[todo] text" adds an item; "[todo-done N]" or
+    # "[todo-drop N]" closes the item that note N holds. Nothing is edited or deleted: the open list is
+    # worked out from the notes, and every change is a normal policy-checked, audited `note add`.
+    def _todo_items(self) -> Optional[List[Tuple[int, str]]]:
+        res = self.runner(["note", "list", "--project", self.project, "--text-prefix", TODO_PREFIX])
+        if res.code != 0:
+            return None
+        items: dict = {}
+        closed = set()
+        for line in res.text.splitlines():
+            m = TODO_LINE.match(line.strip())
+            if not m:
+                continue
+            seq, body = int(m.group(1)), m.group(3)
+            item, mark = TODO_ITEM.match(body), TODO_MARK.match(body)
+            if item:
+                items[seq] = item.group(1)
+            elif mark and int(mark.group(2)) in items:
+                closed.add(int(mark.group(2)))
+        return [(seq, items[seq]) for seq in sorted(items) if seq not in closed]
+
+    @staticmethod
+    def _resolve(token: str, items: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+        """Which open items a spoken reference points at: a number, an ordinal, or words in the item."""
+        t = token.casefold().strip()
+        m = re.fullmatch(r"(?:(?:number|item|task|no\.?) ?)?(\d{1,3})", t)
+        n = int(m.group(1)) if m else next((v for k, v in ORDINALS.items() if re.fullmatch(r"(?:the )?%s(?: one| item)?" % k, t)), 0)
+        if n:
+            return [items[n - 1]] if 1 <= n <= len(items) else []
+        words = [w for w in re.findall(r"[a-z0-9']+", t) if w not in ("the", "a", "an", "my", "to", "that", "it", "item", "one")]
+        if not words:
+            return []
+        return [(seq, text) for seq, text in items if all(w in text.casefold() for w in words)]
+
+    def _todo(self, intent, original: str) -> Iterator[Event]:
+        if intent.kind == intents.TODO_ADD:
+            if len(intent.text) > intents.MAX_TODO_CHARS:
+                yield ("say", "That is rather long for a list item, sir. Do shorten it and I shall add it.")
+                return
+            self.pending_todo = ("add", 0, intent.text)
+            yield ("say", "Shall I add %s to your list, sir?" % intent.text)
+            return
+        items = self._todo_items()
+        if items is None:
+            yield ("error", "I could not read your list, sir. Nothing has been changed.")
+            return
+        if intent.kind == intents.TODO_LIST:
+            if not items:
+                yield ("show", "To-do list: empty")
+                yield ("say", self.lines.say("empty_list"))
+                return
+            yield ("show", "To-do list (%d):\n" % len(items) + "\n".join("%d. %s" % (i, t) for i, (_, t) in enumerate(items, 1)))
+            yield ("say", "You have %d thing%s on your list, sir." % (len(items), "" if len(items) == 1 else "s"))
+            for i, (_, t) in enumerate(items[:MAX_SPOKEN_ITEMS], 1):
+                yield ("say", "%d. %s" % (i, t.rstrip(".") + "."))
+            if len(items) > MAX_SPOKEN_ITEMS:
+                yield ("say", "And %d more on screen, sir." % (len(items) - MAX_SPOKEN_ITEMS))
+            return
+        action = "done" if intent.kind == intents.TODO_DONE else "drop"
+        found = self._resolve(intent.text, items)
+        if not found:
+            if intent.args == ("soft",):  # "dinner is done": not about the list, so ordinary conversation
+                yield from self._converse(original)
+            else:
+                yield ("say", "I cannot find that on your list, sir." if items else "Your list is empty, sir.")
+            return
+        if len(found) > 1:
+            numbered = ", ".join("%d, %s" % (items.index(f) + 1, f[1]) for f in found[:4])
+            yield ("say", "That could be more than one, sir: %s. Which do you mean?" % numbered)
+            return
+        seq, text = found[0]
+        self.pending_todo = (action, seq, text)
+        yield ("say", "Shall I %s %s, sir?" % ("tick off" if action == "done" else "remove", text))
+
+    def _write_todo(self, action: str, seq: int, text: str) -> Event:
+        body = "[todo] " + text if action == "add" else "[todo-%s %d]" % (action, seq)
+        res = self.runner(["note", "add", "--project", self.project, "--text", body])
+        if res.code != 0:
+            return ("error", "I could not update your list, sir. Nothing was written.")
+        return ("say", self.lines.say({"add": "added", "done": "done", "drop": "dropped"}[action]))
 
     # ----- project briefings: read-only, deterministic, built from the project's own records
     def _registered(self) -> Optional[List[Tuple[str, str]]]:

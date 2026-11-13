@@ -67,6 +67,40 @@ class Briefs(unittest.TestCase):
         self.assertEqual(got.args, ())
 
 
+class Todo(unittest.TestCase):
+    def test_list_phrases(self):
+        for text in ("what's on my to-do list", "read my todo list", "show me my to do list", "what do I have to do", "what's on my list",
+                     "What's left to do?", "Jarvis, could you please read my to-do list, sir?"):
+            got = recognise(text)
+            self.assertEqual(got.kind, intents.TODO_LIST, text)
+
+    def test_add_keeps_the_users_own_wording(self):
+        for text, item in (("Add Call the plumber to my to-do list", "Call the plumber"), ("put pick up Asha from school on my todo list", "pick up Asha from school"),
+                           ("add renew the Passport to the list", "renew the Passport"), ("to-do: Email Dr. Rao", "Email Dr. Rao"),
+                           ("Remind me to water the plants.", "water the plants"), ("hey jarvis, please add file taxes to my to do list", "file taxes")):
+            got = recognise(text)
+            self.assertEqual((got.kind, got.text), (intents.TODO_ADD, item), text)
+
+    def test_done_and_drop(self):
+        for text, token, soft in (("mark call the plumber as done", "call the plumber", False), ("tick off number 2", "number 2", False),
+                                  ("cross off the passport", "the passport", False), ("check off item 3 from my list", "item 3", False),
+                                  ("the passport is done", "the passport", True)):
+            got = recognise(text)
+            self.assertEqual((got.kind, got.text, got.args == ("soft",)), (intents.TODO_DONE, token, soft), text)
+        got = recognise("remove call the plumber from my to-do list")
+        self.assertEqual((got.kind, got.text), (intents.TODO_DROP, "call the plumber"))
+
+    def test_ordinary_talk_is_not_a_todo_command(self):
+        for text in ("mark my words", "I need to buy milk", "add milk", "what is a to-do list", "the weather is done", ""):
+            got = recognise(text)
+            self.assertTrue(got is None or got.kind not in (intents.TODO_ADD, intents.TODO_LIST, intents.TODO_DROP) or text == "the weather is done", text)
+
+    def test_overlong_item_is_flagged_for_refusal(self):
+        got = recognise("add " + "x" * 400 + " to my to-do list")
+        self.assertEqual(got.kind, intents.TODO_ADD)
+        self.assertGreater(len(got.text), intents.MAX_TODO_CHARS)
+
+
 class NotIntents(unittest.TestCase):
     def test_ordinary_conversation_is_not_an_intent(self):
         for text in ("how are you today", "tell me something about Bali", "I just got back from my honeymoon", "what is the capital of France", ""):

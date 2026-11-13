@@ -44,12 +44,13 @@ class Conversation:
         self.history.append({"role": "user", "content": user_text.strip()[:MAX_USER_CHARS]})
         self.history.append({"role": "assistant", "content": jarvis_text.strip()[:MAX_USER_CHARS]})
 
-    def warm(self) -> str:
+    def warm(self, opening: str = "Hello.") -> str:
         """Load the model and make a short greeting as the first real exchange, so the persona prompt is
         already processed when the user's first line arrives (a continuation is much faster than a fresh
-        prompt on this model). Returns the greeting, or "" if the model is unavailable."""
+        prompt on this model). `opening` may name the part of the day so the model does not guess it.
+        Returns the greeting, or "" if the model is unavailable."""
         try:
-            greeting = "".join(self.stream_reply("Hello."))
+            greeting = "".join(self.stream_reply(opening))
             return greeting.strip()
         except ModelUnavailable:
             return ""

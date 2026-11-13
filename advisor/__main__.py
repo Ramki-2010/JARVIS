@@ -18,6 +18,7 @@ import time
 from advisor import approved
 from advisor.controller import UNAVAILABLE_TEXT, Controller
 from advisor.conversation import Conversation
+from advisor.lines import daypart
 from advisor.runtime import ModelUnavailable, OllamaClient
 from interaction import child
 
@@ -69,7 +70,7 @@ def main(argv=None) -> int:
             options["num_thread"] = args.num_thread
         conversation = Conversation(client, args.model, options)
         t0 = time.perf_counter()
-        greeting = conversation.warm()
+        greeting = conversation.warm("Hello. It is %s here." % daypart(time.localtime().tm_hour))
         print("the model is ready" if greeting else "the model did not load")
         if args.timing:
             print("  [model ready in %.1f s]" % (time.perf_counter() - t0))
