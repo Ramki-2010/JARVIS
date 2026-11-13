@@ -15,12 +15,17 @@ from typing import NamedTuple, Optional, Tuple
 
 READ = "READ"
 BRIEF = "BRIEF"
+TODO_LIST = "TODO_LIST"
+TODO_ADD = "TODO_ADD"
+TODO_DONE = "TODO_DONE"
+TODO_DROP = "TODO_DROP"
 CAPTURE = "CAPTURE"
 GAP = "GAP"
 CONFIRM = "CONFIRM"
 DENY = "DENY"
 HELP = "HELP"
 QUIT = "QUIT"
+JOKE = "JOKE"
 
 MAX_CAPTURE_CHARS = 1000
 
@@ -92,7 +97,60 @@ _BRIEF_ALL = tuple(re.compile(p) for p in (
 ))
 _GENERIC_NAMES = frozenset({"my projects", "our projects", "everything", "all my projects", "all our projects", "it", "that", "this"})
 
+# To-do list (kept as notes, see advisor/controller.py). The wording of an item is the user's own and is only
+# ever stored and read back as text; what to do (add, list, tick off, drop) is decided by these fixed patterns.
+_TD = r"to ?-?do"
+_TODO_LIST = tuple(re.compile(p) for p in (
+    r"(?:what(?:'s| is) on|read|show|list|tell me)(?: me)?(?: my| the| our)? " + _TD + r"(?: list)?",
+    r"what(?:'s| is) on (?:my|the|our) list",
+    r"what do i (?:still )?(?:have|need) to do",
+    r"what(?:'s| is) (?:left|outstanding|pending) (?:to do|on (?:my|the) list)",
+))
+_TODO_ADD = tuple(re.compile(p, re.I | re.S) for p in (
+    r"(?:add|put) (?P<x>.+?) (?:to|on|onto) (?:my |the |our )?" + _TD + r"(?: list)?",
+    r"(?:add|put) (?P<x>.+?) (?:to|on|onto) (?:my |the |our )?list",
+    r"add (?:a )?" + _TD + r"(?: item)?[:,]? ?(?P<x>.+)",
+    _TD + r"(?: item)?[:,] ?(?P<x>.+)",
+    r"remind me to (?P<x>.+)",
+))
+_TODO_DONE_STRICT = tuple(re.compile(p) for p in (
+    r"(?:mark|set) (?P<x>.+?) (?:as )?(?:done|complete|completed|finished)(?: (?:on|in|from) (?:my |the )?(?:" + _TD + r" )?list)?",
+    r"(?:tick|cross|check|strike) off (?P<x>.+?)(?: (?:from|on) (?:my |the )?(?:" + _TD + r" )?list)?",
+))
+_TODO_DONE_SOFT = re.compile(r"(?P<x>.+) (?:is|are) (?:done|finished|complete|completed)")
+_TODO_DROP = re.compile(r"(?:remove|delete|drop|scratch) (?P<x>.+?) from (?:my |the )?(?:" + _TD + r" )?list")
+MAX_TODO_CHARS = 300
+
+
+def _todo(text: str, t: str) -> Optional[Intent]:
+    for pat in _TODO_LIST:
+        if pat.fullmatch(t):
+            return Intent("todo", TODO_LIST)
+    m = _TODO_DROP.fullmatch(t)
+    if m:
+        return Intent("todo", TODO_DROP, ("strict",), m.group("x").strip())
+    for pat in _TODO_DONE_STRICT:
+        m = pat.fullmatch(t)
+        if m and m.group("x").strip():
+            return Intent("todo", TODO_DONE, ("strict",), m.group("x").strip())
+    m = _TODO_DONE_SOFT.fullmatch(t)
+    if m and m.group("x").strip():
+        return Intent("todo", TODO_DONE, ("soft",), m.group("x").strip())
+    # adding: take the user's own wording (case and punctuation intact) from the original text
+    body = re.sub(_LEAD.pattern, "", text.strip(), count=1, flags=re.I).rstrip(" .!?,;:")
+    body = re.sub(_TAIL.pattern, "", body, flags=re.I).strip()
+    for pat in _TODO_ADD:
+        m = pat.fullmatch(body)
+        if m:
+            item = m.group("x").strip(" ,;:")
+            if len(item) < 2:
+                return None
+            return Intent("todo", TODO_ADD, (), item[:MAX_TODO_CHARS + 1])
+    return None
+
+
 _HELP = re.compile(r"help|what can you do|what are your commands|what can i say")
+_JOKE = re.compile(r"(?:tell me |say |give me |do you know |got )?(?:a |another |one more )?(?:joke|pun|funny joke)(?: for me)?|make me laugh|say something funny|tell me something funny")
 _QUIT = re.compile(r"quit|exit|goodbye|good bye|bye|that will be all|that is all")
 _CONFIRM = re.compile(r"(?:yes|yeah|yep|yup|sure|correct|affirmative|confirm|confirmed|ok|okay)(?: please)?|please do|go ahead|do it|yes please|that is right|that's right")
 _DENY = re.compile(r"no|nope|nah|negative|don't|do not|cancel|never mind|nevermind|no thanks|no thank you|not now")
@@ -160,9 +218,11 @@ def recognise(text: str) -> Optional[Intent]:
         return Intent("deny", DENY)
     if _QUIT.fullmatch(t):
         return Intent("quit", QUIT)
+    if _JOKE.fullmatch(t):
+        return Intent("joke", JOKE)
     if _HELP.fullmatch(t):
         return Intent("help", HELP)
-    found = _brief(t) or _brief(normalise(text, keep_name=True))
+    found = _todo(text, t) or _brief(t) or _brief(normalise(text, keep_name=True))
     if found:
         return found
     for family, args, patterns in _READ_COMPILED:

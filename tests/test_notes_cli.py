@@ -138,6 +138,44 @@ class NoteTests(NotesCase):
         self.assertIn("notes: 1", self.run_cli("note", "list", "--task", "t1")[1])
         self.assertIn("decision", self.run_cli("note", "list", "--project", "p")[1])
 
+    def test_text_prefix_lists_only_matching_notes_with_their_text(self):
+        for text in ("[todo] buy milk", "an ordinary note", "[todo] call the plumber\nsecond line", "[todo-done 1]"):
+            self.assertEqual(self.add("--project", "p", text=text)[0], cli.EXIT_OK)
+        code, out = self.run_cli("note", "list", "--project", "p", "--text-prefix", "[todo")
+        self.assertEqual(code, cli.EXIT_OK, out)
+        lines = [l for l in out.splitlines() if l and not l.startswith("notes:")]
+        self.assertEqual(len(lines), 3)
+        self.assertTrue(all("ordinary" not in l for l in lines))
+        self.assertIn("[todo] call the plumber second line", lines[1])  # one line each, whitespace folded
+        self.assertIn("notes: 3", out)
+        # the filter is read-only: no new note, and the audit chain is still intact
+        self.assertIn("notes: 4", self.run_cli("note", "list", "--project", "p")[1])
+        self.assertIn("audit verify: OK", self.run_cli("audit", "verify")[1])
+
+    def test_the_conversation_controller_keeps_a_todo_list_in_a_real_store(self):
+        from types import SimpleNamespace
+        from advisor.controller import Controller
+
+        def runner(args):
+            args = list(args)
+            if args[:2] == ["note", "add"]:
+                args += ["--policy", self.policy]
+            code, text = self.run_cli(*args)
+            return SimpleNamespace(code=code, text=text)
+
+        ctl = Controller(None, runner, project="p")
+        for item in ("Call the plumber", "Renew the passport"):
+            list(ctl.respond("add %s to my to-do list" % item))
+            self.assertEqual(list(ctl.respond("yes"))[0][0], "say")
+        list(ctl.respond("tick off call the plumber"))
+        self.assertEqual(list(ctl.respond("yes"))[0][0], "say")
+        shown = list(ctl.respond("what's on my to-do list"))[0][1]
+        self.assertEqual(shown, "To-do list (1):\n1. Renew the passport")
+        self.assertIn("audit verify: OK", self.run_cli("audit", "verify")[1])
+        # an ordinary note in the same project is not part of the list
+        self.add("--project", "p", text="not a list item")
+        self.assertEqual(list(ctl.respond("what's on my to-do list"))[0][1], "To-do list (1):\n1. Renew the passport")
+
     def test_scope_errors(self):
         self.assertEqual(self.add("--task", "t1", "--decision")[0], cli.EXIT_NOTE)
         self.assertIn("NOTE_TASK_UNKNOWN", self.add("--task", "nope")[1])

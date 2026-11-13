@@ -165,6 +165,21 @@ def cmd_note_list(cfg, args, out) -> int:
     store = _open_store(cfg)
     try:
         refs = notes_mod.list_notes(store, project=args.project, task=args.task)
+        if args.text_prefix is not None:
+            # Read-only filter: only notes whose text starts with the prefix, one line each, each checked
+            # against the chain as `note show` does. Used to read a list kept as notes (for example a to-do list).
+            kept = 0
+            for ref in refs:
+                try:
+                    _, text = notes_mod.read(store, cfg.data_root, ref.seq)
+                except notes_mod.NoteError as exc:
+                    _print(out, "%d  UNREADABLE %s" % (ref.seq, exc.code))
+                    continue
+                if text.startswith(args.text_prefix):
+                    _print(out, "%d  %s  %s" % (ref.seq, ref.recorded, display.safe(" ".join(text.split()))[:300]))
+                    kept += 1
+            _print(out, "notes: %d" % kept)
+            return EXIT_OK
         for ref in refs:
             _print(out, _note_line(ref))
         _print(out, "notes: %d" % len(refs))
@@ -655,7 +670,8 @@ def build_parser() -> argparse.ArgumentParser:
     nlist = note_sub.add_parser("list", help="list recorded notes")
     nlist.add_argument("--project")
     nlist.add_argument("--task")
-    nshow = note_sub.add_parser("show", help="show one note after checking it against the chain")
+    nlist.add_argument("--text-prefix", help="only notes whose text starts with this, printed with their text")
+    nshow =note_sub.add_parser("show", help="show one note after checking it against the chain")
     nshow.add_argument("id", type=int)
     view = sub.add_parser("view", help="static read-only HTML snapshot (no script, no server)")
     view.add_argument("--project", help="limit tasks and notes to one project")
