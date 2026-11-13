@@ -204,7 +204,12 @@ function sprite(c) {
   gr.addColorStop(0, "#ffffff"); gr.addColorStop(0.14, c); gr.addColorStop(0.32, c + "77"); gr.addColorStop(1, c + "00");
   g.fillStyle = gr; g.fillRect(0, 0, 96, 96); sprites[c] = s; return s;
 }
+const DOCK = ["preview-memory", "preview-research", "preview-evidence"];
 function project3(n, t) {
+  if (n.kind === "preview") {   // PREVIEW nodes are not part of the scene: fixed spot at the bottom centre, never drift, turn or overlap the ring
+    const i = Math.max(0, DOCK.indexOf(n.id)), narrow = W < 900;
+    return {sx: (W / 2) + (i - 1) * 150, sy: H - (narrow ? 96 : 56), f: 1, z: 0, ph: 0};
+  }
   const ph = phase(n.id), a = ambient ? 0.022 : 0;
   const x = n.x + a * Math.sin(t / 1700 + ph), y = n.y + a * Math.sin(t / 2100 + ph * 1.3), z = n.z + a * Math.sin(t / 1900 + ph * 0.7);
   const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
@@ -227,7 +232,7 @@ function draw(t) {
   }
   const order = vis.slice().sort((p, q) => pos[q.id].z - pos[p.id].z);
   for (const n of order) {
-    const p = pos[n.id], breathe = ambient ? 1 + 0.07 * Math.sin(t / 900 + p.ph) : 1;
+    const p = pos[n.id], breathe = ambient && n.kind !== "preview" ? 1 + 0.07 * Math.sin(t / 900 + p.ph) : 1;
     const base = n.kind === "project" ? 10 : n.kind === "preview" ? 6 : n.kind === "result" ? 5 : 5.5;
     const r = Math.max(0.5, base * (0.55 + 0.85 * p.f) * breathe * grow(n.id, t)), c = colorOf(n);
     const alpha = Math.max(0.35, Math.min(1, 0.4 + 0.75 * p.f)) * (dim(n) ? 0.62 : 1);
