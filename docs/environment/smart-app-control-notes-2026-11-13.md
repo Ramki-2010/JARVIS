@@ -38,6 +38,22 @@ Current pins that matter (MEASURED from `pip list`): torch 2.10.0+cu128, av 16.0
 
 Why it works (INFERRED): SAC decides by the reputation of each file, and the older builds have it while the newest builds do not yet. We cannot prove the exact rule; we only observed that these older builds load and the newer ones do not.
 
+### 3a. A block that appeared AFTER the pins worked (2026-11-13, about 09:48)
+
+Hours after the voice and speech-to-text had loaded without trouble, Windows began blocking two compiled files that had loaded before, in the same environment, with the same files (MEASURED from the log and from `import` tests): `ctranslate2\_ext.cp310-win_amd64.pyd` (the engine behind speech-to-text) and `xxhash\_xxhash.cp310-win_amd64.pyd` (not used by our voice path). Both are unsigned. The log shows event 3077 for both at 09:48, and `import ctranslate2` failed on every retry afterwards. Nothing was installed or upgraded in between (UNVERIFIED beyond my own session; no other change is known). So **Smart App Control's verdict on the same file can change over time** (INFERRED: its cloud reputation check, or a re-evaluation; the cause is not known). Torch, VoxCPM (the speaking voice), librosa, scipy, onnxruntime, soundfile, av and tokenizers still load.
+
+What this means for the Beta: a library that loads today may be blocked tomorrow. So the voice was changed (2026-11-13) so that **speaking does not depend on speech-to-text**: if the speech-to-text engine cannot load, the voice still speaks, JARVIS says so, and the keyboard works. Conversation and the dashboard are unaffected. Push-to-talk input is the part at risk. Check on the old laptop and on Beta day with the commands in section 5. How this was resolved is in 3b.
+
+### 3b. Resolution: speech-to-text on torch (2026-11-13, later the same day)
+
+- **Tested and ruled out (MEASURED):** a theory that the move to the private Python copy caused the block. The same two files fail identically under the original user-profile Python 3.10, which is Authenticode-valid. So the verdict is about the files, not the interpreter. Why the verdict changed is still UNKNOWN (a reputation re-check is a guess, not a finding).
+- **Fix (MEASURED):** speech-to-text now runs Whisper through `transformers` and `torch`, which already load, so no new compiled library is involved. Model `distil-whisper/distil-small.en` (MIT licence), revision `9e4a67ca4569c30be43a3fe7fba1621e504f0093`, only the safe `model.safetensors` (332,297,344 bytes, SHA-256 `b1312c5e27c750ea877235ae51b47b9b42d1298d17d387bec4b58a00fe644f50`, equal to the hash the hub publishes) plus its small config and tokenizer files, about 336 MB in all.
+- **How it was downloaded:** with Windows' own signed `curl.exe` into a new folder, with no firewall rule changed or switched off. The JARVIS firewall rules cover only three named programs, and `curl.exe` is not one of them. RK approved the download in chat.
+- **Where it is used:** the voice worker loads it only if its SHA-256 equals the record in `voice_settings.json`. If it cannot load, the worker tries the old engine, and if that fails too, speech-in is reported unavailable and the keyboard works (the earlier fail-safe is unchanged).
+- **Measured result:** through the real worker process, three spoken test clips came back word for word, about 0.1 s each once warm, on the GPU. Not yet tested: the live microphone with a held key, which needs RK at the machine.
+- **A trap found on the way:** the worker runs with a stripped-down environment. With no `USERNAME` set, a library asked Windows for the user name and Python fell back to a Unix-only module (`pwd`), which broke the model load. The worker now gets a fixed generic `USERNAME` (`jarvis`).
+- **Not recommended and not done:** turning Smart App Control off, and running the stack inside WSL2 (it works by keeping the code away from Windows' checks, which is a way around SAC).
+
 ## 4. Rules for everyone (both laptops) until the Beta ships
 
 1. **Do not turn Smart App Control off.** By Microsoft's own description it cannot be turned back on without resetting Windows (recalled from Microsoft's documentation, UNVERIFIED here). It is also part of the protection the Beta relies on.
@@ -61,7 +77,7 @@ Report both outputs. Do not install the voice environment, Ollama or any model t
 RK asked that guardrails and process-creation guards never cause a crash or a recovery step in the Beta run. State of play (MEASURED by tests and runs on 2026-11-13):
 
 - **Most guards are tests.** The static guards and process-creation checks run only when the test suite runs (about 45 seconds, before a merge). They are not running inside the Beta program, so they cannot crash it.
-- **Guards that do run inside the program fail safe, not hard.** If the approved model list is missing or the model's digest differs, conversation says so and the rest of JARVIS works. If the voice asset's SHA-256 differs from its record, the voice refuses to speak and text still works. If the voice worker cannot start, JARVIS continues in text. A model or voice error is shown as a message and changes nothing.
+- **Guards that do run inside the program fail safe, not hard.** (Proved on 2026-11-13: when Smart App Control blocked the speech-to-text engine mid-day, JARVIS reported it and carried on speaking and typing.) If the approved model list is missing or the model's digest differs, conversation says so and the rest of JARVIS works. If the voice asset's SHA-256 differs from its record, the voice refuses to speak and text still works. If the voice worker cannot start, JARVIS continues in text. A model or voice error is shown as a message and changes nothing.
 - **The child-process helpers only check their own arguments** (absolute interpreter path, no shell, size and time caps). Normal use cannot trigger a refusal.
 - **No rule was loosened and none was added to slow the Beta.** The ADRs were read to stay consistent with them; nothing in them was changed this week except the amendments RK approved.
 - **Not yet proven:** a full Beta rehearsal with the voice, the model and the dashboard running together. That is planned before the 23 Nov end-to-end gate; until then this section is a design statement backed by the tests above, not a rehearsal result.

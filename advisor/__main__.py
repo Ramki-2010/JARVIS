@@ -78,9 +78,11 @@ def main(argv=None) -> int:
         print(UNAVAILABLE_TEXT)
 
     voice = _start_voice(args.voice_root) if args.voice_root else None
-    listening = bool(args.listen and voice)
-    if args.listen and not voice:
-        print("no voice worker, so the microphone is not available; using the keyboard")
+    if voice and not voice.ready_info.get("stt", False):
+        print("speech recognition is unavailable (%s); the voice will speak, and you can type" % (voice.ready_info.get("stt_problem") or "unknown reason"))
+    listening = bool(args.listen and voice and voice.ready_info.get("stt", False))
+    if args.listen and not listening:
+        print("the microphone is not available; using the keyboard")
 
     ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening) if conversation else None
     print("JARVIS conversation. Say or type 'help' for what I can do, 'quit' to leave.")

@@ -264,6 +264,15 @@ class StaticGuard(unittest.TestCase):
             if name.endswith(".py"):
                 self.assertEqual(self.imports(os.path.join(folder, name)) & banned, set(), name)
 
+    def test_voice_worker_environment_is_minimal_and_generic(self):
+        from interaction import voice_child
+        env = voice_child.environment(r"C:\voice-root")
+        self.assertEqual(env["USERNAME"], "jarvis")  # fixed generic name; never the real user's
+        self.assertTrue(env["PATH"].lower().endswith("system32"))
+        self.assertNotIn(os.environ.get("USERNAME", "\0"), env.values() if os.environ.get("USERNAME") != "jarvis" else [])
+        self.assertEqual(env["HF_HUB_OFFLINE"], "1")
+        self.assertEqual(env["TRANSFORMERS_OFFLINE"], "1")
+
     def test_intent_layer_imports_nothing_but_the_standard_text_tools(self):
         self.assertLessEqual(self.imports(os.path.join(ROOT, "interaction", "intents.py")), {"re", "typing"})
 

@@ -34,7 +34,10 @@ def environment(root: str) -> dict:
     env = {name: os.environ[name] for name in _ENV_KEEP if name in os.environ}
     system32 = os.path.join(env.get("SYSTEMROOT", r"C:\Windows"), "System32")
     env["PATH"] = system32  # the system folder only; nothing from the user's own PATH
-    env.update(HF_HOME=os.path.join(root, "hf-cache"), HF_HUB_OFFLINE="1", HF_HUB_DISABLE_XET="1", PYTHONUTF8="1")
+    env.update(HF_HOME=os.path.join(root, "hf-cache"), HF_HUB_OFFLINE="1", HF_HUB_DISABLE_XET="1", PYTHONUTF8="1",
+               TRANSFORMERS_OFFLINE="1",
+               # a fixed generic name: some libraries ask "who is the user?" and fail on Windows without one
+               USERNAME="jarvis")
     return env
 
 
@@ -45,6 +48,7 @@ class VoiceWorker:
         self.events: "queue.Queue[dict]" = queue.Queue()
         self.proc = None  # the worker process (no annotation: the process guard counts every reference)
         self.error = ""
+        self.ready_info = {}
 
     def start(self, ready_timeout: float = 180.0) -> bool:
         cmd = [interpreter(self.root), "-E", "-s", "-m", "voice", "--root", self.root]
@@ -61,6 +65,7 @@ class VoiceWorker:
                     return False
                 continue
             if ev.get("event") == "ready":
+                self.ready_info = ev
                 return True
             if ev.get("event") == "error":
                 self.error = str(ev.get("error", ""))
