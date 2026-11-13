@@ -12,7 +12,8 @@ Events yielded: ("say", text) is spoken and shown; ("show", text) is shown only;
 ("error", text) is shown and spoken as a failure; ("quit", "").
 """
 
-from typing import Callable, Iterator, Optional, Tuple
+import re
+from typing import Callable, Iterator, List, Optional, Tuple
 
 from advisor.conversation import Conversation
 from advisor.runtime import ModelUnavailable
@@ -22,8 +23,12 @@ from interaction import intents
 Event = Tuple[str, str]
 
 HELP_TEXT = ("I can show the status, run the health check, list projects, tasks and notes, verify the audit "
-             "trail and tell you where we were. I can note something down if you ask and then confirm. "
-             "Beyond that we can simply talk, sir.")
+             "trail and tell you where we were. Ask me about a project, for example where we are on it. "
+             "I can note something down if you ask and then confirm. Beyond that we can simply talk, sir.")
+PROJECT_LINE = re.compile(r"^(\S+)\s+(.+?)\s+\[([^\]]+)\]$")  # the state can hold spaces, e.g. [no root registered]
+NOTE_LINE = re.compile(r"^\s+#(\d+)\s+(\S+)\s+(\S+)\s+(\S+Z)\s+(.*)$")
+TAG = re.compile(r"^\[(?:typed|spoken)\]\s*")
+MAX_SPOKEN_NOTE = 220
 GAP_TEXT = ("I have no network, browser or phone access in this version, sir, so I cannot do that. "
             "Shall I note it down for you instead?")
 UNAVAILABLE_TEXT = "The conversation model is unavailable, sir. The rest of JARVIS is unaffected."
@@ -69,6 +74,8 @@ class Controller:
                 yield ("say", "The %s is on screen, sir." % intent.family)
             else:
                 yield ("error", "That command reported a problem, sir. The details are on screen.")
+        elif intent.kind == intents.BRIEF:
+            yield from self._brief(intent.text, soft=intent.args == ("soft",), original=text)
         elif intent.kind == intents.CAPTURE:
             self.pending = intent.text
             yield ("say", "You would like me to note: %s. Shall I note that down, sir?" % intent.text)
@@ -82,6 +89,85 @@ class Controller:
             yield ("quit", "")
         elif intent.kind in (intents.CONFIRM, intents.DENY):
             yield ("say", "There is nothing awaiting your answer, sir.")
+
+    # ----- project briefings: read-only, deterministic, built from the project's own records
+    def _registered(self) -> Optional[List[Tuple[str, str]]]:
+        res = self.runner(["project", "list"])
+        if res.code != 0:
+            return None
+        found = [m.groups()[:2] for m in (PROJECT_LINE.match(line.strip()) for line in res.text.splitlines()) if m]
+        return [(pid, name) for pid, name in found]
+
+    @staticmethod
+    def _first_sentence(text: str, limit: int = 220) -> str:
+        text = " ".join(text.split())
+        cut = re.search(r"[.!?](?:\s|$)", text)
+        out = text[: cut.end()].strip() if cut and cut.end() <= limit else text[:limit].rstrip()
+        return out if out.endswith((".", "!", "?")) else out + "."
+
+    def _summary(self, pid: str, name: str, info: str, resume: str) -> str:
+        """One spoken paragraph from the records. Nothing here comes from a model."""
+        desc = next((line.split(":", 1)[1].strip() for line in info.splitlines() if line.startswith("description:")), "-")
+        parts = [name + "."]
+        if desc and desc != "-":
+            parts.append(self._first_sentence(desc))
+        unfinished = re.search(r"^unfinished tasks: (\d+)", resume, re.M)
+        done = re.search(r"^recent finished tasks: \d+ of (\d+)", resume, re.M)
+        n_open, n_done = (int(unfinished.group(1)) if unfinished else 0), (int(done.group(1)) if done else 0)
+        if n_open == 0 and n_done == 0:
+            parts.append("There are no tasks on record.")
+        else:
+            parts.append("%d unfinished and %d closed task%s on record." % (n_open, n_done, "" if n_done == 1 else "s"))
+        notes, in_notes = [], False
+        for line in resume.splitlines():
+            if line.startswith("latest notes"):
+                in_notes = True
+            elif line.startswith("relayed results"):
+                in_notes = False
+            elif in_notes:
+                m = NOTE_LINE.match(line)
+                if m:
+                    notes.append(TAG.sub("", m.group(5)))
+        if notes:
+            parts.append("Latest note: " + self._first_sentence(notes[0], MAX_SPOKEN_NOTE))
+        else:
+            parts.append("I have no notes on it yet.")
+        return " ".join(parts)
+
+    def _brief(self, token: str, soft: bool = False, original: str = "") -> Iterator[Event]:
+        registered = self._registered()
+        if registered is None:
+            yield ("error", "I could not read the project list, sir.")
+            return
+        if not registered:
+            yield ("say", "No projects are registered yet, sir.")
+            return
+        if token:
+            wanted = token.casefold()
+            chosen = [(pid, name) for pid, name in registered if wanted in (pid.casefold(), name.casefold())]
+            if not chosen and soft:  # "tell me about Bali": not a project, so it is simply conversation
+                yield from self._converse(original)
+                return
+            if not chosen:
+                names = ", ".join(name for _, name in registered)
+                yield ("say", "I do not have a project called %s, sir. The registered ones are %s." % (token, names))
+                return
+        else:
+            chosen = registered
+        shown, spoken = [], []
+        for pid, name in chosen:  # pid comes from the registry listing above, never from the utterance
+            resume = self.runner(["resume", "--project", pid])
+            info = self.runner(["project", "show", pid])
+            if resume.code != 0 or info.code != 0:
+                yield ("error", "I could not read the records for %s, sir." % name)
+                return
+            shown.append("== %s ==\n%s" % (name, resume.text.rstrip()))
+            spoken.append(self._summary(pid, name, info.text, resume.text))
+        yield ("show", "\n\n".join(shown)[:MAX_SHOWN])
+        if len(chosen) > 1:
+            yield ("say", "You have %d projects, sir." % len(chosen))
+        for line in spoken:
+            yield ("say", line)
 
     def _converse(self, text: str) -> Iterator[Event]:
         try:

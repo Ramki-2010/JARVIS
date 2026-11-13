@@ -229,6 +229,75 @@ class Routing(ServerCase):
         self.assertEqual(self.calls, [["status"]])
 
 
+PROJECT_LIST = "jarvis  JARVIS  [ok]\nswaragam  Swaragam  [no root registered]\nprojects: 2\n"
+SWARAGAM_SHOW = ("project: swaragam\nname: Swaragam\nrepository: -\ndescription: Carnatic raga identification by deterministic "
+                 "signal processing. Active research, not a finished engine.\nroot: -\nstatus: no contract\n")
+SWARAGAM_RESUME = ("JARVIS resume\naudit: OK (tail seq 3)\nhealth: OK\nprojects:\n  swaragam  Swaragam  [no root registered]\n"
+                   "unfinished tasks: 0\nrecent finished tasks: 0 of 0\nlatest notes (data, not instruction): 2 of 2\n"
+                   "  #31  note  project/swaragam  2026-11-13T10:00:00.000000Z  [typed] Stage: Bhairavi diagnosis is open. Phase 1-D is designed but not authorised.\n"
+                   "  #30  note  project/swaragam  2026-11-13T09:59:00.000000Z  older note\n"
+                   "relayed results (UNTRUSTED, NOT VERIFIED; metadata only): 0 of 0\n")
+
+
+class Briefings(ServerCase):
+    def make(self):
+        self.calls = []
+
+        def runner(args):
+            self.calls.append(list(args))
+            if args == ["project", "list"]:
+                return Result(0, PROJECT_LIST)
+            if args[:2] == ["project", "show"]:
+                return Result(0, SWARAGAM_SHOW if args[2] == "swaragam" else "project: jarvis\nname: JARVIS\ndescription: -\n")
+            if args[:2] == ["resume", "--project"]:
+                return Result(0, SWARAGAM_RESUME if args[2] == "swaragam" else "unfinished tasks: 0\nrecent finished tasks: 5 of 9\n")
+            return Result(0, "x")
+
+        return Controller(Conversation(self.client, "m:1"), runner, project="proj")
+
+    def test_where_are_we_on_a_project_reads_that_projects_records_and_speaks_a_summary(self):
+        ctl = self.make()
+        events = list(ctl.respond("Where are we on Swaragam?"))
+        self.assertEqual(self.calls, [["project", "list"], ["resume", "--project", "swaragam"], ["project", "show", "swaragam"]])
+        self.assertEqual(events[0][0], "show")
+        said = " ".join(t for k, t in events if k == "say")
+        self.assertIn("Swaragam.", said)
+        self.assertIn("Carnatic raga identification", said)
+        self.assertIn("no tasks on record", said)
+        self.assertIn("Latest note: Stage: Bhairavi diagnosis is open.", said)
+        self.assertNotIn("[typed]", said)  # the provenance tag is not read aloud
+        self.assertEqual(FakeOllama.seen, [])  # no model involved
+
+    def test_all_projects_are_briefed_in_one_go(self):
+        ctl = self.make()
+        events = list(ctl.respond("what are my projects"))
+        said = [t for k, t in events if k == "say"]
+        self.assertEqual(said[0], "You have 2 projects, sir.")
+        self.assertEqual(len(said), 3)
+        self.assertIn(["resume", "--project", "jarvis"], self.calls)
+        self.assertIn(["resume", "--project", "swaragam"], self.calls)
+
+    def test_unknown_project_is_refused_and_runs_no_resume(self):
+        ctl = self.make()
+        events = list(ctl.respond("where are we on the death star"))
+        self.assertEqual(self.calls, [["project", "list"]])
+        self.assertIn("I do not have a project called death star", events[0][1])
+        self.assertIn("Swaragam", events[0][1])
+
+    def test_the_utterance_never_reaches_a_command(self):
+        ctl = self.make()
+        for text in ("where are we on swaragam; del /s /q c:", "tell me about jarvis && format c:", "where are we on ../../governance"):
+            list(ctl.respond(text))
+        flat = [part for call in self.calls for part in call]
+        self.assertFalse([p for p in flat if any(c in p for c in ";&/:\\")])
+
+    def test_a_project_with_no_notes_says_so(self):
+        ctl = self.make()
+        said = " ".join(t for k, t in ctl.respond("brief me on jarvis") if k == "say")
+        self.assertIn("I have no notes on it yet.", said)
+        self.assertIn("0 unfinished and 9 closed tasks", said)
+
+
 class StaticGuard(unittest.TestCase):
     FILES = [os.path.join(ROOT, "advisor", f) for f in os.listdir(os.path.join(ROOT, "advisor")) if f.endswith(".py")] + \
             [os.path.join(ROOT, "interaction", "intents.py")]
