@@ -66,7 +66,11 @@ Rules that matter: reads happen only as steps of a task and only on a path that 
 
 ### 3a. The HTML snapshot
 
-`scripts\jarvis.cmd view` writes `D:\JARVIS\dataiews\index.html`: one self-contained page with the audit and health status, the projects, unfinished and recent tasks, the latest notes and relayed-result metadata. Open it from disk in any browser; it also prints cleanly. It has no script, no server and no network, a Content-Security-Policy that forbids everything but its own style, light and dark themes, and every status is also written as a word. Notes are labelled data; the text of a relayed result is never shown, only its metadata. It is a derived file, regenerated each time, not part of the audit chain or the backup. `--stdout` prints the page instead of writing it. This is the Beta plan's BS-3 item and the fallback if the localhost dashboard (ADR-0011) is cut; it does not replace that dashboard.
+`scripts\jarvis.cmd view` writes `D:\JARVIS\data\views\index.html`: one self-contained page with the audit and health status, the projects, unfinished and recent tasks, the latest notes and relayed-result metadata. Open it from disk in any browser; it also prints cleanly. It has no script, no server and no network, a Content-Security-Policy that forbids everything but its own style, light and dark themes, and every status is also written as a word. Notes are labelled data; the text of a relayed result is never shown, only its metadata. It is a derived file, regenerated each time, not part of the audit chain or the backup. `--stdout` prints the page instead of writing it. This is the Beta plan's BS-3 item and the fallback if the localhost dashboard (ADR-0011) is cut; it does not replace that dashboard.
+
+### 3b. The live dashboard (Stage A, read-only)
+
+`scripts\jarvis-ui.cmd` starts a read-only dashboard served on `127.0.0.1` only, on a random port, and prints one address with a per-launch token in the part after `#` (it is never sent in a query string). Open that address in a browser on this machine; the token is removed from the address bar once the page loads. Every panel is the exact output of one read-only CLI command (status, doctor, projects, tasks, task detail, notes, relayed-result metadata, audit, resume). The status ring shows only what the records say (ADR-0011 D4): IDLE, RUNNING, WAITING (blocked or deferred tasks), COMPLETED (never "verified"), CANCELLED, ERROR or AUDIT_FAULT. There are no write routes. Ctrl+C in its window stops it.
 
 ## 4. Commands
 

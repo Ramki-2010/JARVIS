@@ -190,3 +190,13 @@ The Beta gains a dashboard, a ring and a galaxy behind a cut line. B-13 must lis
 | 3 | Stage B go-ahead after Stage A passes. |
 | 4 | Whether WebGL or a vendored library is ever allowed (separate decision). |
 | 5 | LAN client access: later, own ADR. |
+
+---
+
+## Amendment 1 (ACCEPTED, effective only when RK merges the pull request that adds it): `-E -s` instead of `-I` for the child call
+
+**Status: ACCEPTED, effective only when RK merges this change (ADR-0001 D6).** Drafted 2026-11-13 by Local Claude while building Stage A. Matched trigger: G-05 (the process boundary). This corrects a technical impossibility in D2; it is reported, not silently worked around, and it loosens nothing that D2 intended (Beta criterion B-12).
+
+**The problem (VERIFIED on this machine, 2026-11-13).** D2 requires the child to start as `<python 3.14> -I -m jarvis`. Isolated mode (`-I`) implies `-E -s -P`; `-P` removes the working folder from the import path, and JARVIS is deliberately not installed into Python (stdlib only, no pip). So `py -3.14 -I -m jarvis` fails with "No module named jarvis". The only ways to keep `-I` would be installing JARVIS into Python's own site-packages or adding a path file there, both of which change the Python installation for every program (G-13) and are worse.
+
+**The change.** In D2 and in Beta plan criterion BU-1b, read "`-I -m jarvis`" as "`-E -s -m jarvis` with the working folder fixed to the repository root". `-E` still ignores every `PYTHON*` environment variable and `-s` still ignores the user site-packages. Dropping `-P` is safe here because the working folder is fixed by the helper to the repository itself, so no other folder can shadow a module. Everything else in D2 is unchanged: absolute interpreter path from `sys.executable`, checked to be 3.14; an argument list, never a shell; a minimal fixed environment; a timeout and a bounded output; exactly one process-creating call, in `interaction/child.py`, enforced by a static test.
