@@ -19,6 +19,7 @@ from advisor import approved
 from advisor.controller import UNAVAILABLE_TEXT, Controller
 from advisor.conversation import Conversation
 from advisor.lines import daypart
+from advisor.persona import PERSONA_PLAIN, PERSONA_TEASING
 from advisor.runtime import ModelUnavailable, OllamaClient
 from interaction import child
 
@@ -50,6 +51,7 @@ def main(argv=None) -> int:
     ap.add_argument("--voice-root", help="absolute path of the voice folder; omit for text only")
     ap.add_argument("--listen", action="store_true", help="take input from the microphone (push-to-talk) instead of the keyboard")
     ap.add_argument("--timing", action="store_true")
+    ap.add_argument("--no-teasing", action="store_true", help="plain wit only: JARVIS will not tease you")
     args = ap.parse_args(argv)
 
     for stream in (sys.stdout, sys.stderr):
@@ -68,7 +70,7 @@ def main(argv=None) -> int:
         options = {"num_gpu": args.num_gpu}
         if args.num_thread > 0:
             options["num_thread"] = args.num_thread
-        conversation = Conversation(client, args.model, options)
+        conversation = Conversation(client, args.model, options, persona=PERSONA_PLAIN if args.no_teasing else PERSONA_TEASING)
         t0 = time.perf_counter()
         greeting = conversation.warm("Hello. It is %s here." % daypart(time.localtime().tm_hour))
         print("the model is ready" if greeting else "the model did not load")
@@ -85,7 +87,7 @@ def main(argv=None) -> int:
     if args.listen and not listening:
         print("the microphone is not available; using the keyboard")
 
-    ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening) if conversation else None
+    ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing) if conversation else None
     print("JARVIS conversation. Say or type 'help' for what I can do, 'quit' to leave.")
     if greeting:
         print("jarvis> " + greeting)

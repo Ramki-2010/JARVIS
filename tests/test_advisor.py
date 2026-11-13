@@ -337,6 +337,40 @@ class TodoList(ServerCase):
         self.say(ctl, "add buy milk to my to-do list"); self.say(ctl, "how was your day"); self.say(ctl, "yes")
         self.assertEqual(self.notes, [])
 
+    def test_a_long_list_is_teased_only_from_the_real_count(self):
+        ctl = self.make()
+        self.notes.extend("[todo] item %d" % i for i in range(5))
+        self.say(ctl, "add one more to my to-do list")
+        out = self.say(ctl, "yes")
+        self.assertEqual(len(self.notes), 6)
+        self.assertIn("6", out[0][1])
+        short = self.make()
+        self.say(short, "add one to my to-do list")
+        self.assertEqual(self.say(short, "yes"), [("say", "Added to your list, sir.")])
+
+    def test_every_vetted_joke_is_clean(self):
+        from advisor.lines import POOLS
+        banned = ("suicide", "death", "dead", "die", "kill", "cancer", "sick", "ill", "god", "religio", "politic", "war", "drunk", "sex")
+        for j in POOLS["joke"]:
+            low = " " + j.lower().replace(",", " ").replace(".", " ").replace("?", " ") + " "
+            for b in banned:
+                self.assertNotIn(" " + b + " ", low, j)
+            self.assertNotIn("suicide", low)
+
+    def test_teasing_can_be_switched_off(self):
+        ctl = self.make()
+        ctl.tease = False
+        self.notes.extend("[todo] item %d" % i for i in range(9))
+        self.say(ctl, "add one more to my to-do list")
+        self.assertEqual(self.say(ctl, "yes"), [("say", "Added to your list, sir.")])
+
+    def test_the_teasing_persona_forbids_invention_and_the_plain_one_forbids_mockery(self):
+        from advisor.persona import PERSONA_PLAIN, PERSONA_TEASING
+        self.assertIn("Never mock sir", PERSONA_PLAIN)
+        self.assertNotIn("Never mock sir", PERSONA_TEASING)
+        for needle in ("Never invent a fact", "health", "not at all when he is upset"):
+            self.assertIn(needle, PERSONA_TEASING)
+
     def test_the_list_is_read_back_in_order(self):
         ctl = self.make()
         for item in ("Call the plumber", "Renew the passport"):
@@ -436,7 +470,7 @@ class Manner(unittest.TestCase):
         from advisor.persona import PERSONA
         for needle in ("self-harm", "clean pun", "cannot perceive", "Never offer help you cannot give", "No authority" if False else "no authority"):
             self.assertIn(needle, PERSONA)
-        self.assertLess(len(PERSONA), 2200)  # the first turn pays for every character; warm-up hides it
+        self.assertLess(len(PERSONA), 2700)  # the first turn pays for every character; warm-up hides it
 
 
 class StaticGuard(unittest.TestCase):
@@ -485,6 +519,16 @@ class StaticGuard(unittest.TestCase):
 
     def test_intent_layer_imports_nothing_but_the_standard_text_tools(self):
         self.assertLessEqual(self.imports(os.path.join(ROOT, "interaction", "intents.py")), {"re", "typing"})
+
+class LinePoolTests(unittest.TestCase):
+    def test_seed_varies_the_start_but_unseeded_is_fixed(self):
+        from advisor.lines import Lines, POOLS
+        self.assertEqual(Lines().say("noted"), POOLS["noted"][0])
+        firsts = {Lines(seed).say("done") for seed in range(40)}
+        self.assertGreater(len(firsts), 2)
+        for seed in range(5):
+            ln = Lines(seed)
+            self.assertTrue(all(ln.say("on_screen", what="x") for _ in range(12)))
 
 
 if __name__ == "__main__":

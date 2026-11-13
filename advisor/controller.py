@@ -43,15 +43,19 @@ UNAVAILABLE_TEXT = "The conversation model is unavailable, sir. The rest of JARV
 MAX_SHOWN = 6000
 
 
+TEASE_AT = 6  # open items before the list is gently teased about
+
+
 class Controller:
-    def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False):
+    def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False, line_seed: Optional[int] = None, tease: bool = True):
         self.conversation = conversation
         self.runner = runner
         self.project = project
         self.provenance = "spoken" if spoken else "typed"
         self.pending: Optional[str] = None  # a note text awaiting the confirmation turn
         self.pending_todo: Optional[Tuple[str, int, str]] = None  # ("add"|"done"|"drop", note seq or 0, item text)
-        self.lines = Lines()
+        self.lines = Lines(line_seed)
+        self.tease = tease  # light teasing, only from counts JARVIS has actually read (switch: --no-teasing)
 
     def _write_note(self, text: str) -> Event:
         tagged = "[%s] %s" % (self.provenance, text)
@@ -103,6 +107,8 @@ class Controller:
         elif intent.kind == intents.GAP:
             self.pending = intent.text
             yield ("say", GAP_TEXT)
+        elif intent.kind == intents.JOKE:  # vetted clean puns, not the model: a 9B model ignored the safety rule once
+            yield ("say", self.lines.say("joke"))
         elif intent.kind == intents.HELP:
             yield ("say", HELP_TEXT)
         elif intent.kind == intents.QUIT:
@@ -190,6 +196,10 @@ class Controller:
         res = self.runner(["note", "add", "--project", self.project, "--text", body])
         if res.code != 0:
             return ("error", "I could not update your list, sir. Nothing was written.")
+        if action == "add" and self.tease:
+            items = self._todo_items()  # a real count from the records, or no teasing
+            if items is not None and len(items) >= TEASE_AT:
+                return ("say", self.lines.say("added_many", n=str(len(items))))
         return ("say", self.lines.say({"add": "added", "done": "done", "drop": "dropped"}[action]))
 
     # ----- project briefings: read-only, deterministic, built from the project's own records

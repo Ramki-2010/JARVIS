@@ -25,6 +25,7 @@ CONFIRM = "CONFIRM"
 DENY = "DENY"
 HELP = "HELP"
 QUIT = "QUIT"
+JOKE = "JOKE"
 
 MAX_CAPTURE_CHARS = 1000
 
@@ -149,6 +150,7 @@ def _todo(text: str, t: str) -> Optional[Intent]:
 
 
 _HELP = re.compile(r"help|what can you do|what are your commands|what can i say")
+_JOKE = re.compile(r"(?:tell me |say |give me |do you know |got )?(?:a |another |one more )?(?:joke|pun|funny joke)(?: for me)?|make me laugh|say something funny|tell me something funny")
 _QUIT = re.compile(r"quit|exit|goodbye|good bye|bye|that will be all|that is all")
 _CONFIRM = re.compile(r"(?:yes|yeah|yep|yup|sure|correct|affirmative|confirm|confirmed|ok|okay)(?: please)?|please do|go ahead|do it|yes please|that is right|that's right")
 _DENY = re.compile(r"no|nope|nah|negative|don't|do not|cancel|never mind|nevermind|no thanks|no thank you|not now")
@@ -216,6 +218,8 @@ def recognise(text: str) -> Optional[Intent]:
         return Intent("deny", DENY)
     if _QUIT.fullmatch(t):
         return Intent("quit", QUIT)
+    if _JOKE.fullmatch(t):
+        return Intent("joke", JOKE)
     if _HELP.fullmatch(t):
         return Intent("help", HELP)
     found = _todo(text, t) or _brief(t) or _brief(normalise(text, keep_name=True))

@@ -101,6 +101,16 @@ class Todo(unittest.TestCase):
         self.assertGreater(len(got.text), intents.MAX_TODO_CHARS)
 
 
+class Jokes(unittest.TestCase):
+    def test_joke_requests(self):
+        for t in ("tell me a joke", "Jarvis, tell me a joke please", "another joke", "make me laugh", "say something funny"):
+            self.assertEqual(recognise(t).kind, intents.JOKE, t)
+
+    def test_other_talk_is_not_a_joke_request(self):
+        for t in ("the joke was funny", "I heard a joke today", "what is a pun"):
+            self.assertTrue(recognise(t) is None or recognise(t).kind != intents.JOKE, t)
+
+
 class NotIntents(unittest.TestCase):
     def test_ordinary_conversation_is_not_an_intent(self):
         for text in ("how are you today", "tell me something about Bali", "I just got back from my honeymoon", "what is the capital of France", ""):
