@@ -33,10 +33,17 @@ The Beta is JARVIS as a governed, human-in-the-loop project assistant (Beta plan
 - **A local actor who can replace files inside the project during a read** is a residual race; the double re-resolve and identity check narrow it.
 - **A crash between writing a note, brief or result file and committing its record** leaves an unrecorded file that `doctor` reports, and a gap in brief numbering. Harmless, visible.
 - **The read-only skill and wrapper are guidance and a convenience guard, not a lock.** A Claude Code session that may run shell commands can still run the normal launcher; only a Claude Code permission rule (RK's, G-07) prevents it. The audit log cannot tell a Claude session from RK (ADR-0005 D8), which is why the skill is read-only and omits `result show`. `RK DECISION` (G-14, G-06).
-- **Single user, single machine.** No multi-user model.
+- **Single user, single machine.** No multi-user model. The Beta machine is the new laptop (RK decision, 2026-11-13).
+- **The audit anchor's independence is procedural, not enforced.** Sessions use RK's GitHub and Git credentials, and RK decided on 2026-11-13 **not** to sign out of them for B-11 (ADR-0009, ADR-0001 sections 5 and 10 hold the open question). `RK DECISION`.
+- **Local conversation is slower than a cloud assistant.** The 9B model runs on the CPU (about 9 to 10 tok/s) so the cloned voice can use the GPU; the first spoken word is an ESTIMATE of about 2 s until measured end to end. Sharing the GPU between model and voice was measured and makes both slower (evidence note, section 6).
+- **Voice and model software depend on pinned older library builds** because Smart App Control blocks the newest unsigned builds (INFERRED). Upgrading a pinned package needs a re-test.
+- **The outbound firewall rules cover three programs by path** (a private Python copy, the voice launcher, `ollama.exe`), applied by RK on 2026-11-13. They are not a general network sandbox. Reversible by RK as administrator.
+- **The cloned voice's sample provenance is UNVERIFIED** (RK described it in two ways; ADR-0012 Amendment 1).
 - **Planner is minimal**: fixed action per capability, reads before writes.
 
 ## 4. Implementation deviations for Gate 6 decision
+
+**RK DECISION, 2026-11-13: proceed with these deviations as documented limitations.** No ADR text is amended and no code is changed because of them. The four items below stay recorded as facts.
 
 These are recorded as facts. The accepted ADR and the implementation are unchanged; RK decides at Gate 6 whether to amend the ADR text or the code.
 
@@ -50,19 +57,25 @@ These are recorded as facts. The accepted ADR and the implementation are unchang
 | ID | Status 2026-10-30 |
 |---|---|
 | B-01 X-01 to X-16 | automated suite passes (X-16 symlink case is the environment limitation) |
-| B-02 fresh-clone full suite | `PLANNED` (Gate 7) |
+| B-02 fresh-clone full suite | dry run done 2026-11-13 (new laptop); final run `PLANNED` (Gate 7) |
 | B-03 every command runs guarded | `TESTED` |
 | B-04 read denial cases | `TESTED` |
 | B-05 hostile result inert | `TESTED` |
-| B-06 end-to-end workflow | `TESTED` in a temporary install; a real-project run is `PLANNED` before Gate 4 and needs RK's registry and contract |
+| B-06 end-to-end workflow | `TESTED` in a temporary install; `OBSERVED` PASSED on the real install with RK's registry and contract, 2026-11-13 (audit verify OK at seq 29) |
 | B-07 kill at each commit boundary | `TESTED` |
 | B-08 doctor healthy / seeded faults | `OBSERVED` healthy on the real install 2026-10-30 (one warning: no registry); seeded faults `TESTED` |
-| B-09 backup then restore | `TESTED`; drill on the real install `PLANNED` |
-| B-10 clean install runs doctor | `PLANNED` (needs a clean machine or fresh clone) |
+| B-09 backup then restore | `TESTED`; first real backup taken 2026-11-13 (`E:\JARVIS-BACKUPS6-11-13`); restore drill on the real install `PLANNED` |
+| B-10 clean install runs doctor | `PLANNED`; runbook written; to be run on the old laptop at release-candidate freeze (target 26 Nov), see `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md` |
 | B-11 first audit anchor | `RK DECISION`, scheduled 26 Nov |
-| B-12 ruleset unchanged; no ADR amended to ease implementation | `OBSERVED` (ruleset `updated_at` unchanged) |
+| B-12 ruleset unchanged; no ADR amended to ease implementation | ruleset: `OBSERVED` unchanged (`updated_at` 2026-10-11T23:37:01.214+05:30, checked 2026-11-13). ADR text: see the note below the table. |
 | B-13 release notes list every limitation | this document, to be finalised at Gate 7 |
+
+**B-12, ADR wording (checked 2026-11-13 against `phase-0-freeze`).** Accepted records changed since the freeze: ADR-0001 (Amendment 1, installs), ADR-0006 (one line, the 2026-10-21 Python option), ADR-0011, ADR-0012 and ADR-0013 (new, each with an Amendment 1), MCA-002, MCA-003 and Master Context 0.1-r3. No existing ADR text was deleted or weakened except through those RK-merged amendments. Two amendments were RK's process decisions made to reduce hand-offs: ADR-0001 Amendment 1 (a session may install on RK's per-item chat approval) and ADR-0012 Amendment 1 (a session may use an RK-supplied local sample). They can be read as easing implementation, so they are stated openly here as **deliberate RK decisions** (RK's words: "what I say goes above everything"; the install amendment was requested by RK in chat). Whether B-12 is met under that reading is for RK to confirm at Gate 7. JARVIS commands never modified governance (hash-compared before and after B-06).
 
 ## 6. Real-install activation (2026-10-30)
 
 Policy version 2 became the repository's default policy when PR #37 merged. On the real install `doctor` loaded policy version 2, `audit verify` was OK at tail seq 0, and `jarvis.db`, `HEAD`, `jarvis.toml` and `revocations.toml` were byte-identical before and after. The version 2 hash is recorded in the store at the first evaluation. No registry or contract exists yet (RK writes them).
+
+## 7. Beta build additions (2026-11-13)
+
+Merged: the read-only dashboard and status ring (PR #61, ADR-0011 Stage A) and the unencodable-character fix (PR #60). Installed on RK's approval: the local voice (cloned voice, Kokoro fallback, speech-to-text) and the local model runtime with `qwen3.5:9b`. Outbound firewall rules for the voice and model programs applied by RK. Evidence, measurements and decisions: `docs/environment/new-laptop-beta-evidence-2026-11-13.md`. Not yet built: Stage B, the read-only galaxy, the intent layer and the conversation loop; none is claimed as working.
