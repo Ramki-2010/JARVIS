@@ -1,6 +1,6 @@
 # ADR-0014 — Allowlisted, Read-Only Lookups of Public Data (weather, tech news, Indian news)
 
-**STATUS: PROPOSED** (RK decided the scope in chat on 2026-11-13; this text becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6)
+**STATUS: PROPOSED, approved by RK in chat on 2026-11-13** ("for others, yes, I give the approval for the ADR"). The chat approval is an input; it becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6. The feed list and the default place in section 6 still need RK's explicit confirmation.
 
 | Field | Value |
 |---|---|
