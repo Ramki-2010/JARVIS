@@ -129,3 +129,14 @@ Everything below fills in or narrows the decision above; nothing widens it.
 | Measured | The example catalog validates in full on this machine (every listed program and folder present except the Epic launcher, which is not in the example). A detached start of Calculator through the whole path (intent, policy check, audit, launcher) worked under Smart App Control, and the audit chain verified afterwards (`MEASURED` 2026-11-13) |
 | Still `UNVERIFIED` | Detached start of the other programs (Spotify, VLC, Zen, Steam, and the Claude packaged app through `explorer.exe shell:AppsFolder\...`); a browser opening a fixed address; a junction that leaves a catalog folder (a symbolic link is skipped by design and its test needs a privilege this account lacked, so it was skipped; junction behaviour is by `realpath` and untested); a mapped network drive in the catalog (RK's own choice; containment still applies); the Epic launcher's executable path |
 | Tests | `tests/test_launch.py` (catalog rules, finder limits, process helper, control-plane commands, conversation flows, hostile names) and the static guard now naming four process sites |
+
+## 8. Amendment 2 (2026-11-14): a title need not be spelled in full
+
+RK asked not to have to say a whole film name. This widens a match rule only; the folders searched, the limits, the extension allow list, the never-open list, the containment check and the "which one, then yes" turns are unchanged.
+
+| Item | Result |
+|---|---|
+| Match (D3) | Each word of what RK says must be a word of the file name, or the **start** of one when it is three letters or more ("dun" finds "Dune"; "inter" finds "Interstellar"). A word of one or two letters must match whole. The middle or end of a word never matches. Every word must be found, in any order |
+| Order | A file whose name is exactly the words said comes first, then names where every word matched whole, then names that needed a word start; ties by name. Several matches still produce the numbered "which one" and then the "yes" |
+| Not done | Matching "2" to "Two" (numerals and number words), spelling tolerance and fuzzy matching: each would widen the match further and is left for RK to decide |
+

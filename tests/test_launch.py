@@ -174,7 +174,7 @@ class CatalogRules(Workspace):
 class ExampleCatalog(unittest.TestCase):
     def test_the_example_in_the_repository_is_valid_and_holds_no_personal_path(self):
         path = os.path.join(REPO, "docs", "examples", "launch_catalog.example.toml")
-        env = {name: "C:\Sample\\" + name for name in lc.ALLOWED_VARS}
+        env = {name: "C:\\Sample\\" + name for name in lc.ALLOWED_VARS}
         import tomllib
         with open(path, "rb") as fh:
             raw = fh.read()
@@ -203,9 +203,22 @@ class FileFinding(Workspace):
         self.assertEqual(self.names("DUNE part two"), ["Dune.Part.Two.2024.mkv"])
         self.assertEqual(self.names("the matrix"), ["The Matrix (1999).mp4"])
         self.assertEqual(self.names("matrix 1999"), ["The Matrix (1999).mp4"])
-        self.assertEqual(self.names("dun"), [])            # not a whole word
-        self.assertEqual(self.names("mat"), [])
+        self.assertEqual(self.names("du"), [])             # under three letters must be a whole word
+        self.assertEqual(self.names("tw"), [])
         self.assertEqual(self.names("dune matrix"), [])    # every word must be present
+
+    def test_the_start_of_a_word_is_enough_and_the_closest_name_comes_first(self):
+        self.assertEqual(self.names("dun"), ["Dune.Part.Two.2024.mkv"])
+        self.assertEqual(self.names("mat"), ["The Matrix (1999).mp4"])
+        self.assertEqual(self.names("the mat 99"), [])      # "99" is two letters and not a whole word
+        self.assertEqual(self.names("matr 1999"), ["The Matrix (1999).mp4"])
+        self.assertEqual(self.names("atrix"), [])           # the start of a word only, never the middle
+        self.touch(os.path.join(self.movies, "Dune.mkv"))
+        self.touch(os.path.join(self.movies, "Dune Messiah.mkv"))
+        ordered = [m.name for m in lf.find(self.roots, self.exts, "dune").matches]
+        self.assertEqual(ordered, ["Dune.mkv", "Dune Messiah.mkv", "Dune.Part.Two.2024.mkv"])
+        ordered = [m.name for m in lf.find(self.roots, self.exts, "dun").matches]
+        self.assertEqual(ordered, ["Dune Messiah.mkv", "Dune.mkv", "Dune.Part.Two.2024.mkv"])   # all start-matches: by name
 
     def test_forbidden_and_unlisted_extensions_are_never_found_whatever_the_caller_asks(self):
         self.assertEqual(self.names("dune", exts={".exe", ".lnk", ".mkv", ".txt"}), ["Dune.Part.Two.2024.mkv"] + [])  # .txt allowed by the list but no match
