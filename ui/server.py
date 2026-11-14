@@ -1,10 +1,12 @@
-"""Stage A dashboard server (ADR-0011 D3). Read-only; every route runs one CLI command.
+"""Dashboard server (ADR-0011 D3, Amendment 2). Read-only unless the advisor hands it `respond`; every read route runs one CLI command.
 
 Rules held here: bound to 127.0.0.1 on a random port; a per-launch token in a
 request header (never in a query string); Host and Origin accepted only as
 exactly this launch's 127.0.0.1 or localhost address; no CORS; a strict CSP; GET
-only; no request body; a bounded request rate; JSON output, inserted by the page
-as text. The server keeps no state of its own beyond the token.
+only (no request body) with one exception: when the advisor supplied `respond`, `POST /api/say` carries one
+strictly validated line into the same conversation as the terminal, one turn at a time (ui/turns.py). A bounded
+request rate; JSON output, inserted by the page as text. The server keeps no state of its own beyond the token
+and the last few turns, in memory.
 """
 
 import hmac
@@ -18,7 +20,7 @@ import types
 from collections import deque
 
 from interaction import child
-from ui import galaxy, page, ring, voicesignal
+from ui import galaxy, page, ring, turns, voicesignal
 
 ROUTES = {
     "status": ["status"],
@@ -35,6 +37,9 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 TOKEN_HEADER = "X-JARVIS-Token"
 RATE_WINDOW_S = 5.0
 RATE_MAX = 40
+TURN_RE = re.compile(r"^[0-9]{1,9}$")
+SAY_TYPE = "application/json"
+DRAIN_MAX = 8192  # at most this much of a request body is ever read
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -115,6 +120,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             tasks = child.run(self.server.config, ["task", "list"])
             audit = child.run(self.server.config, ["audit", "verify"])
             return self._json(200, ring.derive(tasks.code, tasks.text, audit.code))
+        if len(parts) == 1 and parts[0] == "chat":
+            return self._json(200, {"enabled": self.server.turns.enabled, "busy": self.server.turns.busy()})
+        if len(parts) == 2 and parts[0] == "turn":
+            if not self.server.turns.enabled or not TURN_RE.match(parts[1]):
+                return self._refuse(404, "not found")
+            entry = self.server.turns.get(int(parts[1]))
+            return self._json(200, entry) if entry else self._refuse(404, "unknown turn")
         if len(parts) == 1 and parts[0] == "voice":
             return self._json(200, voicesignal.read(self.server.voice_path))
         if len(parts) == 1 and parts[0] == "galaxy":
@@ -144,17 +156,52 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _method_not_allowed(self):
         self._refuse(405, "read-only: GET only")
 
-    do_POST = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _method_not_allowed
+    def do_POST(self):
+        """Only `POST /api/say`, and only when the advisor supplied `respond` (ADR-0011 Amendment 2, A2.2)."""
+        if not self.server.turns.enabled or self.path != "/api/say":
+            return self._method_not_allowed()
+        # Read a small, bounded amount first so every refusal below reaches the browser as a clean 4xx
+        # (answering before the body is read can reset the connection). The size rule is still checked before parsing.
+        length = self.headers.get("Content-Length", "")
+        valid = length.isascii() and length.isdigit()
+        raw = self.rfile.read(min(int(length), DRAIN_MAX)) if valid and self.headers.get("Transfer-Encoding") is None else b""
+        if not self._host_ok():
+            return self._refuse(403, "host not allowed")
+        if self.headers.get("Origin") is None or not self._origin_ok():  # Origin is required on every mutation
+            return self._refuse(403, "origin not allowed")
+        if not self._token_ok():
+            return self._refuse(403, "token required")
+        if self.headers.get("Content-Type", "") != SAY_TYPE:
+            return self._refuse(415, "content type must be application/json")
+        if self.headers.get("Transfer-Encoding") is not None:
+            return self._refuse(400, "chunked bodies are not allowed")
+        if not valid:
+            return self._refuse(411, "content length required")
+        if int(length) > turns.MAX_BODY:
+            return self._refuse(413, "body too large")
+        if not self._rate_ok():
+            return self._refuse(429, "too many requests")
+        try:
+            text = turns.parse_say(raw)
+        except turns.BadRequest as exc:
+            return self._refuse(400, str(exc))
+        number = self.server.turns.submit(text)
+        if number is None:
+            return self._refuse(409, "busy: a turn is already running")
+        self._json(202, {"turn": number})
+
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _method_not_allowed
 
 
 class DashboardServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, config: str, voice_path: str = ""):
+    def __init__(self, config: str, voice_path: str = "", respond=None):
         super().__init__(("127.0.0.1", 0), Handler)
         child.command(config, [])  # refuse a relative config or a wrong interpreter at start
         self.config = config
         self.voice_path = voice_path or voicesignal.default_path(config)
+        self.turns = turns.Turns(respond)  # no `respond` means the page stays read-only
         self.token = secrets.token_urlsafe(32)
         self.rate_hits = deque()
         self.rate_lock = threading.Lock()
