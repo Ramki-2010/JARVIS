@@ -8,8 +8,8 @@ Truthfulness (ADR-0011 D4, D5). Two kinds of motion, kept apart:
     nothing, can be switched off, and is off by default when the system asks for reduced motion.
   * Reactions (a ring state, a new node growing in with ripples and its links drawing in) happen only for
     something real: a state derived from the records, or a record that was not there at the last poll.
-The ring's LISTENING and SPEAKING looks exist in the stylesheet but are only used if the control plane
-side ever reports those states from a real signal (ADR-0012); nothing here invents them.
+The ring's LISTENING and SPEAKING appear only while the voice worker's live signal says the microphone is
+really open or audio is really queued (ADR-0012); a missing or stale signal means IDLE. Nothing here invents them.
 """
 
 
@@ -172,9 +172,25 @@ $("brec").addEventListener("click", () => openDrawer(true));
 $("dclose").addEventListener("click", () => openDrawer(false));
 
 // ---------------------------------------------------------------- the ring (state comes only from real records)
+let lastRing = {state: "IDLE", detail: "reading the records"}, voiceNow = "IDLE";
 async function ring() {
-  try { const r = await call("/api/ring"); setRing(r.state, r.detail);
-  } catch (e) { setRing("ERROR", String(e.message)); }
+  try { const r = await call("/api/ring"); lastRing = {state: r.state, detail: r.detail};
+  } catch (e) { lastRing = {state: "ERROR", detail: String(e.message)}; }
+  showRing();
+}
+// LISTENING and SPEAKING come only from the voice worker's live signal (the microphone really open, audio really queued).
+// A fault from the records (AUDIT_FAULT, ERROR) always outranks them.
+function showRing() {
+  const fault = lastRing.state === "AUDIT_FAULT" || lastRing.state === "ERROR";
+  if (!fault && voiceNow === "LISTENING") setRing("LISTENING", "the microphone is open now");
+  else if (!fault && voiceNow === "SPEAKING") setRing("SPEAKING", "JARVIS is speaking now");
+  else setRing(lastRing.state, lastRing.detail);
+}
+async function voiceTick() {
+  if (document.hidden) return;
+  let s = "IDLE";
+  try { s = (await call("/api/voice")).state || "IDLE"; } catch (e) { s = "IDLE"; }
+  if (s !== voiceNow) { voiceNow = s; showRing(); }
 }
 function setRing(state, detail) {
   const box = $("ringbox");
@@ -356,7 +372,7 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") openDrawer(false);
   if ((ev.key === "r" || ev.key === "R") && ev.target.tagName !== "INPUT") refreshAll(); });
 size(); requestAnimationFrame(frame); refreshAll();
-setInterval(refreshLive, 5000); setInterval(() => { if (!document.hidden) for (const [key] of PANELS) panel(key); }, 15000);
+setInterval(refreshLive, 5000); setInterval(voiceTick, 800); setInterval(() => { if (!document.hidden) for (const [key] of PANELS) panel(key); }, 15000);
 </script></body></html>
 """
 

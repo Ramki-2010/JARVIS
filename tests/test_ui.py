@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 from unittest import mock
@@ -192,6 +193,23 @@ class ServerTests(unittest.TestCase):
         data = resp.read()
         conn.close()
         return resp, data
+
+    def test_voice_route_needs_the_token_and_reports_only_a_fresh_real_signal(self):
+        self.assertEqual(self.request("/api/voice", token=False)[0].status, 403)
+        self.assertEqual(self.request("/api/voice", method="POST")[0].status, 405)
+        saved = self.server.voice_path
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                self.server.voice_path = os.path.join(tmp, "voice_state.json")
+                self.assertEqual(json.loads(self.request("/api/voice")[1]), {"state": "IDLE"})     # no signal: idle
+                with open(self.server.voice_path, "w", encoding="utf-8") as fh:
+                    json.dump({"state": "LISTENING", "at": time.time()}, fh)
+                self.assertEqual(json.loads(self.request("/api/voice")[1]), {"state": "LISTENING"})
+                with open(self.server.voice_path, "w", encoding="utf-8") as fh:
+                    json.dump({"state": "LISTENING", "at": time.time() - 60}, fh)
+                self.assertEqual(json.loads(self.request("/api/voice")[1]), {"state": "IDLE"})     # stale: idle
+        finally:
+            self.server.voice_path = saved
 
     def test_bound_to_loopback_on_a_random_port(self):
         self.assertEqual(self.server.server_address[0], "127.0.0.1")

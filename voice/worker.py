@@ -77,6 +77,9 @@ class Worker:
             self.cache = self.tts.build_prompt_cache(prompt_text=None, prompt_wav_path=None, reference_wav_path=sample)
         from voice.winaudio import Player
         self.player = Player(int(self.sr * float(self.cfg.get("playback_factor", 1.0))))  # below 1.0: slower and lower
+        from voice.livestate import LiveState
+        self.live = LiveState(self.root)
+        self.live.start()
         for _ in self._pieces("Good evening, sir."):  # warm-up; discarded
             pass
         # Speech in is optional: if its libraries cannot load (for example Windows Smart App Control blocks a
@@ -169,6 +172,10 @@ class Worker:
             yield last
             yield np.zeros(int(PAUSE_S * self.sr), dtype=np.int16)
 
+    def _play(self, pcm: bytes) -> None:
+        self.player.write(pcm)
+        self.live.audio_queued(self.player.queued_seconds())   # the speaker really has this audio queued now
+
     def say(self, job_id: int, text: str, received_at: float) -> None:
         t0 = time.monotonic()
         started = False
@@ -185,17 +192,17 @@ class Worker:
                 held_s += len(pcm) / (2.0 * self.sr)
                 if held_s >= need:
                     for p in held:
-                        self.player.write(p)
+                        self._play(p)
                     started = True
                     emit(event="first_audio", id=job_id, at=time.time(), after_received_s=round(time.time() - received_at, 3),
                          after_start_s=round(time.monotonic() - t0, 3), still_playing_s=round(self.player.queued_seconds(), 2))
                 continue
             if self.player.queued_seconds() <= 0.0:
                 gaps += 1
-            self.player.write(pcm)
+            self._play(pcm)
         if not started and held:
             for p in held:
-                self.player.write(p)
+                self._play(p)
             emit(event="first_audio", id=job_id, at=time.time(), after_received_s=round(time.time() - received_at, 3),
                  after_start_s=round(time.monotonic() - t0, 3))
         # the next sentence may follow at once; the mic stays closed until playback ends
@@ -215,6 +222,7 @@ class Worker:
             time.sleep(0.02)
         rec = winaudio.Recorder()
         rec.start()
+        self.live.mic_open(True)   # the microphone really is open now
         try:
             t_end = time.monotonic() + LISTEN_MAX_S
             while winaudio.key_down() and time.monotonic() < t_end:
@@ -222,6 +230,7 @@ class Worker:
                 time.sleep(0.02)
         finally:
             pcm = rec.stop()
+            self.live.mic_open(False)
         seconds = len(pcm) / (2.0 * rec.RATE)
         if seconds < MIN_SPEECH_S:
             emit(event="heard", id=job_id, text="", reason="too short", audio_s=round(seconds, 2))
@@ -285,4 +294,5 @@ class Worker:
                 emit(event="error", id=None, error=str(exc))
         t.join(timeout=120)
         self.player.close()
+        self.live.stop()
         return 0
