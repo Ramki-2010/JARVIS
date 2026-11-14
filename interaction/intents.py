@@ -31,6 +31,8 @@ JOKE = "JOKE"
 WEATHER = "WEATHER"
 HN = "HN"
 NEWS = "NEWS"
+TIME = "TIME"
+DATE = "DATE"
 
 MAX_CAPTURE_CHARS = 1000
 
@@ -197,7 +199,37 @@ def place_key(text: str) -> Optional[str]:
     return None
 
 
+_TIME = tuple(re.compile(p) for p in (
+    r"what time is it" + _WHEN + _PLACE + _WHEN,
+    r"(?:(?:what(?:'s| is)|tell me|give me|show me|check) )?(?:the )?(?:current |local )?time(?: is it)?" + _WHEN + _PLACE + _WHEN,
+))
+_DATE = tuple(re.compile(p) for p in (
+    r"(?:what(?:'s| is) )?(?:the |today's |todays )?date(?: today| now)?",
+    r"what(?:'s| is) the day(?: today)?",
+    r"what day (?:is it|of the week is it)(?: today)?", r"what(?:'s| is) today's date", r"what(?:'s| is) the date today",
+))
+
+
+def zone_key(text: str) -> Optional[str]:
+    """The time-zone key a spoken place stands for, or None. Only fetcher.keys decides."""
+    spoken = " ".join(w for w in re.findall(r"[a-z]+", text.lower()) if w not in _PLACE_FILLER)
+    for key, (_name, _iana, aliases) in fetch_keys.ZONES.items():
+        if spoken in aliases:
+            return key
+    return None
+
+
 def _lookup(t: str) -> Optional[Intent]:
+    for pat in _TIME:
+        m = pat.fullmatch(t)
+        if m:
+            spoken = (m.groupdict().get("p") or "").strip(" .,'-")
+            if not spoken:
+                return Intent("time", TIME, ("",))
+            key = zone_key(spoken)
+            return Intent("time", TIME, (key,)) if key else Intent("time", TIME, ("?",), spoken)
+    if any(p.fullmatch(t) for p in _DATE):
+        return Intent("date", DATE)
     for pat in _WEATHER:
         m = pat.fullmatch(t)
         if m:
