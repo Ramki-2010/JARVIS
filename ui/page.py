@@ -68,7 +68,7 @@ body.calm .ringsvg,body.calm .ticks,body.calm .dots{animation:none}
 .pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .tag{padding:4px 12px;border-radius:999px;background:rgba(8,15,24,.55);font:500 11px Consolas,monospace;letter-spacing:1.5px;color:var(--dim)}
 #rstate{color:var(--rc)}#rdetail{font:500 11.5px Consolas,monospace;color:var(--dim);text-align:center;max-width:230px}
-.note{left:28px;bottom:20px;max-width:380px;font-size:11px;color:#7f95a6;line-height:1.5}
+.note{left:28px;bottom:150px;max-width:380px;font-size:11px;color:#7f95a6;line-height:1.5}
 .drawer{position:fixed;left:0;top:0;bottom:0;width:min(580px,96vw);z-index:20;overflow:auto;padding:18px 20px 28px;border-radius:0 16px 16px 0;
 transform:translateX(-104%);visibility:hidden;transition:transform .25s ease,visibility 0s .25s}
 .drawer.open{transform:none;visibility:visible;transition:transform .25s ease}
@@ -83,7 +83,7 @@ transform:translateX(-104%);visibility:hidden;transition:transform .25s ease,vis
 .badge{font-size:11px;padding:1px 8px;border-radius:9px;background:rgba(255,255,255,.07)}
 .SUCCESS{color:#3ddc97}.WARNING{color:#f2c14e}.ERROR{color:#ff6b79}.EMPTY,.LOADING{color:var(--dim)}
 pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consolas,monospace;color:var(--text);max-height:300px;overflow:auto}
-@media (max-width:900px){.ringbox{transform:translateY(-46%) scale(.7);right:0}.tr{width:170px}.tc{max-width:90vw;top:auto;bottom:16px}}
+@media (max-width:900px){.ringbox{transform:translateY(-46%) scale(.7);right:0}.tr{width:170px}.tc{max-width:90vw;top:auto;bottom:16px}.note{bottom:250px}}
 </style></head><body>
 <div id="gview" tabindex="0" role="group" aria-label="Galaxy view. Arrow keys rotate. The Records panel holds the same nodes as a list."><canvas id="gcanvas" aria-hidden="true"></canvas></div>
 
@@ -118,7 +118,7 @@ pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consol
   <span id="rdetail">reading the records</span>
 </div>
 
-<span class="hud note">Read-only view of the JARVIS control plane. Dashed nodes are PREVIEW, not records. Drifting is decoration and means nothing; glow, ripples and new nodes appear only for real changes. Nothing is verified unless a record says so.</span>
+<span class="hud note">Read-only view of the JARVIS control plane. The tray of discs holds PREVIEW items, not records. Drifting is decoration and means nothing; glow, ripples and new nodes appear only for real changes. Nothing is verified unless a record says so.</span>
 
 <aside class="drawer glass" id="drawer" aria-label="Records">
   <header><h2>Records</h2><button class="close" id="dclose">Close</button></header>
@@ -204,14 +204,42 @@ function sprite(c) {
   gr.addColorStop(0, "#ffffff"); gr.addColorStop(0.14, c); gr.addColorStop(0.32, c + "77"); gr.addColorStop(1, c + "00");
   g.fillStyle = gr; g.fillRect(0, 0, 96, 96); sprites[c] = s; return s;
 }
+const GLYPHS = {"preview-memory": "M12 3L21 7.5L12 12L3 7.5Z M3 12L12 16.5L21 12 M3 16.5L12 21L21 16.5",
+  "preview-research": "M17 10.5A6.5 6.5 0 1 1 4 10.5A6.5 6.5 0 1 1 17 10.5Z M15.5 15.5L21 21",
+  "preview-evidence": "M12 3L19 6V11C19 15.5 16 19 12 21C8 19 5 15.5 5 11V6Z M8.5 12L11 14.5L15.5 9.5"};
+const GLYPH_PATHS = {}; for (const k of Object.keys(GLYPHS)) GLYPH_PATHS[k] = new Path2D(GLYPHS[k]);
+const GLOW = "94,231,255";
+function trayWidth() { return W < 900 ? Math.round(W * 0.56) : Math.min(560, W - 24); }
+function trayShape(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+// PREVIEW dock: a frosted tray holding one glowing disc per later capability. Fixed, never drifts, never counted as a record.
+function drawDock(list) {
+  if (!list.length) return;
+  const tw = trayWidth(), cx = W / 2, sy = pos[list[0].id].sy, top = sy - 56, th = 122;
+  ctx.save();
+  ctx.shadowColor = "rgba(" + GLOW + ",.20)"; ctx.shadowBlur = 40; ctx.fillStyle = "rgba(8,15,24,.55)"; trayShape(cx - tw / 2, top, tw, th, 18); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = "rgba(" + GLOW + ",.18)"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = "#9fb4c4"; ctx.font = "10.5px Consolas, monospace"; ctx.textAlign = "center"; ctx.fillText("COMING LATER (PREVIEW, NOT RECORDS)", cx, top + 18);
+  for (const n of list) {
+    const p = pos[n.id], on = n.id === picked || n.id === hovered, y = p.sy - (on ? 3 : 0);
+    ctx.shadowColor = "rgba(" + GLOW + (on ? ",.85)" : ",.55)"); ctx.shadowBlur = on ? 22 : 12;
+    ctx.fillStyle = "rgba(8,15,24,.85)"; ctx.beginPath(); ctx.arc(p.sx, y, 23, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = "rgb(" + GLOW + ")"; ctx.lineWidth = 1.6; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.save(); ctx.translate(p.sx - 11, y - 11); ctx.scale(0.92, 0.92); ctx.lineWidth = 1.7; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(GLYPH_PATHS[n.id]); ctx.restore();
+    if (n.id === picked) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.sx, y, 28, 0, 6.2832); ctx.stroke(); }
+    ctx.fillStyle = "#d6e6f2"; ctx.font = "11px Consolas, monospace"; ctx.fillText(n.label.toUpperCase(), p.sx, p.sy + 42);
+    ctx.fillStyle = "#9fb4c4"; ctx.font = "10px Consolas, monospace"; ctx.fillText("PREVIEW", p.sx, p.sy + 56);
+  }
+  ctx.restore();
+}
+const VIEW = 0.78;   // presentation scale only: keeps every record inside the orbit rings
 const DOCK = ["preview-memory", "preview-research", "preview-evidence"];
 function project3(n, t) {
   if (n.kind === "preview") {   // PREVIEW nodes are not part of the scene: fixed spot at the bottom centre, never drift, turn or overlap the ring
     const i = Math.max(0, DOCK.indexOf(n.id)), narrow = W < 900;
-    return {sx: (W / 2) + (i - 1) * 150, sy: H - (narrow ? 96 : 56), f: 1, z: 0, ph: 0};
+    return {sx: (W / 2) + (i - 1) * (trayWidth() / 3.3), sy: H - (narrow ? 170 : 78), f: 1, z: 0, ph: 0};
   }
   const ph = phase(n.id), a = ambient ? 0.022 : 0;
-  const x = n.x + a * Math.sin(t / 1700 + ph), y = n.y + a * Math.sin(t / 2100 + ph * 1.3), z = n.z + a * Math.sin(t / 1900 + ph * 0.7);
+  const x = n.x * VIEW + a * Math.sin(t / 1700 + ph), y = n.y * VIEW + a * Math.sin(t / 2100 + ph * 1.3), z = n.z * VIEW + a * Math.sin(t / 1900 + ph * 0.7);
   const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
   const x1 = x * cy - z * sy, z1 = x * sy + z * cy, y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp, f = 3.2 / (3.2 + z2);
   return {sx: CX + S * 1.24 * x1 * f, sy: CY + S * y2 * f, f, z: z2, ph};
@@ -232,21 +260,22 @@ function draw(t) {
   }
   const order = vis.slice().sort((p, q) => pos[q.id].z - pos[p.id].z);
   for (const n of order) {
+    if (n.kind === "preview") continue;
     const p = pos[n.id], breathe = ambient && n.kind !== "preview" ? 1 + 0.07 * Math.sin(t / 900 + p.ph) : 1;
     const base = n.kind === "project" ? 10 : n.kind === "preview" ? 6 : n.kind === "result" ? 5 : 5.5;
     const r = Math.max(0.5, base * (0.55 + 0.85 * p.f) * breathe * grow(n.id, t)), c = colorOf(n);
     const alpha = Math.max(0.35, Math.min(1, 0.4 + 0.75 * p.f)) * (dim(n) ? 0.62 : 1);
     ctx.globalAlpha = alpha;
-    if (n.kind === "preview") { ctx.setLineDash([3, 3]); ctx.strokeStyle = "#9fb4c4"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.sx, p.sy, r + 1, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]); }
-    else { const R = r * 3.3; ctx.drawImage(sprite(c), p.sx - R, p.sy - R, R * 2, R * 2); }
+    { const R = r * 3.3; ctx.drawImage(sprite(c), p.sx - R, p.sy - R, R * 2, R * 2); }
     ctx.globalAlpha = 1;
     if (n.id === picked || n.id === hovered) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.sx, p.sy, r + 5, 0, 6.2832); ctx.stroke(); }
-    if (n.kind === "project" || n.kind === "preview" || n.id === picked || n.id === hovered) {
-      const text = n.kind === "preview" ? n.label + " (PREVIEW)" : n.label; ctx.font = "12px Segoe UI, sans-serif"; const tw = ctx.measureText(text).width;
+    if (n.kind === "project" || n.id === picked || n.id === hovered) {
+      const text = n.label; ctx.font = "12px Segoe UI, sans-serif"; const tw = ctx.measureText(text).width;
       const left = p.sx + r + 8 + tw > W - 4; ctx.fillStyle = "#d6e6f2"; ctx.shadowColor = "#000"; ctx.shadowBlur = 8;
       ctx.fillText(text, left ? p.sx - r - 8 - tw : p.sx + r + 8, p.sy + 4); ctx.shadowBlur = 0;
     }
   }
+  drawDock(DOCK.map((id) => vis.find((n) => n.id === id)).filter(Boolean));
   for (const id of Object.keys(born)) {   // ripples for a record that really just appeared
     const age = (t - born[id]) / 1500, p = pos[id];
     if (age > 1.3) { delete born[id]; continue; }
@@ -263,12 +292,12 @@ function frame(now) {
 }
 
 function nodeAt(ev) {
-  const r = canvas.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top; let best = null, bd = 14;
-  for (const n of G.nodes) { const p = pos[n.id]; if (!p) continue; const d = Math.hypot(p.sx - mx, p.sy - my); if (d < bd) { bd = d; best = n; } }
+  const r = canvas.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top; let best = null, bd = 99;
+  for (const n of G.nodes) { const p = pos[n.id]; if (!p) continue; const d = Math.hypot(p.sx - mx, p.sy - my); if (d < (n.kind === "preview" ? 30 : 14) && d < bd) { bd = d; best = n; } }
   return best;
 }
 async function pick(n) {
-  picked = n.id; $("itl").textContent = n.label; $("ist").textContent = n.kind.toUpperCase() + "  " + n.status;
+  picked = n.id; $("itl").textContent = n.label; $("ist").textContent = n.kind === "preview" ? "PREVIEW  not built yet" : n.kind.toUpperCase() + "  " + n.status;
   const fallback = n.note + (n.kind === "result" ? "\nThe relayed text is not shown here: it is untrusted data." : "");
   for (const b of $("glist").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === n.id));
   if (!n.detail) { $("ibd").textContent = fallback; return; }

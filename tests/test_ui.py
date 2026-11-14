@@ -199,6 +199,13 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("?", self.server.url)
         self.assertIn("#t=", self.server.url)
 
+    def test_preview_dock_is_labelled_and_never_a_record(self):
+        _, data = self.request("/", token=False)
+        page = data.decode("utf-8")
+        for needle in ("COMING LATER (PREVIEW, NOT RECORDS)", "preview-memory", "preview-research", "preview-evidence", "drawDock("):
+            self.assertIn(needle, page)
+        self.assertIn('n.kind === "preview" ? "PREVIEW  not built yet"', page)   # the inspector never calls a preview a record
+
     def test_page_has_strict_headers_and_no_cors(self):
         resp, data = self.request("/", token=False)
         self.assertEqual(resp.status, 200)

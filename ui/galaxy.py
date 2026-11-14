@@ -61,7 +61,7 @@ def build(project_text: str, task_text: str, note_text: str, result_text: str) -
         nodes.append({"id": node_id, "kind": kind, "label": label, "status": status,
                       "x": position[0], "y": position[1], "z": position[2], "detail": detail, "note": note})
 
-    spread = 0.0 if len(projects) <= 1 else 1.2
+    spread = 0.0 if len(projects) <= 1 else 0.65
     for index, (pid, name, status) in enumerate(projects):
         angle = 2.0 * math.pi * index / max(1, len(projects))
         add("project:" + pid, "project", name, status.upper(), (round(spread * math.cos(angle), 4), 0.0, round(spread * math.sin(angle), 4)),
