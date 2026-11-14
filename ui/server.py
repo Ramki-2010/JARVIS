@@ -18,7 +18,7 @@ import types
 from collections import deque
 
 from interaction import child
-from ui import galaxy, page, ring
+from ui import galaxy, page, ring, voicesignal
 
 ROUTES = {
     "status": ["status"],
@@ -115,6 +115,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             tasks = child.run(self.server.config, ["task", "list"])
             audit = child.run(self.server.config, ["audit", "verify"])
             return self._json(200, ring.derive(tasks.code, tasks.text, audit.code))
+        if len(parts) == 1 and parts[0] == "voice":
+            return self._json(200, voicesignal.read(self.server.voice_path))
         if len(parts) == 1 and parts[0] == "galaxy":
             return self._json(200, self._galaxy())
         if len(parts) == 2 and parts[0] in DETAIL:
@@ -148,10 +150,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class DashboardServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, config: str):
+    def __init__(self, config: str, voice_path: str = ""):
         super().__init__(("127.0.0.1", 0), Handler)
         child.command(config, [])  # refuse a relative config or a wrong interpreter at start
         self.config = config
+        self.voice_path = voice_path or voicesignal.default_path(config)
         self.token = secrets.token_urlsafe(32)
         self.rate_hits = deque()
         self.rate_lock = threading.Lock()

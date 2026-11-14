@@ -190,3 +190,19 @@ No sample is read, no tool is installed, no model is chosen, no asset exists, no
 ---
 
 Note (2026-11-12): the sentence in D2 that no Claude session installs or downloads the speech tool is modified by ADR-0001 Amendment 1 (G-13).
+
+---
+
+## Amendment 2 (2026-11-14): the ring's LISTENING and SPEAKING get a real signal
+
+This implements D3 item 5 and ADR-0011 D4; it widens no permission. The voice worker, which alone holds the microphone and the speaker, writes a small state file, and the dashboard reads it.
+
+| Item | Result |
+|---|---|
+| Source | `voice/livestate.py`, called by the worker at the moment of the fact: **LISTENING** from the instant the microphone has been opened until it is closed; **SPEAKING** from the instant audio is handed to the speaker until the length of what is queued has run out. Nothing else sets either state |
+| File | `<voice folder>\state\voice_state.json` holds only `state`, `at` (time) and `pid`: no audio, no text, no transcript. It is written when the state changes and about once a second while it is not IDLE |
+| Reader | `ui/voicesignal.py` and the read-only route `GET /api/voice` (token required). A state counts only if the file is small, well formed, names LISTENING or SPEAKING, and is no more than 3 seconds old (or 2 seconds in the future). A missing, damaged or stale file is IDLE, so a worker that dies cannot leave the ring on LISTENING |
+| Display | The page polls the route every 0.8 s and shows the voice state in place of the record state, except that AUDIT_FAULT and ERROR always outrank it. When the voice is quiet the ring goes back to the state derived from the records. Looks and colours are those already approved (amber LISTENING, teal SPEAKING) |
+| Setting | `--voice-root` on `python -m ui`; default is the `voice` folder next to the governance folder |
+| Measured | The reader, writer and route are tested without hardware (`tests/test_voice_signal.py`, `tests/test_ui.py`). A simulated signal written through the real writer to the real default path made the live dashboard show LISTENING, then SPEAKING, then return to the record state (`MEASURED` 2026-11-14) |
+| `UNVERIFIED` | A real push-to-talk press and real speech through the speaker (no microphone was used in this session); that the queued length tracks the audible end of speech closely on this machine. Both belong to the beta rehearsal |
