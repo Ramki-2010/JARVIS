@@ -75,6 +75,12 @@ id = "steam"
 name = "Steam"
 exe = '%PROGRAMFILES(X86)%\Steam\steam.exe'
 
+[[game]]
+id = "epic"
+name = "Epic Games Launcher"
+spoken = ["epic", "epic games"]
+exe = '%LOCALAPPDATA%\Epic Games\Launcher\EpicGamesLauncher.exe'
+
 # A single game, by launcher and game number typed here by RK (JARVIS never scans a library):
 # [[game]]
 # id = "mygame"

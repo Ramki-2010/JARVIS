@@ -180,7 +180,7 @@ class ExampleCatalog(unittest.TestCase):
             raw = fh.read()
         cat = lc.parse(tomllib.loads(raw.decode("utf-8")), env, exists=lambda p: True, is_dir=lambda p: True)
         self.assertEqual(cat.notices, ())
-        self.assertEqual((len(cat.apps), len(cat.folders), len(cat.games), len(cat.rules)), (10, 6, 1, 1))
+        self.assertEqual((len(cat.apps), len(cat.folders), len(cat.games), len(cat.rules)), (10, 6, 2, 1))
         self.assertIsNone(re.search(rb"(?i)users[\/]+[a-z0-9._-]+|@[\w.-]+\.(com|net)", raw))
 
 
