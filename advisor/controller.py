@@ -12,6 +12,8 @@ Events yielded: ("say", text) is spoken and shown; ("show", text) is shown only;
 ("error", text) is shown and spoken as a failure; ("quit", "").
 """
 
+import hashlib
+import os
 import re
 from datetime import datetime, timedelta
 from typing import Callable, Iterator, List, Optional, Tuple
@@ -22,7 +24,7 @@ from advisor.lines import Lines
 from advisor.runtime import ModelUnavailable
 from advisor.sentences import sentences
 from fetcher import keys as fetch_keys
-from interaction import intents
+from interaction import intents, launch_catalog, launch_files
 
 Event = Tuple[str, str]
 
@@ -56,7 +58,8 @@ TEASE_AT = 6  # open items before the list is gently teased about
 
 
 class Controller:
-    def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False, line_seed: Optional[int] = None, tease: bool = True, fetcher: Optional[Callable] = None):
+    def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False, line_seed: Optional[int] = None, tease: bool = True, fetcher: Optional[Callable] = None,
+                 launcher: Optional[Callable] = None, catalog_source: Optional[Callable] = None):
         self.conversation = conversation
         self.runner = runner
         self.project = project
@@ -65,6 +68,10 @@ class Controller:
         self.pending_todo: Optional[Tuple[str, int, str]] = None  # ("add"|"done"|"drop", note seq or 0, item text)
         self.lines = Lines(line_seed)
         self.fetcher = fetcher  # public-data lookups (ADR-0014); None means they are not set up
+        self.launcher = launcher              # starts one catalog program (ADR-0015); None means launching is off
+        self.catalog_source = catalog_source  # returns the validated catalog afresh each time, or None
+        self.pending_launch: Optional[dict] = None   # a file or game awaiting the confirmation turn
+        self.pending_choice: Optional[List[launch_files.Match]] = None  # several files found: which one?
         self.tease = tease  # light teasing, only from counts JARVIS has actually read (switch: --no-teasing)
 
     def _write_note(self, text: str) -> Event:
@@ -77,6 +84,24 @@ class Controller:
     def respond(self, text: str) -> Iterator[Event]:
         intent = intents.recognise(text)
 
+        if self.pending_choice is not None:
+            matches, self.pending_choice = self.pending_choice, None
+            if intent is not None and intent.kind == intents.DENY:
+                yield ("say", self.lines.say("declined"))
+                return
+            picked = self._pick(text, len(matches))
+            if picked:
+                yield from self._offer_file(matches[picked - 1])
+                return
+        if self.pending_launch is not None:
+            job, self.pending_launch = self.pending_launch, None
+            if intent is not None and intent.kind == intents.CONFIRM:
+                yield from self._start(**job)
+                return
+            if intent is not None and intent.kind == intents.DENY:
+                yield ("say", self.lines.say("declined"))
+                return
+            # anything else abandons the proposal; fall through and treat the text normally
         if self.pending_todo is not None:
             action, self.pending_todo = self.pending_todo, None
             if intent is not None and intent.kind == intents.CONFIRM:
@@ -119,6 +144,8 @@ class Controller:
             yield ("say", LOOKUP_GAP_TEXT if self.fetcher else GAP_TEXT)
         elif intent.kind == intents.JOKE:  # vetted clean puns, not the model: a 9B model ignored the safety rule once
             yield ("say", self.lines.say("joke"))
+        elif intent.kind == intents.LAUNCH:
+            yield from self._launch(intent, text)
         elif intent.kind in (intents.TIME, intents.DATE):
             yield from self._clock(intent)
         elif intent.kind in (intents.WEATHER, intents.HN, intents.NEWS):
@@ -215,6 +242,102 @@ class Controller:
             if items is not None and len(items) >= TEASE_AT:
                 return ("say", self.lines.say("added_many", n=str(len(items))))
         return ("say", self.lines.say({"add": "added", "done": "done", "drop": "dropped"}[action]))
+
+    # ----- opening things from RK's catalog (ADR-0015). Apps and folders open at once; a file or a game waits for a
+    # "yes" first. The program comes only from the catalog; the control plane authorises and audits each open.
+    @staticmethod
+    def _pick(text: str, count: int) -> int:
+        t = text.casefold().strip(" .!?,")
+        m = re.fullmatch(r"(?:(?:number|no\.?|option|the) ?)?(\d{1,2})(?: please)?", t)
+        n = int(m.group(1)) if m else next((v for k, v in ORDINALS.items() if re.fullmatch(r"(?:the )?%s(?: one)?" % k, t)), 0)
+        return n if 1 <= n <= count else 0
+
+    def _launch(self, intent, original: str) -> Iterator[Event]:
+        catalog = self.catalog_source() if (self.launcher is not None and self.catalog_source is not None) else None
+        if catalog is None:
+            self.pending = original.strip()[:intents.MAX_CAPTURE_CHARS]
+            yield ("say", GAP_TEXT)
+            return
+        verb, hint = intent.args
+        name = intent.text
+        entries = launch_catalog.lookup(catalog, name, hint if hint in ("app", "folder", "game") else "")
+        if verb in ("play", "watch", "listen to"):
+            entries = [e for e in entries if e.kind != "folder"]
+        if hint == "file":
+            entries = []
+        if entries:
+            entry = entries[0]
+            if not launch_catalog.recheck(entry):
+                yield ("say", "%s is on my list, sir, but I cannot find it on this machine just now." % entry.name)
+                return
+            if entry.kind == "game":
+                self.pending_launch = dict(kind="game", ident=entry.id, name=entry.name, exe=entry.exe, args=list(entry.args))
+                yield ("say", "Shall I start %s, sir?" % entry.name)
+                return
+            exe = os.path.join(os.environ.get("SYSTEMROOT", "C:" + os.sep + "Windows"), "explorer.exe") if entry.kind == "folder" else entry.exe
+            yield from self._start(kind=entry.kind, ident=entry.id, name=entry.name, exe=exe,
+                                   args=[entry.path] if entry.kind == "folder" else list(entry.args))
+            return
+        if hint in ("", "file") and catalog.rules:
+            yield from self._find_file(catalog, name, verb, hint, original)
+            return
+        yield from self._not_found(verb, hint, original)
+
+    def _not_found(self, verb: str, hint: str, original: str) -> Iterator[Event]:
+        if verb in ("open", "launch") and not hint:
+            yield ("say", "That is not on my list, sir.")
+        elif hint:
+            yield ("say", "I could not find that, sir.")
+        else:
+            yield from self._converse(original)
+
+    def _find_file(self, catalog, name: str, verb: str, hint: str, original: str) -> Iterator[Event]:
+        roots, exts = [], set()
+        for rule in catalog.rules:
+            exts |= set(rule.extensions)
+            for fid in rule.folders:
+                if (fid, catalog.folders[fid].path) not in roots:
+                    roots.append((fid, catalog.folders[fid].path))
+        found = launch_files.find(roots, exts, name)
+        usable = [m for m in found.matches if any(m.ext in r.extensions and m.folder_id in r.folders for r in catalog.rules)]
+        if not usable:
+            yield from self._not_found(verb, hint, original)
+            return
+        if len(usable) == 1:
+            yield from self._offer_file(usable[0])
+            return
+        self.pending_choice = usable[:5]
+        listing = "; ".join("%d, %s" % (i, os.path.splitext(m.name)[0]) for i, m in enumerate(usable[:5], 1))
+        yield ("show", NL.join("%d. %s" % (i, m.name) for i, m in enumerate(usable[:5], 1)))
+        yield ("say", "I found %d, sir: %s. Which one?" % (len(usable), listing))
+
+    def _offer_file(self, match) -> Iterator[Event]:
+        catalog = self.catalog_source() if self.catalog_source else None
+        rule = next((r for r in catalog.rules if match.ext in r.extensions and match.folder_id in r.folders), None) if catalog else None
+        program = catalog.apps.get(rule.program) if rule else None
+        if program is None or not launch_catalog.recheck(program) or not launch_files.contained(match.path, catalog.folders[match.folder_id].path):
+            yield ("say", "I could not find that, sir.")
+            return
+        args = [match.path if a == launch_catalog.FILE_PLACEHOLDER else a for a in program.file_args]
+        digest = hashlib.sha256(os.path.normcase(match.path).encode("utf-8", "replace")).hexdigest()[:8]
+        title = os.path.splitext(match.name)[0]
+        self.pending_launch = dict(kind="file", ident=program.id, name=title, exe=program.exe, args=args, ext=match.ext, path_hash=digest)
+        yield ("say", "I found %s. Shall I open it in %s, sir?" % (title, program.name))
+
+    def _start(self, kind: str, ident: str, name: str, exe: str, args: List[str], ext: str = "", path_hash: str = "") -> Iterator[Event]:
+        auth = self.runner(["launch", "authorize", kind, ident])
+        if auth.code != 0:
+            yield ("say", "That is not permitted, sir.")
+            return
+        result = self.launcher(exe, args)
+        record = ["launch", "record", kind, ident, "--result", "ok" if result.ok else "failed"]
+        if kind == "file":
+            record += ["--ext", ext, "--hash", path_hash]
+        self.runner(record)
+        if result.ok:
+            yield ("say", ("Starting %s, sir." if kind == "game" else "Opening %s, sir.") % name)
+        else:
+            yield ("error", "I could not start %s, sir. Nothing has changed." % name)
 
     # ----- the time and the date, worked out offline from the machine clock (no lookup, nothing recorded)
     def _clock(self, intent) -> Iterator[Event]:

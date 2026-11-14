@@ -33,6 +33,7 @@ HN = "HN"
 NEWS = "NEWS"
 TIME = "TIME"
 DATE = "DATE"
+LAUNCH = "LAUNCH"
 
 MAX_CAPTURE_CHARS = 1000
 
@@ -210,6 +211,28 @@ _DATE = tuple(re.compile(p) for p in (
 ))
 
 
+# Opening things from RK's catalog (ADR-0015 D7). The name is only a lookup token, matched later against the catalog; the
+# verb and a kind word narrow the match. Nothing here chooses a program, a path or an address.
+_LAUNCH_NAME = r"(?P<n>[a-z0-9][a-z0-9 .'-]{1,59}?)"
+_LAUNCH_KIND = r"(?: (?P<h>app|application|program|folder|directory|game|movies?|films?|songs?|music|videos?|files?|pictures?|photos?|pdfs?|documents?))?"
+_LAUNCH = re.compile(r"(?P<v>open|launch|start|play|watch|listen to|show me|bring up|pull up)(?: up)? (?:the |my |a |an |some )?" + _LAUNCH_NAME + _LAUNCH_KIND)
+_HINTS = {"app": "app", "application": "app", "program": "app", "folder": "folder", "directory": "folder", "game": "game",
+          "movie": "file", "movies": "file", "film": "file", "films": "file", "song": "file", "songs": "file", "music": "file",
+          "video": "file", "videos": "file", "file": "file", "files": "file", "picture": "file", "pictures": "file", "photo": "file",
+          "photos": "file", "pdf": "file", "pdfs": "file", "document": "file", "documents": "file"}
+_LAUNCH_NAME_OK = re.compile(r"^[a-z0-9][a-z0-9 .'-]{1,59}$")
+
+
+def _launch(t: str) -> Optional[Intent]:
+    m = _LAUNCH.fullmatch(t)
+    if not m:
+        return None
+    name = re.sub(r"\s+", " ", m.group("n")).strip(" .'-")
+    if not _LAUNCH_NAME_OK.match(name) or name in ("it", "that", "this", "up", "over", "again", "now", "out", "on", "off"):
+        return None
+    return Intent("launch", LAUNCH, (m.group("v"), _HINTS.get(m.group("h") or "", "")), name)
+
+
 def zone_key(text: str) -> Optional[str]:
     """The time-zone key a spoken place stands for, or None. Only fetcher.keys decides."""
     spoken = " ".join(w for w in re.findall(r"[a-z]+", text.lower()) if w not in _PLACE_FILLER)
@@ -334,6 +357,9 @@ def recognise(text: str) -> Optional[Intent]:
         for pat in patterns:
             if pat.fullmatch(t):
                 return Intent(family, READ, args)
+    launch = _launch(t)
+    if launch:
+        return launch
     cap = _CAPTURE.fullmatch(t)
     if cap:
         body = text.strip()

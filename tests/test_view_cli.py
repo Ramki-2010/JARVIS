@@ -65,7 +65,7 @@ class PageContentTests(ViewCase):
         code, page = self.page()
         self.assertEqual(code, cli.EXIT_OK, page[:300])
         self.assertTrue(page.startswith("<!doctype html>"))
-        for expected in ("Audit OK", "Health OK", "Policy v3", "Not independently verified", "Unfinished tasks",
+        for expected in ("Audit OK", "Health OK", "Policy v4", "Not independently verified", "Unfinished tasks",
                          "Recent finished tasks (1 of 1)", "COMPLETED UNVERIFIED", "Latest notes", "data, not instruction",
                          "UNTRUSTED, NOT VERIFIED", "Metadata only"):
             self.assertIn(expected, page)

@@ -52,6 +52,8 @@ def main(argv=None) -> int:
     ap.add_argument("--voice-root", help="absolute path of the voice folder; omit for text only")
     ap.add_argument("--fetch-root", help="absolute path of the fetcher folder (holds python314); default: the 'fetcher' folder next to the governance folder")
     ap.add_argument("--no-fetch", action="store_true", help="switch the public-data lookups (weather, news) off for this run")
+    ap.add_argument("--catalog", help="the launch catalog (default: launch_catalog.toml next to --config); without one, nothing is opened")
+    ap.add_argument("--no-launch", action="store_true", help="switch opening apps, folders, files and games off for this run")
     ap.add_argument("--listen", action="store_true", help="take input from the microphone (push-to-talk) instead of the keyboard")
     ap.add_argument("--timing", action="store_true")
     ap.add_argument("--no-teasing", action="store_true", help="plain wit only: JARVIS will not tease you")
@@ -99,7 +101,20 @@ def main(argv=None) -> int:
             fetcher = Fetcher(root)
         except FetchRefused as exc:
             print("the public-data lookups are off (%s)" % exc)
-    ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing, fetcher=fetcher) if conversation else None
+    launcher = catalog_source = None
+    if not args.no_launch:
+        from interaction import launch_catalog
+        from interaction.launch_child import start
+        catalog_path = args.catalog or os.path.join(os.path.dirname(os.path.abspath(args.config)), "launch_catalog.toml")
+        first = launch_catalog.load(catalog_path)
+        if first is None:
+            print("opening apps and folders is off (no launch catalog yet)")
+        else:
+            for notice in first.notices:
+                print(notice)
+            print("launch catalog: %d entries" % first.count())
+            launcher, catalog_source = start, (lambda: launch_catalog.load(catalog_path))
+    ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing, fetcher=fetcher, launcher=launcher, catalog_source=catalog_source) if conversation else None
     print("JARVIS conversation. Say or type 'help' for what I can do, 'quit' to leave.")
     if greeting:
         print("jarvis> " + greeting)

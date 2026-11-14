@@ -111,3 +111,32 @@ Not recommended for the Beta: Paint (its classic path was not found; it is a sto
 - **Risk:** a launched program is outside JARVIS's control: it can do anything RK's account can. The catalog limits what can be started; it cannot limit what a started program does. Opening a media file hands it to a program that parses untrusted content; the allow list and the confirmation turn reduce that, they do not remove it.
 - **`UNVERIFIED`:** how a detached start behaves under Smart App Control for each program on the list (all listed programs are already installed and signed, but this was not tested); whether Windows treats `explorer.exe ms-settings:` identically from a detached child; the Epic launcher's executable path; that a detached start of the Claude packaged app and of a browser with a fixed address behave as expected; that the real path check resolves every junction on this machine's drives.
 - **`RK ACT` list:** write the catalog file (apps, folders, games, file-type rules); add `LAUNCH_LOCAL` to the policy; confirm the D: folders; decide whether the browser is on the list.
+
+## 7. Amendment 1 (2026-11-13): what the build settled
+
+Everything below fills in or narrows the decision above; nothing widens it.
+
+| Item | Result |
+|---|---|
+| Catalog format (D4) | TOML tables `[[app]]`, `[[folder]]`, `[[game]]` and `[[filetype]]` with `schema_version = 1`; a worked example with RK's recommended list is `docs/examples/launch_catalog.example.toml` (placeholders only). The real file is `<governance folder>\launch_catalog.toml`, RK's, never written by JARVIS. It is read afresh before every request and each program or folder is checked again just before use |
+| Paths | Only `%USERPROFILE% %APPDATA% %LOCALAPPDATA% %PROGRAMFILES% %PROGRAMFILES(X86)% %SYSTEMROOT% %PROGRAMDATA%` may appear; any other variable, a relative path, a UNC path, `..`, a non-`.exe` program, a missing program or a missing folder drops that entry with a notice that names only its id |
+| Arguments (D4) | Fixed lists of at most 8 plain strings; `{file}` only as a whole element of `file_args`; an `https://` address is allowed (RK writes it), `http://`, `ftp://`, `file://` and every other scheme are not; `steam://rungameid/...` only for games |
+| File types (D3, D4) | A `[[filetype]]` rule names an app (one with `file_args`), extensions from the allow list and the folder ids it applies to. An extension outside the allow list drops the rule. The never-open list overrides everything. Search is by whole words of the file name, depth 4, 20,000 entries, 2 seconds, never following a link or junction, with a real-path containment check; several matches ask "which one", then ask for a yes |
+| Process (D2) | `interaction/launch_child.py` is the fourth named process site: absolute `.exe`, fixed arguments, no shell, detached, no handles kept. **Environment:** not the caller's own, but a fixed short list of per-user locations (`USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `PROGRAMFILES`, `TEMP` and similar) plus a system-only `PATH`, because programs cannot find their settings without them; no token, key or project variable is passed. This is the one place where D2's "never an environment passed through" is read as "never JARVIS's own environment" |
+| Policy (D5) | Version 4 adds exactly one capability, `LAUNCH_LOCAL` (L2, `CONTROL_PLANE_RECORD`), scoped by kind in the evaluated record. Version 3 is frozen in `tests/golden/policy_v3.toml`. `launch authorize` records LAUNCH_AUTHORIZED or LAUNCH_REFUSED; `launch record` records kind, catalog id and result, and for a file only its extension and an 8-character hash of its path, marked MEDIATED. A denied check starts nothing and records no "ok" |
+| Conversation (D7) | "open / launch / start / bring up" for apps, folders and games; "play / watch / listen to" for apps, games and files (never folders); "show me ... folder". Apps and folders open at once; games and files wait for a yes. A name not in the catalog is "that is not on my list, sir"; a phrase that is not clearly a request (for example "start over") stays ordinary conversation |
+| Switch-off (D8) | No `launch_enabled` key was added. Launching is off when there is no catalog file, with `--no-launch`, or when the policy row is removed; in each case "open the browser" gets the earlier plain answer |
+| Measured | The example catalog validates in full on this machine (every listed program and folder present except the Epic launcher, which is not in the example). A detached start of Calculator through the whole path (intent, policy check, audit, launcher) worked under Smart App Control, and the audit chain verified afterwards (`MEASURED` 2026-11-13) |
+| Still `UNVERIFIED` | Detached start of the other programs (Spotify, VLC, Zen, Steam, and the Claude packaged app through `explorer.exe shell:AppsFolder\...`); a browser opening a fixed address; a junction that leaves a catalog folder (a symbolic link is skipped by design and its test needs a privilege this account lacked, so it was skipped; junction behaviour is by `realpath` and untested); a mapped network drive in the catalog (RK's own choice; containment still applies); the Epic launcher's executable path |
+| Tests | `tests/test_launch.py` (catalog rules, finder limits, process helper, control-plane commands, conversation flows, hostile names) and the static guard now naming four process sites |
+
+## 8. Amendment 2 (2026-11-14): a title need not be spelled in full
+
+RK asked not to have to say a whole film name. This widens a match rule only; the folders searched, the limits, the extension allow list, the never-open list, the containment check and the "which one, then yes" turns are unchanged.
+
+| Item | Result |
+|---|---|
+| Match (D3) | Each word of what RK says must be a word of the file name, or the **start** of one when it is three letters or more ("dun" finds "Dune"; "inter" finds "Interstellar"). A word of one or two letters must match whole. The middle or end of a word never matches. Every word must be found, in any order |
+| Order | A file whose name is exactly the words said comes first, then names where every word matched whole, then names that needed a word start; ties by name. Several matches still produce the numbered "which one" and then the "yes" |
+| Not done | Matching "2" to "Two" (numerals and number words), spelling tolerance and fuzzy matching: each would widen the match further and is left for RK to decide |
+
