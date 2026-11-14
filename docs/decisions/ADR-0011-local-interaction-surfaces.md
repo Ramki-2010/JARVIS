@@ -259,3 +259,48 @@ No code. Not measured: how the page behaves while the CPU model takes many secon
 **Reversibility.** Dropping `--dashboard` removes the route; the advisor and the read-only dashboard work as before. **Authority class.** G-05; takes effect only on RK's merge (ADR-0001 D6).
 
 **Decision record (2026-11-14, RK in chat):** option **H1** chosen; pull request 76 merged. Phase 1 (the text box, A2.1 to A2.4 and A2.6) is built in the pull request that follows; spoken replies and the microphone button (A2.5, A2.8 items 2 and 3) remain Phase 2 and are not decided or built.
+
+## Amendment 3 (PROPOSED, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds it): the microphone button, the details of A2.5
+
+**Status: PROPOSED.** Drafted 2026-11-14 by Local Claude at RK's instruction ("start ollama and phase 2"). Matched trigger: G-05 (a second write route) and the voice worker's command set (ADR-0012 D2). It carries out A2.5 as outlined there and widens nothing beyond it. **Two choices below are Local Claude's defaults, not RK's decisions (A2.8 items 2 and 3 were left open); each is one line to change and is listed in A3.7.**
+
+### A3.1 What the button does
+
+A button in the conversation box asks the **existing voice worker** to listen: the same worker, the same push-to-talk path as Right Ctrl, with the button standing in for the key. **Audio never goes through the browser** (no `getUserMedia`, no upload); the page sends only `start` and `stop`. The worker alone opens the microphone, holds the audio in memory and never stores it (ADR-0012 D3). What the heard line does afterwards is an ordinary page turn (A2.2): same intent layer, same confirmation turns, tagged `spoken`.
+
+### A3.2 The route
+
+`POST /api/mic`, body `{"action": "start"}` or `{"action": "stop"}`, present **only** when the advisor supplied a microphone (voice worker running with speech recognition, and the terminal not in `--listen` mode, so only one thing ever listens); otherwise 405. All of A2.2's rules apply through one shared gate: exact Host, Origin required, token, exact content type, size limits, strict body (exactly one field, `action`, one of the two words; unknown, duplicate or missing fields refused). Answers: 202 with the current state; 409 if the exchange lock is taken (a turn, another listen, or speech still playing) or a stop arrives while not listening; 503 if the worker is not running. Nothing is queued behind a refusal. `GET /api/chat` also reports `mic`: `{enabled, state, seq, heard, turn, reason}`; the button's text comes only from this state.
+
+### A3.3 The worker's two new commands (ADR-0012 D2 command set)
+
+- `{"cmd":"listen","id":N,"hold":"button"}`: as `listen`, but the microphone stays open until released instead of while the key is down. The default (`"key"`) is unchanged.
+- `{"cmd":"mic_stop","target":N}`: releases listen N. It is handled at once and never queued behind the listen it ends. A release that arrives **before** the worker has started that listen is remembered (bounded, by job id), and the microphone is then never opened at all.
+- Limits unchanged: at most 30 s per listen (`LISTEN_MAX_S`), at least 0.3 s of speech, microphone closed while JARVIS speaks. The page also releases on pointer-up, pointer-cancel, losing focus and the tab being hidden.
+
+### A3.4 Truthfulness (D4)
+
+- LISTENING and SPEAKING stay what ADR-0012 Amendment 2 made them: derived from the worker's own live signal (the microphone really open; audio really queued). The button changes none of that and shows no state of its own.
+- **INTERPRETING is not shown while the microphone is open or while replies are being spoken.** The exchange lock records what it is held for (`turn`, `mic` or `after`); only `turn` is INTERPRETING, so waiting on the microphone or on the speaker never counts as the intent layer working.
+- A line that was not understood, or silence, is reported as such on the page ("I did not catch that (too short)"), never as a reply.
+
+### A3.5 Spoken replies (A2.8 item 2)
+
+With a voice worker running, replies to page lines, typed or heard, are spoken as the terminal speaks them, and the exchange stays held until the speaking has finished, so the microphone cannot open on JARVIS's own voice. Without a voice worker replies are text only.
+
+### A3.6 New exposure, stated plainly
+
+Anything holding a valid token and a correct Origin from this machine can now cause the microphone to open for up to 30 seconds. The audio stays in the voice worker's memory, is transcribed locally and discarded, and the recognised text is shown on the page; the ring shows LISTENING from the worker's own signal for as long as the microphone is open. Only one listen can exist; the terminal's own `--listen` mode switches the button off.
+
+### A3.7 Defaults chosen by Local Claude, for RK to confirm or change
+
+1. **Hold to talk** (not press to toggle), with keyboard Space or Enter on the focused button. Switching to press-to-toggle is the single constant `MIC_STYLE` in `ui/page.py`.
+2. **Spoken replies on** for both typed and heard page lines whenever a voice worker is running (A3.5).
+
+### A3.8 Tests and what is not verified
+
+Tests (no microphone, no model): the route's strictness and shared rules; 405 without a microphone; one listen at a time; busy and dead-worker refusals leave nothing held; heard text becomes a `spoken` turn that is answered and spoken; silence and a silent worker free the exchange; INTERPRETING is not claimed while listening or speaking; the release bookkeeping is remembered by id and bounded. **UNVERIFIED:** a real press with the real microphone and the real worker (the worker's new listen branch has only been read, parsed and exercised through fakes), whether a very quick tap behaves well on the real device, and the ring turning LISTENING and then SPEAKING from a real press. Those are done with RK present.
+
+**Also recorded:** the approved model list the advisor needs (ADR-0013 D3) did not exist on this machine; at RK's instruction it was written on 2026-11-14 listing only qwen3.5:9b with its digest, in the governance zone, outside this repository.
+
+**Reversibility.** Run without `--voice-root` and there is no microphone button; the worker's new commands are unused by anything else.

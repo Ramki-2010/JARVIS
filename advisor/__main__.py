@@ -19,7 +19,7 @@ import time
 
 from advisor import approved
 from advisor.controller import UNAVAILABLE_TEXT, Controller
-from advisor.bridge import page_responder
+from advisor.bridge import Mic, page_responder, speech_wait
 from advisor.conversation import Conversation
 from advisor.lines import daypart
 from advisor.persona import PERSONA_PLAIN, PERSONA_TEASING
@@ -126,10 +126,14 @@ def main(argv=None) -> int:
         if ctl is None:
             print("the dashboard has no conversation box while the conversation is off")
         dash = DashboardServer(args.config, os.path.join(args.voice_root, "state", "voice_state.json") if args.voice_root else "",
-                               page_responder(ctl) if ctl else None)
+                               page_responder(ctl, voice) if ctl else None, speech_wait(voice) if (ctl and voice) else None)
+        if ctl and voice and voice.ready_info.get("stt", False) and not listening:
+            dash.mic = Mic(voice, dash.turns, ctl)   # the page's microphone button; replies are spoken
         threading.Thread(target=dash.serve_forever, daemon=True).start()
         turn_lock = dash.turns.exclusive
         print("dashboard (this machine only; keep this window open): " + dash.url)
+        print("  text box: %s; microphone button: %s; spoken replies: %s" % (
+            "on" if ctl else "off (conversation is off)", "on" if dash.mic else "off (needs the voice worker with speech recognition, and not --listen)", "on" if voice else "off"))
     print("JARVIS conversation. Say or type 'help' for what I can do, 'quit' to leave.")
     if greeting:
         print("jarvis> " + greeting)
@@ -154,13 +158,13 @@ def main(argv=None) -> int:
             if ctl is None:
                 print("jarvis> " + UNAVAILABLE_TEXT)
                 continue
-            if voice:
-                voice.drain()  # forget events left over from the previous turn
             t_submit = time.time()
             first_say = None
             first_audio = None
             first_id = None
-            with turn_lock():  # a page turn and a terminal turn never overlap
+            with turn_lock():  # a page turn, a page microphone listen and a terminal turn never overlap
+                if voice:
+                    voice.drain()  # forget events left over from the previous turn
                 for kind, text in ctl.respond(line):
                     if kind == "quit":
                         return 0
