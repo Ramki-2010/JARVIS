@@ -1,7 +1,9 @@
 """The dashboard page: one HTML document, one nonced style block, one nonced script (ADR-0011).
 
-An immersive, read-only view: the galaxy fills the window and a floating HUD sits over it. The page
-shows what the CLI printed and holds no logic that decides anything.
+An immersive view: the galaxy fills the window and a floating HUD sits over it. The page shows what the
+CLI printed and holds no logic that decides anything. When the advisor serves it (ADR-0011 Amendment 2) a text
+box sends one line to the same conversation as the terminal and shows exactly what comes back; otherwise the
+box is hidden and the page is read-only.
 
 Truthfulness (ADR-0011 D4, D5). Two kinds of motion, kept apart:
   * Ambient motion (slow drift, a turning view, breathing glow, rotating ticks) is decoration. It means
@@ -9,7 +11,8 @@ Truthfulness (ADR-0011 D4, D5). Two kinds of motion, kept apart:
   * Reactions (a ring state, a new node growing in with ripples and its links drawing in) happen only for
     something real: a state derived from the records, or a record that was not there at the last poll.
 The ring's LISTENING and SPEAKING appear only while the voice worker's live signal says the microphone is
-really open or audio is really queued (ADR-0012); a missing or stale signal means IDLE. Nothing here invents them.
+really open or audio is really queued (ADR-0012); a missing or stale signal means IDLE. INTERPRETING appears only
+while the server reports a turn actually running. Nothing here invents them.
 """
 
 
@@ -57,7 +60,7 @@ background:rgba(8,15,24,.55);backdrop-filter:blur(16px);-webkit-backdrop-filter:
 @keyframes breathe{0%,100%{filter:drop-shadow(0 0 8px currentColor)}50%{filter:drop-shadow(0 0 20px currentColor)}}
 .ticks{transform-origin:120px 120px;animation:rot 60s linear infinite}.dots{transform-origin:120px 120px;animation:rot 45s linear infinite reverse}
 @keyframes rot{to{transform:rotate(360deg)}}
-.arcg{transform-origin:120px 120px}.RUNNING .arcg{animation:rot 2.6s linear infinite}
+.arcg{transform-origin:120px 120px}.RUNNING .arcg,.INTERPRETING .arcg{animation:rot 2.6s linear infinite}
 .rip{fill:none;stroke:currentColor;stroke-width:1.5;opacity:0;transform-origin:120px 120px}
 .SPEAKING .rip{animation:out 2.4s ease-out infinite}.LISTENING .rip{animation:inn 2.4s ease-in infinite}
 .rip:nth-of-type(2){animation-delay:.8s!important}.rip:nth-of-type(3){animation-delay:1.6s!important}
@@ -68,7 +71,20 @@ body.calm .ringsvg,body.calm .ticks,body.calm .dots{animation:none}
 .pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .tag{padding:4px 12px;border-radius:999px;background:rgba(8,15,24,.55);font:500 11px Consolas,monospace;letter-spacing:1.5px;color:var(--dim)}
 #rstate{color:var(--rc)}#rdetail{font:500 11.5px Consolas,monospace;color:var(--dim);text-align:center;max-width:230px}
-.note{left:28px;bottom:150px;max-width:380px;font-size:11px;color:#7f95a6;line-height:1.5}
+.about{margin:0 0 12px;font-size:11.5px;color:#9fb4c4;line-height:1.5}
+.chat{left:14px;bottom:140px;width:min(560px,calc(100vw - 340px));display:none;flex-direction:column;gap:8px}
+@media (min-width:1250px){.chat{left:50%;transform:translateX(-50%);width:560px}}
+.chat.on{display:flex}
+#clog{max-height:24vh;overflow:auto;padding:10px 14px;background:rgba(6,12,20,.84);scrollbar-width:thin;scrollbar-color:rgba(94,231,255,.4) transparent}#clog:empty{display:none}
+.cl{margin:0 0 6px;white-space:pre-wrap;word-break:break-word;font:13px/1.5 "Segoe UI",system-ui,sans-serif}
+.cl:last-child{margin-bottom:0}.cl.you{color:var(--dim)}.cl.jarvis{color:#f2f9ff}.cl.err{color:#ff6b79}.cl.sys{color:var(--dim);font-style:italic}
+.cbar{display:flex;gap:8px;align-items:center;padding:6px 8px 6px 18px;border-radius:999px}
+.cbar:focus-within{box-shadow:0 0 0 2px var(--cyan),0 12px 44px rgba(0,0,0,.5)}
+#cin{flex:1;min-width:0;background:transparent;border:0;color:var(--text);font:14px "Segoe UI",system-ui,sans-serif;outline:none}
+#cin::placeholder{color:var(--dim)}
+#csend{min-height:32px;border:0;border-radius:999px;padding:0 16px;background:rgba(94,231,255,.20);color:#f2f9ff;font:500 12px "Segoe UI",sans-serif;cursor:pointer}
+#csend:disabled{opacity:.45;cursor:default}#csend:focus-visible,#cclear:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#cclear{border:0;background:transparent;color:var(--dim);font:12px "Segoe UI",sans-serif;cursor:pointer;padding:0 6px}
 .drawer{position:fixed;left:0;top:0;bottom:0;width:min(580px,96vw);z-index:20;overflow:auto;padding:18px 20px 28px;border-radius:0 16px 16px 0;
 transform:translateX(-104%);visibility:hidden;transition:transform .25s ease,visibility 0s .25s}
 .drawer.open{transform:none;visibility:visible;transition:transform .25s ease}
@@ -83,7 +99,7 @@ transform:translateX(-104%);visibility:hidden;transition:transform .25s ease,vis
 .badge{font-size:11px;padding:1px 8px;border-radius:9px;background:rgba(255,255,255,.07)}
 .SUCCESS{color:#3ddc97}.WARNING{color:#f2c14e}.ERROR{color:#ff6b79}.EMPTY,.LOADING{color:var(--dim)}
 pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consolas,monospace;color:var(--text);max-height:300px;overflow:auto}
-@media (max-width:900px){.ringbox{transform:translateY(-46%) scale(.7);right:0}.tr{width:170px}.tc{max-width:90vw;top:auto;bottom:16px}.note{bottom:250px}}
+@media (max-width:900px){.ringbox{transform:translateY(-46%) scale(.7);right:0}.tr{width:170px}.tc{max-width:90vw;top:auto;bottom:16px}.chat{bottom:250px;width:calc(100vw - 200px)}}
 </style></head><body>
 <div id="gview" tabindex="0" role="group" aria-label="Galaxy view. Arrow keys rotate. The Records panel holds the same nodes as a list."><canvas id="gcanvas" aria-hidden="true"></canvas></div>
 
@@ -118,10 +134,14 @@ pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consol
   <span id="rdetail">reading the records</span>
 </div>
 
-<span class="hud note">Read-only view of the JARVIS control plane. The tray of discs holds PREVIEW items, not records. Drifting is decoration and means nothing; glow, ripples and new nodes appear only for real changes. Nothing is verified unless a record says so.</span>
+<div class="hud chat" id="chat">
+  <div class="glass" id="clog" role="log" aria-live="polite" aria-label="Conversation with JARVIS"></div>
+  <div class="glass cbar"><input id="cin" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Talk to JARVIS. Same advisor as the terminal." aria-label="Message to JARVIS"><button id="cclear" title="Clear what is shown here">Clear</button><button id="csend">Send</button></div>
+</div>
 
 <aside class="drawer glass" id="drawer" aria-label="Records">
   <header><h2>Records</h2><button class="close" id="dclose">Close</button></header>
+  <p class="about">This page shows the JARVIS control plane as its commands print it. The tray of discs holds PREVIEW items, not records. Drifting is decoration and means nothing; glow, ripples and new nodes appear only for real changes. INTERPRETING shows only while a line is actually being worked on. Nothing is verified unless a record says so. The text box, when shown, sends one line to the same advisor as the terminal and writes nothing to disk.</p>
   <ul id="glist"></ul>
   <div id="panels"></div>
 </aside>
@@ -133,15 +153,17 @@ history.replaceState(null, "", location.pathname);
 const $ = (id) => document.getElementById(id);
 const COLORS = {project: "#5ee7ff", task: "#3ddc97", failed: "#ff6b79", note: "#f2c14e", result: "#ff9f43", preview: "#9fb4c4"};
 const STATE_COLORS = {IDLE: "#5ee7ff", RUNNING: "#5ee7ff", WAITING: "#a78bfa", DEFERRED: "#a78bfa", COMPLETED: "#3ddc97", CANCELLED: "#8aa0b2",
-  ERROR: "#ff6b79", AUDIT_FAULT: "#ff6b79", LISTENING: "#f2c14e", SPEAKING: "#5eead4"};
-const PARTIAL = {IDLE: 1, RUNNING: 1, WAITING: 1, DEFERRED: 1};
+  ERROR: "#ff6b79", AUDIT_FAULT: "#ff6b79", LISTENING: "#f2c14e", SPEAKING: "#5eead4", INTERPRETING: "#8ab4ff"};
+const PARTIAL = {IDLE: 1, RUNNING: 1, WAITING: 1, DEFERRED: 1, INTERPRETING: 1};
 const KIND_NAMES = {project: "Projects", task: "Tasks", note: "Notes", result: "Relayed results", preview: "PREVIEW (not records)"};
 let ambient = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-async function call(path) {
-  const r = await fetch(path, {headers: {"X-JARVIS-Token": token}, cache: "no-store"});
+async function call(path, line) {   // the one fetch helper: a GET, or (with a line) the single POST to /api/say
+  const post = line !== undefined;
+  const r = await fetch(path, post ? {method: "POST", headers: {"X-JARVIS-Token": token, "Content-Type": "application/json"}, body: JSON.stringify({text: line}), cache: "no-store"}
+                                   : {headers: {"X-JARVIS-Token": token}, cache: "no-store"});
   const body = await r.json();
-  if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+  if (!r.ok) { const e = new Error(body.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
   return body;
 }
 
@@ -172,7 +194,7 @@ $("brec").addEventListener("click", () => openDrawer(true));
 $("dclose").addEventListener("click", () => openDrawer(false));
 
 // ---------------------------------------------------------------- the ring (state comes only from real records)
-let lastRing = {state: "IDLE", detail: "reading the records"}, voiceNow = "IDLE";
+let lastRing = {state: "IDLE", detail: "reading the records"}, voiceNow = "IDLE", chatBusy = false, chatOn = false, chatKnown = false;
 async function ring() {
   try { const r = await call("/api/ring"); lastRing = {state: r.state, detail: r.detail};
   } catch (e) { lastRing = {state: "ERROR", detail: String(e.message)}; }
@@ -184,14 +206,56 @@ function showRing() {
   const fault = lastRing.state === "AUDIT_FAULT" || lastRing.state === "ERROR";
   if (!fault && voiceNow === "LISTENING") setRing("LISTENING", "the microphone is open now");
   else if (!fault && voiceNow === "SPEAKING") setRing("SPEAKING", "JARVIS is speaking now");
+  else if (!fault && chatBusy) setRing("INTERPRETING", "working on a line now");
   else setRing(lastRing.state, lastRing.detail);
 }
 async function voiceTick() {
   if (document.hidden) return;
   let s = "IDLE";
   try { s = (await call("/api/voice")).state || "IDLE"; } catch (e) { s = "IDLE"; }
-  if (s !== voiceNow) { voiceNow = s; showRing(); }
+  let b = false;   // INTERPRETING only while the server says a turn is really running
+  if (!chatKnown || chatOn) {
+    try { const c = await call("/api/chat"); chatKnown = true;
+      if (c.enabled !== chatOn) { chatOn = c.enabled; $("chat").classList.toggle("on", chatOn); }
+      b = chatOn && !!c.busy;
+    } catch (e) { b = false; }
+  }
+  if (s !== voiceNow || b !== chatBusy) { voiceNow = s; chatBusy = b; showRing(); }
 }
+
+// ---------------------------------------------------------------- the conversation box (ADR-0011 Amendment 2)
+// The page sends one line and shows exactly what comes back. It decides nothing and keeps nothing: the log lives only in this tab.
+let sending = false;
+function logLine(cls, text) {
+  const d = document.createElement("div"); d.className = "cl " + cls; d.textContent = text;
+  const log = $("clog"); log.append(d); while (log.children.length > 40) log.firstChild.remove(); log.scrollTop = log.scrollHeight;
+}
+async function waitTurn(n) {
+  for (let i = 0; i < 260; i++) {   // about three minutes
+    await new Promise((r) => setTimeout(r, 700));
+    let t; try { t = await call("/api/turn/" + n); } catch (e) { logLine("err", String(e.message)); return; }
+    if (t.state === "done") {
+      for (const [kind, text] of t.events) logLine(kind === "error" ? "err" : "jarvis", text);
+      if (!t.events.length) logLine("sys", "(no reply)");
+      return;
+    }
+  }
+  logLine("sys", "No reply yet after three minutes, so I have stopped waiting. The terminal may still show it.");
+}
+async function say() {
+  const box = $("cin"), text = box.value;
+  if (!text.trim() || sending) return;
+  sending = true; $("csend").disabled = true; box.value = ""; logLine("you", text);
+  try { await waitTurn((await call("/api/say", text)).turn); }
+  catch (e) {
+    if (e.status === 409) { logLine("sys", "JARVIS is in the middle of another turn. Please try again in a moment."); box.value = text; }
+    else logLine("err", e.status ? "Refused: " + e.message : String(e.message));
+  }
+  finally { sending = false; $("csend").disabled = false; box.focus(); voiceTick(); refreshLive(); }
+}
+$("csend").addEventListener("click", say);
+$("cclear").addEventListener("click", () => { $("clog").replaceChildren(); $("cin").focus(); });
+$("cin").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); say(); } });
 function setRing(state, detail) {
   const box = $("ringbox");
   box.className = "hud ringbox " + state;

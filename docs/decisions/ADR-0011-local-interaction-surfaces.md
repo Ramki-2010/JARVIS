@@ -257,3 +257,5 @@ No code. Not measured: how the page behaves while the CPU model takes many secon
 3. **Microphone button style** (Phase 2): hold to talk, or press to start and press to stop.
 
 **Reversibility.** Dropping `--dashboard` removes the route; the advisor and the read-only dashboard work as before. **Authority class.** G-05; takes effect only on RK's merge (ADR-0001 D6).
+
+**Decision record (2026-11-14, RK in chat):** option **H1** chosen; pull request 76 merged. Phase 1 (the text box, A2.1 to A2.4 and A2.6) is built in the pull request that follows; spoken replies and the microphone button (A2.5, A2.8 items 2 and 3) remain Phase 2 and are not decided or built.

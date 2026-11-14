@@ -11,12 +11,15 @@ the measured delays.
 """
 
 import argparse
+import contextlib
 import os
 import sys
+import threading
 import time
 
 from advisor import approved
 from advisor.controller import UNAVAILABLE_TEXT, Controller
+from advisor.bridge import page_responder
 from advisor.conversation import Conversation
 from advisor.lines import daypart
 from advisor.persona import PERSONA_PLAIN, PERSONA_TEASING
@@ -55,6 +58,7 @@ def main(argv=None) -> int:
     ap.add_argument("--catalog", help="the launch catalog (default: launch_catalog.toml next to --config); without one, nothing is opened")
     ap.add_argument("--no-launch", action="store_true", help="switch opening apps, folders, files and games off for this run")
     ap.add_argument("--listen", action="store_true", help="take input from the microphone (push-to-talk) instead of the keyboard")
+    ap.add_argument("--dashboard", action="store_true", help="also serve the dashboard page, with a conversation box, on this machine only")
     ap.add_argument("--timing", action="store_true")
     ap.add_argument("--no-teasing", action="store_true", help="plain wit only: JARVIS will not tease you")
     args = ap.parse_args(argv)
@@ -115,6 +119,17 @@ def main(argv=None) -> int:
             print("launch catalog: %d entries" % first.count())
             launcher, catalog_source = start, (lambda: launch_catalog.load(catalog_path))
     ctl = Controller(conversation, lambda a: child.run(args.config, a), project=args.project, spoken=listening, line_seed=int(time.time()), tease=not args.no_teasing, fetcher=fetcher, launcher=launcher, catalog_source=catalog_source) if conversation else None
+    dash = None
+    turn_lock = contextlib.nullcontext
+    if args.dashboard:
+        from ui.server import DashboardServer
+        if ctl is None:
+            print("the dashboard has no conversation box while the conversation is off")
+        dash = DashboardServer(args.config, os.path.join(args.voice_root, "state", "voice_state.json") if args.voice_root else "",
+                               page_responder(ctl) if ctl else None)
+        threading.Thread(target=dash.serve_forever, daemon=True).start()
+        turn_lock = dash.turns.exclusive
+        print("dashboard (this machine only; keep this window open): " + dash.url)
     print("JARVIS conversation. Say or type 'help' for what I can do, 'quit' to leave.")
     if greeting:
         print("jarvis> " + greeting)
@@ -145,15 +160,16 @@ def main(argv=None) -> int:
             first_say = None
             first_audio = None
             first_id = None
-            for kind, text in ctl.respond(line):
-                if kind == "quit":
-                    return 0
-                if kind == "say" and first_say is None:
-                    first_say = time.time() - t_submit
-                print(("jarvis> " if kind in ("say", "error") else "") + text)
-                if voice and kind in ("say", "error"):
-                    sent = voice.say(text)
-                    first_id = first_id or sent
+            with turn_lock():  # a page turn and a terminal turn never overlap
+                for kind, text in ctl.respond(line):
+                    if kind == "quit":
+                        return 0
+                    if kind == "say" and first_say is None:
+                        first_say = time.time() - t_submit
+                    print(("jarvis> " if kind in ("say", "error") else "") + text)
+                    if voice and kind in ("say", "error"):
+                        sent = voice.say(text)
+                        first_id = first_id or sent
             if voice and args.timing and first_say is not None:
                 ev = voice.wait_event("first_audio", first_id, timeout=60)
                 if ev:
@@ -165,6 +181,9 @@ def main(argv=None) -> int:
             if voice:
                 voice.wait_event("spoken", voice.send("wait"), timeout=120)
     finally:
+        if dash:
+            dash.shutdown()
+            dash.server_close()
         if voice:
             voice.stop()
 
