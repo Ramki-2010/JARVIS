@@ -200,3 +200,60 @@ The Beta gains a dashboard, a ring and a galaxy behind a cut line. B-13 must lis
 **The problem (VERIFIED on this machine, 2026-11-13).** D2 requires the child to start as `<python 3.14> -I -m jarvis`. Isolated mode (`-I`) implies `-E -s -P`; `-P` removes the working folder from the import path, and JARVIS is deliberately not installed into Python (stdlib only, no pip). So `py -3.14 -I -m jarvis` fails with "No module named jarvis". The only ways to keep `-I` would be installing JARVIS into Python's own site-packages or adding a path file there, both of which change the Python installation for every program (G-13) and are worse.
 
 **The change.** In D2 and in Beta plan criterion BU-1b, read "`-I -m jarvis`" as "`-E -s -m jarvis` with the working folder fixed to the repository root". `-E` still ignores every `PYTHON*` environment variable and `-s` still ignores the user site-packages. Dropping `-P` is safe here because the working folder is fixed by the helper to the repository itself, so no other folder can shadow a module. Everything else in D2 is unchanged: absolute interpreter path from `sys.executable`, checked to be 3.14; an argument list, never a shell; a minimal fixed environment; a timeout and a bounded output; exactly one process-creating call, in `interaction/child.py`, enforced by a static test.
+
+## Amendment 2 (PROPOSED, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds it): a conversation box on the dashboard, and later a microphone button
+
+**Status: PROPOSED.** Drafted 2026-11-14 by Local Claude at RK's instruction ("build the text box first and the mic after"). Matched trigger: G-05 (a new write route on the localhost server). No code is written before RK merges this amendment. It extends D3 item 9; it does not replace it.
+
+**What RK asked for.** The dashboard (Stage A) can only look. RK wants a text box on the page to talk to JARVIS, and afterwards a microphone button.
+
+**Why D3 item 9 is not enough.** D3.9 allows three POST routes: task create, note add, cancel. A conversation box is different in kind: the line goes to the advisor's intent layer (ADR-0013), which can answer, propose a note (after a confirmation turn), look up public data (ADR-0014) and open a catalog item (ADR-0015). That is a wider reach than three fixed commands, so it needs its own decision rather than a reading of D3.9.
+
+### A2.1 Where the conversation lives (RK decision needed)
+
+| Option | What it is | For | Against |
+|---|---|---|---|
+| **H1 (recommended)** | `python -m advisor --dashboard` runs the advisor as now and also serves the page. `ui/` stays free of model, fetch and launch code: the advisor hands the server one function, `respond(text)`. `python -m ui` on its own stays read-only | One conversation, one model, one voice worker, one set of pending confirmations. Typed on the page and typed in the terminal are the same conversation. The microphone phase needs one owner of the audio devices, and this gives it | The advisor process now also owns a socket thread. The socket is still created only in `ui/` (D2) |
+| H2 | The dashboard server builds its own advisor | Page works without the terminal advisor | A second model in memory, a second conversation, two owners of the voice devices, and `ui/` imports the model, fetch and launch code |
+
+### A2.2 The route (applies to H1)
+
+1. One new route: `POST /api/say`, body `{"text": "<line>"}`, content type `application/json`. It exists **only** when the advisor supplied `respond`; on `python -m ui` alone it stays 405.
+2. Every D3 rule applies: exact Host, **Origin required** and exact, the per-launch token header, no CORS, the strict CSP, no state beyond the token and the turn buffer below.
+3. **Strict validation (D3.9):** a fixed content type; body at most 1,024 bytes, checked before parsing; exactly one field, `text`; unexpected, duplicate or missing fields refused; `text` must be a string of 1 to 400 characters with no control characters (refused, not cleaned). No default filling.
+4. **One turn at a time.** A model turn can take many seconds on the CPU model. `POST /api/say` answers `202 {"turn": n}` at once and runs the turn in a worker thread. If a turn is already running (from the page or from the terminal) the answer is `409 busy`. The page reads the result with `GET /api/turn/<n>` (token required): `{"state": "running"}` or `{"state": "done", "events": [["say"|"show"|"error", "<text>"], ...]}`. Only the last 8 turns are kept, in memory; each event text is capped at 6,000 characters.
+5. The reply is inserted by the page as text, never as HTML (D3.6).
+6. **Nothing new can act.** `respond` is the advisor's existing `Controller.respond`. Every effect still goes through the paths that already exist: control-plane commands through `interaction/child.py` (policy and audit as from the CLI); notes only after a separate confirmation turn; files and games only after "yes"; the launch catalog and the never-open list unchanged; lookups through `interaction/fetch_child.py` only. This amendment adds no process-creating call and no network module to `ui/` (the static tests stay as they are and are extended to cover the new route).
+7. A page turn is tagged `[typed]`, like a terminal turn.
+
+### A2.3 Truthfulness (D4)
+
+- INTERPRETING is shown **only while a turn is actually running** (the single-turn flag above). It is never shown on a timer or while nothing is running.
+- The page shows what JARVIS actually returned and actually did; a refused line shows the refusal. No typing animation that implies a reply before one exists.
+- The transcript on the page is the last turns in memory. **Nothing is written to disk**; D8 (the interaction record) stays off. A restart clears it.
+
+### A2.4 New exposure, stated plainly
+
+Anything holding a valid token **and** a correct Origin from this machine can now cause what a typed line can cause, including asking JARVIS to open a catalog item or propose a note. The token is random per launch (at least 128 bits), travels in the URL fragment and a header, and is never logged; LAN access stays excluded. The confirmation turns and the catalog limits are unchanged and are the backstop. This is a larger surface than Stage A, which could only read.
+
+### A2.5 Phase 2: the microphone button (outline only; its own details are written after Phase 1 is measured)
+
+- The button would ask the **existing local voice worker** to listen (the same push-to-talk path as Right Ctrl). **Audio never goes through the browser**: no `getUserMedia`, no audio upload. The browser only sends "start" and "stop".
+- The ring's LISTENING and SPEAKING already come from the real signal (ADR-0012 Amendment 2, pull request 75, not yet merged at the time of writing). The button changes nothing about when they may show.
+- It will need: the same route rules as A2.2, a hold-or-toggle decision by RK, and a state check so that a press while the worker is busy or absent is refused, not queued.
+
+### A2.6 Tests required before Phase 1 is merged
+
+Oversize body; unknown, duplicate and missing field; wrong content type; control character; empty and over-length text; wrong or absent Origin; wrong Host; missing token with a correct Origin; busy while a turn runs; the route absent (405) without `respond`; a reply containing markup stays text; `GET /api/turn/<n>` needs the token and refuses an unknown or expired turn; INTERPRETING only while a turn runs; the static guard still finds no new process-creating call or network import in `ui/`.
+
+### A2.7 Not done / UNVERIFIED
+
+No code. Not measured: how the page behaves while the CPU model takes many seconds; whether the terminal and the page taking turns feels right. Both are measured in Phase 1 before anything is claimed.
+
+### A2.8 Decisions for RK
+
+1. **H1 or H2** (A2.1). Recommended: H1.
+2. **Spoken replies to a page-typed line:** off in Phase 1 (text only), on in Phase 2 together with the microphone. Say if you want them in Phase 1.
+3. **Microphone button style** (Phase 2): hold to talk, or press to start and press to stop.
+
+**Reversibility.** Dropping `--dashboard` removes the route; the advisor and the read-only dashboard work as before. **Authority class.** G-05; takes effect only on RK's merge (ADR-0001 D6).
