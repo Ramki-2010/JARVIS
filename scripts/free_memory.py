@@ -159,17 +159,17 @@ def run(entries: List[Entry], system, apply: bool, say: Callable[[str], None] = 
     for entry in entries:
         if set(entry.images) & PROTECTED:
             results.append(Result(entry.id, entry.name, "refused (never touched)", 0, 0.0))
-            say("  %-14s refused: %s is on the never-touch list" % (entry.name, ", ".join(sorted(set(entry.images) & PROTECTED))))
+            say("  %-20s refused: %s is on the never-touch list" % (entry.name, ", ".join(sorted(set(entry.images) & PROTECTED))))
             continue
         found = matching(system.processes(), entry)
         mb = sum(p.mb for p in found)
         if not found:
             results.append(Result(entry.id, entry.name, "not running", 0, 0.0))
-            say("  %-14s not running" % entry.name)
+            say("  %-20s not running" % entry.name)
             continue
         if not apply:
             results.append(Result(entry.id, entry.name, "would close", len(found), mb))
-            say("  %-14s would close %d process(es), about %.0f MB%s" % (entry.name, len(found), mb, " (by force if it will not close)" if entry.force else ""))
+            say("  %-20s would close %d process(es), about %.0f MB%s" % (entry.name, len(found), mb, " (by force if it will not close)" if entry.force else ""))
             continue
         pids = [p.pid for p in found]
         for pid in pids:
@@ -184,7 +184,7 @@ def run(entries: List[Entry], system, apply: bool, say: Callable[[str], None] = 
         else:
             how = "left open (still running)"
         results.append(Result(entry.id, entry.name, how, len(found), mb))
-        say("  %-14s %s (%d process(es), about %.0f MB)" % (entry.name, how, len(found), mb))
+        say("  %-20s %s (%d process(es), about %.0f MB)" % (entry.name, how, len(found), mb))
     after = None
     if apply:
         system.sleep(SETTLE_SECONDS)  # let Windows reclaim the memory before it is measured
