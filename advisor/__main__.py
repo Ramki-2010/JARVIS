@@ -17,9 +17,8 @@ import sys
 import threading
 import time
 
-from advisor import approved
+from advisor import approved, guard
 from advisor.controller import UNAVAILABLE_TEXT, Controller
-from advisor import guard
 from advisor.bridge import page_responder
 from advisor.conversation import Conversation
 from advisor.lines import daypart
