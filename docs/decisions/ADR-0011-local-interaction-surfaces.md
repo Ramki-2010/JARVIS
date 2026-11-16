@@ -304,3 +304,41 @@ Tests (no microphone, no model): the route's strictness and shared rules; 405 wi
 **Also recorded:** the approved model list the advisor needs (ADR-0013 D3) did not exist on this machine; at RK's instruction it was written on 2026-11-14 listing only qwen3.5:9b with its digest, in the governance zone, outside this repository.
 
 **Reversibility.** Run without `--voice-root` and there is no microphone button; the worker's new commands are unused by anything else.
+
+## Amendment 4 (PROPOSED, `USER AUTHORITY REQUIRED`; nothing in it is built or in force until RK decides and merges it): reaching the dashboard from a phone
+
+**Status: PROPOSED, options and a recommendation only.** Drafted 2026-11-16 by Local Claude after RK asked, while away from the laptop, for the dashboard link to work in a phone browser (Chrome, Firefox and the like), with the phone's microphone, or failing that a text box. Matched triggers: G-05 (a new network surface), G-13 (installing software, RK's per-item approval), and D3.1 / D3.3 (loopback only; exact Host). **No code is written and nothing is installed or opened by this amendment.** RK decided on 2026-11-12 that LAN access stays excluded from the Beta; this proposal asks whether to change that, and how.
+
+### A4.1 Why it cannot simply be switched on
+
+The dashboard listens on `127.0.0.1` only (D3.1) and accepts only the exact Host `127.0.0.1:<port>` or `localhost:<port>` (D3.3). A phone is a different machine; any way for it to reach the laptop is new network exposure of a program that can open apps, propose notes and open the microphone, protected only by a per-launch token (D3.2). That is a decision for RK, and the admin steps (installs, a firewall prompt, an account sign-in) are RK's own acts, so it cannot be completed while RK is away.
+
+### A4.2 The options
+
+| Option | What it is | For | Against |
+|---|---|---|---|
+| **P1 (recommended if any)** | A private network between RK's own devices (for example Tailscale, a WireGuard-based service), with its built-in HTTPS proxy in front of the loopback dashboard. Both devices install the app and sign in to one account | Nothing is opened on the home router or the public internet; only RK's signed-in devices can connect; HTTPS, so the phone browser treats the page as secure | Installs on laptop and phone (G-13); creating or using an account; a third party's service sits in the path; Host and Origin rules (D3.3) must accept the one private hostname; tokens must travel to the phone |
+| P2 | Bind to the home network (LAN) | Simple | Works only on the same Wi-Fi, so not away from home; plain HTTP (readable on the network, and a phone browser will not allow its microphone); contradicts RK's 2026-11-12 decision |
+| P3 | A public tunnel (a hosted tunnel service giving a public web address) | Works anywhere with no app on the phone | Puts a laptop that can open apps and the microphone behind a public address guarded only by a token; strongly not recommended |
+| P4 | No exposure | Nothing to secure | The phone cannot reach JARVIS. (Today RK can still message Local Claude from the phone, which can run JARVIS's commands on RK's behalf; that is not the dashboard.) |
+
+### A4.3 The phone's microphone
+
+- **M1 (recommended): the phone's own keyboard dictation.** The text box already exists and is phone-sized (pull request 81). Tapping the microphone on the phone's keyboard turns speech into text on the phone; only that text reaches JARVIS. No audio leaves the phone, A3.1 ("audio never goes through the browser") is untouched, and nothing new is built.
+- M2: the page records from the phone's microphone and uploads audio for the laptop to transcribe. This needs HTTPS (so only with P1), reverses A3.1, adds an audio upload route (size and time limits, never stored) and a transcription path, and is a larger change with its own review. Not recommended for the Beta.
+
+### A4.4 If P1 is chosen: what would be built, and the limits proposed
+
+1. The dashboard stays bound to loopback. The proxy forwards to it. D3.3 changes from two allowed Host names to exactly three: the two loopback ones and the one private hostname RK names. Origin must equal that same name over HTTPS.
+2. The token stays per-launch (at least 128 bits) and never in a query string; RK would be given the link in chat. A failed token is counted, and after five failures in a minute the server refuses all remote requests until restart.
+3. **A remote profile** (RK to confirm): lines arriving through the private hostname are tagged `remote`; the text box and read routes work; the microphone button is not offered; and opening apps, folders, files and games is refused for remote lines (they can still ask for the weather, headlines, status, notes with the usual confirmation, and conversation). Local use is unchanged.
+4. Everything else in A2 and A3 applies, and the audit chain records remote lines the same way.
+
+### A4.5 Decisions for RK, and what only RK can do
+
+1. P1, or keep the dashboard on this machine only (P4). My recommendation: P1 only if remote use is something you will want regularly; otherwise P4.
+2. Phone microphone: M1 (dictation), M2, or none. Recommended: M1.
+3. Remote profile as in A4.4 item 3, or something else.
+4. **RK's own acts, with RK at the laptop:** installing the private-network app on the laptop and the phone and signing in; approving any Windows Firewall prompt. After that, about one working session to build, test and review.
+
+**Not done / UNVERIFIED:** nothing is built; how a phone browser behaves with this page beyond an emulated 375 px width; whether the chosen private-network product meets A4.4 as described (it would be checked against its own documentation before any install is proposed).
