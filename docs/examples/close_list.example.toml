@@ -1,0 +1,45 @@
+# JARVIS close list: EXAMPLE. Copy to <governance folder>\close_list.toml and edit.
+# The programs named here are closed by scripts\free_memory.py (run by scripts\start-jarvis.cmd) before JARVIS starts, to
+# free memory. This file is RK's: only RK edits it. JARVIS itself never reads it, never writes it and cannot close anything.
+#
+# images : the program's own name as Task Manager shows it (Details tab), without .exe. No paths, no wildcards. Up to 8.
+# force  : false = ask it to close, leave it open if it will not (the safe choice for a browser or a downloader);
+#          true  = if it is still running after `grace` seconds, end it (only for programs holding nothing to lose).
+# grace  : seconds to wait for it to close, 1 to 120 (default 10).
+# last   : true = close after all the others (a VPN, so nothing is still running on it when it goes).
+#
+# Never touched, whatever is written here: Windows' own processes, Python and the shells, Ollama and its model server, the
+# Claude desktop app and its tools, the antivirus. At most 32 programs. Run `py -3.14 scripts\free_memory.py` with no
+# options first: it only shows what it would close.
+
+schema_version = 1
+
+[[program]]
+id = "music"
+name = "Music player"
+images = ["spotify"]
+force = true
+grace = 8
+
+[[program]]
+id = "chat"
+name = "Chat app"
+images = ["whatsapp.root", "whatsapp"]
+force = true
+grace = 8
+
+# A browser may ask about open tabs; if it does it is left open, and the script says so.
+[[program]]
+id = "browser"
+name = "Browser"
+images = ["zen"]
+force = false
+grace = 30
+
+[[program]]
+id = "vpn"
+name = "VPN app"
+images = ["windscribe"]
+force = true
+grace = 8
+last = true
