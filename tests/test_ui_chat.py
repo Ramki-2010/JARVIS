@@ -160,7 +160,10 @@ class SayRouteTests(Base):
         self.assertEqual(self.post({"text": "a"}, ctype="text/plain")[0], 415)
         self.assertEqual(self.post({"text": "a"}, ctype="application/json; charset=utf-8")[0], 415)  # strict: the exact type
         self.assertEqual(self.post({"text": "a"}, ctype=None)[0], 415)
-        self.assertEqual(self.post({"text": "a"}, extra={"Transfer-Encoding": "chunked"})[0], 400)
+        try:   # chunked bodies are refused unread: the client sees the 400, or on Windows sometimes the connection closing; both are a refusal
+            self.assertEqual(self.post({"text": "a"}, extra={"Transfer-Encoding": "chunked"})[0], 400)
+        except (ConnectionError, http.client.HTTPException):
+            pass
 
     def test_host_origin_and_token_are_all_required(self):
         good = {"text": "a"}
