@@ -18,7 +18,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Callable, Iterator, List, Optional, Tuple
 
-from advisor import clock
+from advisor import clock, guard
 from advisor.conversation import Conversation
 from advisor.lines import Lines
 from advisor.runtime import ModelUnavailable
@@ -121,6 +121,14 @@ class Controller:
                 return
             # anything else abandons the proposal; fall through and treat the text normally
 
+        if intent is None or intent.kind in (intents.GAP, intents.WEATHER, intents.HN, intents.NEWS):
+            asked = intents.lookups(text)   # natural speech: one or several lookups in one breath
+            if asked:
+                if self.fetcher is None:    # not set up: one plain answer, however many were asked
+                    asked = asked[:1]
+                for item in asked:
+                    yield from self._lookup(item, text)
+                return
         if intent is None:
             yield from self._converse(text)
             return
@@ -517,7 +525,7 @@ class Controller:
 
     def _converse(self, text: str) -> Iterator[Event]:
         try:
-            for sentence in sentences(self.conversation.stream_reply(text)):
+            for sentence in guard.filtered(sentences(self.conversation.stream_reply(text)), self.lines.say("deflect")):
                 yield ("say", sentence)
         except ModelUnavailable:
             yield ("error", UNAVAILABLE_TEXT)

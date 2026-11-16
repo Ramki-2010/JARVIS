@@ -1,11 +1,12 @@
 """The voice worker: reads JSON lines on stdin, writes JSON lines on stdout.
 
 Commands in:  {"cmd":"say","id":N,"text":"..."}  {"cmd":"listen","id":N}  {"cmd":"quit"}
+              {"cmd":"listen","id":N,"hold":"button"}  {"cmd":"mic_stop","target":N}   (a dashboard button instead of the key; ADR-0011 Amendment 3)
 Events out:   ready, first_audio, spoken, heard, error (each a JSON object with "event").
 
 Speech out: the cloned voice (VoxCPM2, one cached prompt made from RK's local
 sample) is generated in small pieces and played as they are made. Speech in: the
-microphone is open only while the push-to-talk key is held, and is closed while
+microphone is open only while the push-to-talk key (or, for a button-held listen, the button) is held, and is closed while
 JARVIS is speaking (ADR-0012 D3). Audio is held in memory and never stored.
 The profile asset is refused if its SHA-256 differs from the record (ADR-0012 D5).
 """
@@ -17,6 +18,8 @@ import queue
 import sys
 import threading
 import time
+
+from voice.holds import Holds
 
 PREBUFFER_S = 0.5
 LISTEN_WAIT_S = 20.0
@@ -47,6 +50,7 @@ class Worker:
         with open(os.path.join(root, "voice_settings.json"), encoding="utf-8-sig") as fh:
             self.cfg = json.load(fh)
         self.jobs = queue.Queue()
+        self.holds = Holds()
         self.stt = None
         self.stt_problem = ""
         self.tts = None
@@ -208,24 +212,31 @@ class Worker:
         # the next sentence may follow at once; the mic stays closed until playback ends
         emit(event="generated", id=job_id, audio_s=round(made_s, 2), took_s=round(time.monotonic() - t0, 2), gaps=gaps)
 
-    def listen(self, job_id: int) -> None:
+    def listen(self, job_id: int, hold: str = "key") -> None:
         from voice import winaudio
         if self.stt is None:
             emit(event="heard", id=job_id, text="", reason="speech recognition unavailable")
             return
         self.player.drain()
-        end = time.monotonic() + LISTEN_WAIT_S
-        while not winaudio.key_down():
-            if time.monotonic() > end:
-                emit(event="heard", id=job_id, text="", reason="no key press")
+        if hold == "button":   # the dashboard button is the key: held until "mic_stop" names this job
+            held = lambda: not self.holds.released(job_id)
+            if not held():     # released before the microphone was ever opened: it is not opened
+                emit(event="heard", id=job_id, text="", reason="released before listening")
                 return
-            time.sleep(0.02)
+        else:
+            held = winaudio.key_down
+            end = time.monotonic() + LISTEN_WAIT_S
+            while not held():
+                if time.monotonic() > end:
+                    emit(event="heard", id=job_id, text="", reason="no key press")
+                    return
+                time.sleep(0.02)
         rec = winaudio.Recorder()
         rec.start()
         self.live.mic_open(True)   # the microphone really is open now
         try:
             t_end = time.monotonic() + LISTEN_MAX_S
-            while winaudio.key_down() and time.monotonic() < t_end:
+            while held() and time.monotonic() < t_end:
                 rec.poll()
                 time.sleep(0.02)
         finally:
@@ -254,7 +265,7 @@ class Worker:
                 if cmd == "say":
                     self.say(job["id"], str(job["text"])[:2000], job["received_at"])
                 elif cmd == "listen":
-                    self.listen(job["id"])
+                    self.listen(job["id"], job.get("hold", "key"))
                 elif cmd == "wait":
                     self.player.drain()
                     emit(event="spoken", id=job["id"])
@@ -284,8 +295,14 @@ class Worker:
         for line in sys.stdin:
             try:
                 job = json.loads(line)
-                if not isinstance(job, dict) or job.get("cmd") not in ("say", "listen", "quit", "wait", "hear_file"):
+                if not isinstance(job, dict) or job.get("cmd") not in ("say", "listen", "quit", "wait", "hear_file", "mic_stop"):
                     raise ValueError("unknown command")
+                if job["cmd"] == "mic_stop":   # handled at once, never queued behind the listen it ends
+                    if isinstance(job.get("target"), int):
+                        self.holds.release(job["target"])
+                    continue
+                if job.get("hold", "key") not in ("key", "button"):
+                    raise ValueError("unknown hold")
                 job["received_at"] = time.time()
                 self.jobs.put(job)
                 if job["cmd"] == "quit":

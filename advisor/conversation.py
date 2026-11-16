@@ -7,6 +7,7 @@ file content, no governance content, no policy internals. The reply is text.
 
 from typing import Dict, Iterator, List
 
+from advisor import style_bank
 from advisor.persona import PERSONA
 from advisor.runtime import ModelUnavailable, OllamaClient
 
@@ -15,13 +16,18 @@ MAX_TURNS = 12
 
 
 class Conversation:
-    def __init__(self, client: OllamaClient, model: str, options: Dict[str, object] = None, persona: str = PERSONA):
-        self.client, self.model, self.persona = client, model, persona
-        self.options = dict({"num_ctx": 4096, "temperature": 0.7, "num_predict": 160}, **(options or {}))
+    def __init__(self, client: OllamaClient, model: str, options: Dict[str, object] = None, persona: str = PERSONA, seed: int = 0):
+        self.client, self.model, self.persona, self.seed = client, model, persona, seed
+        # A little warmer and with a repeat penalty, so a small model does not settle into a few stock replies (RK's review).
+        self.options = dict({"num_ctx": 4096, "temperature": 0.85, "top_p": 0.92, "top_k": 60, "repeat_penalty": 1.12, "num_predict": 120},
+                            **(options or {}))
         self.history: List[Dict[str, str]] = []
+        self.turns = 0
+        self.scrub = None  # optional: a function that cleans a reply before it is remembered (advisor.guard.scrub)
 
     def _messages(self, user_text: str) -> List[Dict[str, str]]:
-        msgs = [{"role": "system", "content": self.persona}]
+        recent = [m["content"] for m in self.history if m["role"] == "assistant"]
+        msgs = [{"role": "system", "content": self.persona + style_bank.turn_hint(self.seed, self.turns, recent)}]
         msgs.extend(self.history[-2 * MAX_TURNS:])
         msgs.append({"role": "user", "content": user_text})
         return msgs
@@ -35,6 +41,9 @@ class Conversation:
             parts.append(piece)
             yield piece
         reply = "".join(parts).strip()
+        if reply and self.scrub is not None:
+            reply = self.scrub(reply).strip()  # remember what was actually said, not a phrase the guard removed
+        self.turns += 1
         if reply:
             self.history.append({"role": "user", "content": text})
             self.history.append({"role": "assistant", "content": reply})

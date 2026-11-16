@@ -37,6 +37,8 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 TOKEN_HEADER = "X-JARVIS-Token"
 RATE_WINDOW_S = 5.0
 RATE_MAX = 40
+LIGHT_MAX = 400  # the cheap state reads below, in their own bucket
+LIGHT_PATHS = ("/", "/api/live", "/api/voice", "/api/chat")
 TURN_RE = re.compile(r"^[0-9]{1,9}$")
 SAY_TYPE = "application/json"
 DRAIN_MAX = 8192  # at most this much of a request body is ever read
@@ -65,16 +67,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         given = self.headers.get(TOKEN_HEADER, "")
         return hmac.compare_digest(given.encode(), self.server.token.encode())
 
-    def _rate_ok(self) -> bool:
+    def _rate_ok(self, light: bool = False) -> bool:
+        """Two bounds (ADR-0011 D3.7). The tight one, RATE_MAX per window, covers everything that starts a command-line
+        check or changes something; it is the bound that protects the machine and it is not loosened. A separate, larger
+        one covers the page's cheap state reads (in memory or one tiny file, no process started), which the page polls."""
         with self.server.rate_lock:
             now = time.monotonic()
-            hits = self.server.rate_hits
+            hits = self.server.rate_light if light else self.server.rate_hits
             while hits and now - hits[0] > RATE_WINDOW_S:
                 hits.popleft()
-            if len(hits) >= RATE_MAX:
+            if len(hits) >= (LIGHT_MAX if light else RATE_MAX):
                 return False
             hits.append(now)
             return True
+
+    @staticmethod
+    def _is_light(path: str) -> bool:
+        return path in LIGHT_PATHS or path.startswith("/api/turn/")
+
+    def _chat_state(self) -> dict:
+        mic = self.server.mic.status() if self.server.mic is not None else {"enabled": False}
+        return {"enabled": self.server.turns.enabled, "busy": self.server.turns.busy(),
+                "occupied": self.server.turns.occupied(), "mic": mic}
 
     # ----- responses
     def _send(self, code: int, body: bytes, ctype: str, nonce: str = ""):
@@ -101,11 +115,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._refuse(403, "host not allowed")
         if not self._origin_ok():
             return self._refuse(403, "origin not allowed")
-        if self.headers.get("Content-Length", "0") not in ("", "0"):
+        length = self.headers.get("Content-Length", "0")
+        if length not in ("", "0"):
+            if length.isascii() and length.isdigit() and self.headers.get("Transfer-Encoding") is None:
+                self.rfile.read(min(int(length), DRAIN_MAX))  # a small body is read and dropped so the 400 arrives cleanly
             return self._refuse(400, "no request body allowed")
-        if not self._rate_ok():
-            return self._refuse(429, "too many requests")
         path = self.path.split("?", 1)[0]
+        if not self._rate_ok(self._is_light(path)):
+            return self._refuse(429, "too many requests")
         if path == "/":
             nonce = secrets.token_urlsafe(16)
             return self._send(200, page.html(nonce).encode("utf-8"), "text/html; charset=utf-8", nonce)
@@ -121,7 +138,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             audit = child.run(self.server.config, ["audit", "verify"])
             return self._json(200, ring.derive(tasks.code, tasks.text, audit.code))
         if len(parts) == 1 and parts[0] == "chat":
-            return self._json(200, {"enabled": self.server.turns.enabled, "busy": self.server.turns.busy()})
+            return self._json(200, self._chat_state())
+        if len(parts) == 1 and parts[0] == "live":   # the voice signal and the chat state in one request: what the page polls
+            return self._json(200, {"voice": voicesignal.read(self.server.voice_path), "chat": self._chat_state()})
         if len(parts) == 2 and parts[0] == "turn":
             if not self.server.turns.enabled or not TURN_RE.match(parts[1]):
                 return self._refuse(404, "not found")
@@ -154,41 +173,73 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return galaxy.build(outputs["projects"].text, outputs["tasks"].text, outputs["notes"].text, outputs["results"].text)
 
     def _method_not_allowed(self):
+        length = self.headers.get("Content-Length", "")
+        if length.isascii() and length.isdigit() and self.headers.get("Transfer-Encoding") is None:
+            self.rfile.read(min(int(length), DRAIN_MAX))  # a small body is read and dropped so the 405 arrives cleanly
         self._refuse(405, "read-only: GET only")
 
     def do_POST(self):
-        """Only `POST /api/say`, and only when the advisor supplied `respond` (ADR-0011 Amendment 2, A2.2)."""
-        if not self.server.turns.enabled or self.path != "/api/say":
+        """`POST /api/say` (when the advisor supplied `respond`) and `POST /api/mic` (when it supplied a microphone).
+        Every other POST stays 405 (ADR-0011 Amendments 2 and 3)."""
+        if self.path == "/api/say" and self.server.turns.enabled:
+            handler = self._say
+        elif self.path == "/api/mic" and self.server.mic is not None:
+            handler = self._mic
+        else:
             return self._method_not_allowed()
+        raw = self._post_gate()
+        if raw is not None:
+            handler(raw)
+
+    def _post_gate(self):
+        """The rules every mutation shares. Returns the (bounded) body, or None after sending a refusal."""
         # Read a small, bounded amount first so every refusal below reaches the browser as a clean 4xx
         # (answering before the body is read can reset the connection). The size rule is still checked before parsing.
         length = self.headers.get("Content-Length", "")
         valid = length.isascii() and length.isdigit()
         raw = self.rfile.read(min(int(length), DRAIN_MAX)) if valid and self.headers.get("Transfer-Encoding") is None else b""
+        refusal = None
         if not self._host_ok():
-            return self._refuse(403, "host not allowed")
-        if self.headers.get("Origin") is None or not self._origin_ok():  # Origin is required on every mutation
-            return self._refuse(403, "origin not allowed")
-        if not self._token_ok():
-            return self._refuse(403, "token required")
-        if self.headers.get("Content-Type", "") != SAY_TYPE:
-            return self._refuse(415, "content type must be application/json")
-        if self.headers.get("Transfer-Encoding") is not None:
-            return self._refuse(400, "chunked bodies are not allowed")
-        if not valid:
-            return self._refuse(411, "content length required")
-        if int(length) > turns.MAX_BODY:
-            return self._refuse(413, "body too large")
-        if not self._rate_ok():
-            return self._refuse(429, "too many requests")
+            refusal = (403, "host not allowed")
+        elif self.headers.get("Origin") is None or not self._origin_ok():  # Origin is required on every mutation
+            refusal = (403, "origin not allowed")
+        elif not self._token_ok():
+            refusal = (403, "token required")
+        elif self.headers.get("Content-Type", "") != SAY_TYPE:
+            refusal = (415, "content type must be application/json")
+        elif self.headers.get("Transfer-Encoding") is not None:
+            refusal = (400, "chunked bodies are not allowed")
+        elif not valid:
+            refusal = (411, "content length required")
+        elif int(length) > turns.MAX_BODY:
+            refusal = (413, "body too large")
+        elif not self._rate_ok():
+            refusal = (429, "too many requests")
+        if refusal:
+            self._refuse(*refusal)
+            return None
+        return raw
+
+    def _say(self, raw: bytes):
         try:
             text = turns.parse_say(raw)
         except turns.BadRequest as exc:
             return self._refuse(400, str(exc))
         number = self.server.turns.submit(text)
         if number is None:
-            return self._refuse(409, "busy: a turn is already running")
+            return self._refuse(409, "busy: JARVIS is already working on something")
         self._json(202, {"turn": number})
+
+    def _mic(self, raw: bytes):
+        try:
+            action = turns.parse_mic(raw)
+        except turns.BadRequest as exc:
+            return self._refuse(400, str(exc))
+        try:
+            (self.server.mic.start if action == "start" else self.server.mic.stop)()
+        except turns.MicRefused as exc:
+            return self._refuse(exc.status, str(exc))
+        self._json(202, self.server.mic.status())
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _method_not_allowed
 
@@ -196,14 +247,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class DashboardServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, config: str, voice_path: str = "", respond=None):
+    def __init__(self, config: str, voice_path: str = "", respond=None, after=None, mic=None):
         super().__init__(("127.0.0.1", 0), Handler)
         child.command(config, [])  # refuse a relative config or a wrong interpreter at start
         self.config = config
         self.voice_path = voice_path or voicesignal.default_path(config)
-        self.turns = turns.Turns(respond)  # no `respond` means the page stays read-only
+        self.turns = turns.Turns(respond, after)  # no `respond` means the page stays read-only
+        self.mic = mic if respond is not None else None  # an object with start(), stop(), status(); the advisor supplies it
         self.token = secrets.token_urlsafe(32)
         self.rate_hits = deque()
+        self.rate_light = deque()
         self.rate_lock = threading.Lock()
 
     @property

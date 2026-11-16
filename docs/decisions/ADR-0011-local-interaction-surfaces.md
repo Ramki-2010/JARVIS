@@ -259,3 +259,86 @@ No code. Not measured: how the page behaves while the CPU model takes many secon
 **Reversibility.** Dropping `--dashboard` removes the route; the advisor and the read-only dashboard work as before. **Authority class.** G-05; takes effect only on RK's merge (ADR-0001 D6).
 
 **Decision record (2026-11-14, RK in chat):** option **H1** chosen; pull request 76 merged. Phase 1 (the text box, A2.1 to A2.4 and A2.6) is built in the pull request that follows; spoken replies and the microphone button (A2.5, A2.8 items 2 and 3) remain Phase 2 and are not decided or built.
+
+## Amendment 3 (PROPOSED, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds it): the microphone button, the details of A2.5
+
+**Status: PROPOSED.** Drafted 2026-11-14 by Local Claude at RK's instruction ("start ollama and phase 2"). Matched trigger: G-05 (a second write route) and the voice worker's command set (ADR-0012 D2). It carries out A2.5 as outlined there and widens nothing beyond it. **Two choices below are Local Claude's defaults, not RK's decisions (A2.8 items 2 and 3 were left open); each is one line to change and is listed in A3.7.**
+
+### A3.1 What the button does
+
+A button in the conversation box asks the **existing voice worker** to listen: the same worker, the same push-to-talk path as Right Ctrl, with the button standing in for the key. **Audio never goes through the browser** (no `getUserMedia`, no upload); the page sends only `start` and `stop`. The worker alone opens the microphone, holds the audio in memory and never stores it (ADR-0012 D3). What the heard line does afterwards is an ordinary page turn (A2.2): same intent layer, same confirmation turns, tagged `spoken`.
+
+### A3.2 The route
+
+`POST /api/mic`, body `{"action": "start"}` or `{"action": "stop"}`, present **only** when the advisor supplied a microphone (voice worker running with speech recognition, and the terminal not in `--listen` mode, so only one thing ever listens); otherwise 405. All of A2.2's rules apply through one shared gate: exact Host, Origin required, token, exact content type, size limits, strict body (exactly one field, `action`, one of the two words; unknown, duplicate or missing fields refused). Answers: 202 with the current state; 409 if the exchange lock is taken (a turn, another listen, or speech still playing) or a stop arrives while not listening; 503 if the worker is not running. Nothing is queued behind a refusal. `GET /api/chat` also reports `mic`: `{enabled, state, seq, heard, turn, reason}`; the button's text comes only from this state.
+
+### A3.3 The worker's two new commands (ADR-0012 D2 command set)
+
+- `{"cmd":"listen","id":N,"hold":"button"}`: as `listen`, but the microphone stays open until released instead of while the key is down. The default (`"key"`) is unchanged.
+- `{"cmd":"mic_stop","target":N}`: releases listen N. It is handled at once and never queued behind the listen it ends. A release that arrives **before** the worker has started that listen is remembered (bounded, by job id), and the microphone is then never opened at all.
+- Limits unchanged: at most 30 s per listen (`LISTEN_MAX_S`), at least 0.3 s of speech, microphone closed while JARVIS speaks. The page also releases on pointer-up, pointer-cancel, losing focus and the tab being hidden.
+
+### A3.4 Truthfulness (D4)
+
+- LISTENING and SPEAKING stay what ADR-0012 Amendment 2 made them: derived from the worker's own live signal (the microphone really open; audio really queued). The button changes none of that and shows no state of its own.
+- **INTERPRETING is not shown while the microphone is open or while replies are being spoken.** The exchange lock records what it is held for (`turn`, `mic` or `after`); only `turn` is INTERPRETING, so waiting on the microphone or on the speaker never counts as the intent layer working.
+- A line that was not understood, or silence, is reported as such on the page ("I did not catch that (too short)"), never as a reply.
+
+### A3.5 Spoken replies (A2.8 item 2)
+
+With a voice worker running, replies to page lines, typed or heard, are spoken as the terminal speaks them, and the exchange stays held until the speaking has finished, so the microphone cannot open on JARVIS's own voice. Without a voice worker replies are text only.
+
+### A3.6 New exposure, stated plainly
+
+Anything holding a valid token and a correct Origin from this machine can now cause the microphone to open for up to 30 seconds. The audio stays in the voice worker's memory, is transcribed locally and discarded, and the recognised text is shown on the page; the ring shows LISTENING from the worker's own signal for as long as the microphone is open. Only one listen can exist; the terminal's own `--listen` mode switches the button off.
+
+### A3.7 Defaults chosen by Local Claude, for RK to confirm or change
+
+1. **Hold to talk** (not press to toggle), with keyboard Space or Enter on the focused button. Switching to press-to-toggle is the single constant `MIC_STYLE` in `ui/page.py`.
+2. **Spoken replies on** for both typed and heard page lines whenever a voice worker is running (A3.5).
+
+### A3.8 Tests and what is not verified
+
+Tests (no microphone, no model): the route's strictness and shared rules; 405 without a microphone; one listen at a time; busy and dead-worker refusals leave nothing held; heard text becomes a `spoken` turn that is answered and spoken; silence and a silent worker free the exchange; INTERPRETING is not claimed while listening or speaking; the release bookkeeping is remembered by id and bounded. **UNVERIFIED:** a real press with the real microphone and the real worker (the worker's new listen branch has only been read, parsed and exercised through fakes), whether a very quick tap behaves well on the real device, and the ring turning LISTENING and then SPEAKING from a real press. Those are done with RK present.
+
+**Also recorded:** the approved model list the advisor needs (ADR-0013 D3) did not exist on this machine; at RK's instruction it was written on 2026-11-14 listing only qwen3.5:9b with its digest, in the governance zone, outside this repository.
+
+**Reversibility.** Run without `--voice-root` and there is no microphone button; the worker's new commands are unused by anything else.
+
+## Amendment 4 (PROPOSED, `USER AUTHORITY REQUIRED`; nothing in it is built or in force until RK decides and merges it): reaching the dashboard from a phone
+
+**Status: PROPOSED, options and a recommendation only.** Drafted 2026-11-16 by Local Claude after RK asked, while away from the laptop, for the dashboard link to work in a phone browser (Chrome, Firefox and the like), with the phone's microphone, or failing that a text box. Matched triggers: G-05 (a new network surface), G-13 (installing software, RK's per-item approval), and D3.1 / D3.3 (loopback only; exact Host). **No code is written and nothing is installed or opened by this amendment.** RK decided on 2026-11-12 that LAN access stays excluded from the Beta; this proposal asks whether to change that, and how.
+
+### A4.1 Why it cannot simply be switched on
+
+The dashboard listens on `127.0.0.1` only (D3.1) and accepts only the exact Host `127.0.0.1:<port>` or `localhost:<port>` (D3.3). A phone is a different machine; any way for it to reach the laptop is new network exposure of a program that can open apps, propose notes and open the microphone, protected only by a per-launch token (D3.2). That is a decision for RK, and the admin steps (installs, a firewall prompt, an account sign-in) are RK's own acts, so it cannot be completed while RK is away.
+
+### A4.2 The options
+
+| Option | What it is | For | Against |
+|---|---|---|---|
+| **P1 (recommended if any)** | A private network between RK's own devices (for example Tailscale, a WireGuard-based service), with its built-in HTTPS proxy in front of the loopback dashboard. Both devices install the app and sign in to one account | Nothing is opened on the home router or the public internet; only RK's signed-in devices can connect; HTTPS, so the phone browser treats the page as secure | Installs on laptop and phone (G-13); creating or using an account; a third party's service sits in the path; Host and Origin rules (D3.3) must accept the one private hostname; tokens must travel to the phone |
+| P2 | Bind to the home network (LAN) | Simple | Works only on the same Wi-Fi, so not away from home; plain HTTP (readable on the network, and a phone browser will not allow its microphone); contradicts RK's 2026-11-12 decision |
+| P3 | A public tunnel (a hosted tunnel service giving a public web address) | Works anywhere with no app on the phone | Puts a laptop that can open apps and the microphone behind a public address guarded only by a token; strongly not recommended |
+| P4 | No exposure | Nothing to secure | The phone cannot reach JARVIS. (Today RK can still message Local Claude from the phone, which can run JARVIS's commands on RK's behalf; that is not the dashboard.) |
+
+### A4.3 The phone's microphone
+
+- **M1 (recommended): the phone's own keyboard dictation.** The text box already exists and is phone-sized (pull request 81). Tapping the microphone on the phone's keyboard turns speech into text on the phone; only that text reaches JARVIS. No audio leaves the phone, A3.1 ("audio never goes through the browser") is untouched, and nothing new is built.
+- M2: the page records from the phone's microphone and uploads audio for the laptop to transcribe. This needs HTTPS (so only with P1), reverses A3.1, adds an audio upload route (size and time limits, never stored) and a transcription path, and is a larger change with its own review. Not recommended for the Beta.
+
+### A4.4 If P1 is chosen: what would be built, and the limits proposed
+
+1. The dashboard stays bound to loopback. The proxy forwards to it. D3.3 changes from two allowed Host names to exactly three: the two loopback ones and the one private hostname RK names. Origin must equal that same name over HTTPS.
+2. The token stays per-launch (at least 128 bits) and never in a query string; RK would be given the link in chat. A failed token is counted, and after five failures in a minute the server refuses all remote requests until restart.
+3. **A remote profile** (RK to confirm): lines arriving through the private hostname are tagged `remote`; the text box and read routes work; the microphone button is not offered; and opening apps, folders, files and games is refused for remote lines (they can still ask for the weather, headlines, status, notes with the usual confirmation, and conversation). Local use is unchanged.
+4. Everything else in A2 and A3 applies, and the audit chain records remote lines the same way.
+
+### A4.5 Decisions for RK, and what only RK can do
+
+1. P1, or keep the dashboard on this machine only (P4). My recommendation: P1 only if remote use is something you will want regularly; otherwise P4.
+2. Phone microphone: M1 (dictation), M2, or none. Recommended: M1.
+3. Remote profile as in A4.4 item 3, or something else.
+4. **RK's own acts, with RK at the laptop:** installing the private-network app on the laptop and the phone and signing in; approving any Windows Firewall prompt. After that, about one working session to build, test and review.
+
+**Not done / UNVERIFIED:** nothing is built; how a phone browser behaves with this page beyond an emulated 375 px width; whether the chosen private-network product meets A4.4 as described (it would be checked against its own documentation before any install is proposed).
