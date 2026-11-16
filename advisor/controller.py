@@ -121,6 +121,14 @@ class Controller:
                 return
             # anything else abandons the proposal; fall through and treat the text normally
 
+        if intent is None or intent.kind in (intents.GAP, intents.WEATHER, intents.HN, intents.NEWS):
+            asked = intents.lookups(text)   # natural speech: one or several lookups in one breath
+            if asked:
+                if self.fetcher is None:    # not set up: one plain answer, however many were asked
+                    asked = asked[:1]
+                for item in asked:
+                    yield from self._lookup(item, text)
+                return
         if intent is None:
             yield from self._converse(text)
             return

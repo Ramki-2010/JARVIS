@@ -186,7 +186,8 @@ _NEWS_OF = tuple(re.compile(p) for p in (
 _NOT_A_TOPIC = frozenset({"good", "bad", "great", "sad", "big", "fake", "old", "some", "any", "no", "more", "other", "more", "other",
                           "latest", "top", "main", "current", "today", "indian", "india", "national", "breaking", "the", "my", "your",
                           "hacker", "tech", "technology", "world", "global", "i", "we", "you", "he", "she", "they", "it", "there", "have", "has",
-                          "had", "got", "get", "is", "are", "was", "were", "what", "any", "that", "this", "your", "our", "his", "her"})
+                          "had", "got", "get", "is", "are", "was", "were", "what", "any", "that", "this", "your", "our", "his", "her",
+                          "news", "headlines", "headline", "stories", "everything", "anything"})
 _SOURCE_BY_ALIAS = {alias: key for key, aliases in fetch_keys.NEWS_ALIASES.items() for alias in aliases}
 
 
@@ -277,6 +278,75 @@ def _lookup(t: str) -> Optional[Intent]:
     return None
 
 
+# Natural speech is rarely one tidy sentence ("What is the weather right now? And give me the headlines for the news.").
+# `lookups` reads it clause by clause and returns every lookup asked for, in order. It can only ever return the three
+# fixed lookups of ADR-0014 D8 with a fixed key; a clause that is not clearly a request (talk *about* the news) is left alone.
+_CLAUSE_SPLIT = re.compile(r"[.?!;]+\s*|,?\s+(?:and then|and also|as well as|and|then|also|plus)\s+")
+_ASKING = re.compile(r"^(?:give|tell|show|read|get|check|look|let me know|please)\b|"   # an order opens the clause ("read me the news")
+                     r"\b(?:what|whats|how|hows|any|can you|could you|would you|i want|i would like|i need|do you have|is there|are there)\b")
+_HN_CUE = re.compile(r"\bhacker ?news\b|\bhn\b|\btech(?:nology)? (?:news|headlines|stories)\b")
+_WEATHER_CUE = re.compile(r"\b(?:weather|forecast|temperature)\b")
+_NEWS_CUE = re.compile(r"\b(?:news|headlines?)\b")
+_CAN_LOOK_UP = re.compile(r"\b(?:whatever|anything|everything|all|what)\b.*\byou (?:can|could)\b.*\b(?:look up|look it up|check|find out|find|tell me)\b|\blook(?:ing)? up for\b"
+                          r"|\bwhat (?:can|could) you (?:look up|check|find out|find)\b")
+_AT_PLACE = re.compile(r"\b(?:in|at|for|of|around) (?!the\b|my\b|now\b|today\b|right\b|this\b|here\b|it\b|me\b|us\b|a\b|an\b)([a-z]+)")
+_GO_AHEAD = re.compile(r"^(?:(?:go ahead|yes|yeah|and|now|right)[, ]+)+")  # only when reading a lookup clause; elsewhere they are answers
+_NOT_PLACES = ("weather", "news", "headlines", "forecast", "temperature", "india", "indian")
+
+
+def _weather_clause(t: str) -> Intent:
+    for key, (_name, _lat, _lon, aliases) in fetch_keys.PLACES.items():
+        if any(re.search(r"\b" + re.escape(a) + r"\b", t) for a in aliases):
+            return Intent("weather", WEATHER, (key,), "")
+    m = _AT_PLACE.search(t)
+    if m and m.group(1) not in _NOT_PLACES:
+        return Intent("weather", WEATHER, ("?",), m.group(1))  # not a saved place: the answer lists the saved ones
+    return Intent("weather", WEATHER, (fetch_keys.DEFAULT_PLACE,))
+
+
+def _tolerant(t: str) -> Optional[Intent]:
+    if len(t.split()) > 18 or not _ASKING.search(t):
+        return None
+    if _HN_CUE.search(t):
+        return Intent("hn", HN)
+    if _WEATHER_CUE.search(t):
+        return _weather_clause(t)
+    if _NEWS_CUE.search(t):
+        for alias, key in _SOURCE_BY_ALIAS.items():
+            if re.search(r"\b" + re.escape(alias) + r"\b", t):
+                return Intent("news", NEWS, (key,))
+        return Intent("news", NEWS, ("all",))
+    return None
+
+
+def lookups(text: str) -> list:
+    """Every lookup the utterance asks for, in order, or []. Deterministic; nothing here reaches the network."""
+    if not isinstance(text, str) or not text.strip():
+        return []
+    spoken = text.replace("’", "'").lower()
+    found: list = []
+    if _CAN_LOOK_UP.search(normalise(spoken)):  # "tell me whatever you can look up": show what the lookups can do
+        found = [Intent("weather", WEATHER, (fetch_keys.DEFAULT_PLACE,)), Intent("news", NEWS, ("all",))]
+    else:
+        for clause in _CLAUSE_SPLIT.split(spoken):
+            t = _GO_AHEAD.sub("", normalise(clause)).strip(" ,")
+            if not t:
+                continue
+            hit = _lookup(t)
+            if hit is not None and hit.kind not in (WEATHER, HN, NEWS):
+                hit = None
+            if hit is None or (hit.kind == WEATHER and hit.args == ("?",)):
+                hit = _tolerant(t) or hit
+            if hit is not None:
+                found.append(hit)
+    unique, seen = [], set()
+    for hit in found:
+        if (hit.kind, hit.args) not in seen:
+            seen.add((hit.kind, hit.args))
+            unique.append(hit)
+    return unique
+
+
 _HELP = re.compile(r"help|what can you do|what are your commands|what can i say")
 _JOKE = re.compile(r"(?:tell me |say |give me |do you know |got )?(?:a |another |one more )?(?:joke|pun|funny joke)(?: for me)?|make me laugh|say something funny|tell me something funny")
 _QUIT = re.compile(r"quit|exit|goodbye|good bye|bye|that will be all|that is all")
@@ -286,14 +356,15 @@ _CAPTURE = re.compile(r"(?:make a note|take a note|note down|note|remember|write
 
 # Requests the Beta has no means to do. JARVIS must say so plainly and offer to note them down.
 _GAP = re.compile(
-    r"\b(?:weather|forecast|browse|browser|website|web page|webpage|web site|google|search (?:the )?(?:web|internet|online)|"
+    r"\b(?:browse|browser|website|web page|webpage|web site|google|search (?:the )?(?:web|internet|online)|"
     r"look (?:it |that )?up online|stock price|bitcoin price|e-?mail|send (?:a |an )?(?:message|text|whatsapp)|"
     r"phone call|call (?:my|him|her|them|mum|mom|dad)|play (?:some )?(?:music|a song|spotify)|set (?:a |an )?(?:alarm|timer|reminder)|"
     r"book (?:a |an )?(?:table|flight|hotel|cab|ticket)|order (?:some |a |an )?(?:food|pizza|groceries)|turn (?:on|off) the (?:light|lights|fan|tv)|"
     r"open (?:the )?(?:app|application|chrome|youtube|url|link)|check (?:the |this )?(?:listing|price|score))\b"
 )
 
-_LEAD = re.compile(r"^(?:(?:hey|hi|hello|ok|okay)[, ]+)?(?:jarvis[, ]+)?(?:(?:please|kindly)[, ]+)?(?:(?:can|could|would|will) you (?:please )?)?")
+_LEAD = re.compile(r"^(?:(?:hey|hi|hello|ok|okay|all right|alright|well|so|excuse me|sorry)[, ]+)*"
+                   r"(?:jarvis[, ]+)?(?:(?:please|kindly)[, ]+)?(?:(?:can|could|would|will) you (?:please )?)?")
 _TAIL = re.compile(r"(?:[, ]+(?:please|sir|jarvis))+$")
 
 

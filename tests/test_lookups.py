@@ -265,6 +265,51 @@ class ControllerLookups(unittest.TestCase):
         events = self.say(ctl, "weather in hosur")
         self.assertEqual(events[0][0], "error")
 
+    def test_rks_one_breath_request_runs_both_lookups_each_authorised_and_recorded(self):
+        """2026-11-14: 'What is the weather right now? And give me the headlines for the news.' was refused as a gap."""
+        news = {"items": [{"source": "The Hindu", "title": "One", "time": ""}], "failed": [], "keyword": ""}
+        results = {"weather": FetchResult(True, "", "api.open-meteo.com", 1, 1, dict(WEATHER, place="kumbakonam")),
+                   "news": FetchResult(True, "", "www.thehindu.com", 1, 1, news)}
+        self.calls, self.fetched = [], []
+
+        def runner(args):
+            self.calls.append(list(args))
+            return Result(0)
+
+        def fetcher(name, args):
+            self.fetched.append((name, list(args)))
+            return results[name]
+
+        ctl = Controller(None, runner, fetcher=fetcher)  # no model: neither lookup may reach it
+        events = self.say(ctl, "What is the weather right now? And give me the headlines for the news.")
+        self.assertEqual(self.fetched, [("weather", ["kumbakonam"]), ("news", ["all"])])
+        self.assertEqual([c[:3] for c in self.calls if c[:2] == ["fetch", "authorize"]], [["fetch", "authorize", "weather"], ["fetch", "authorize", "news"]])
+        self.assertEqual(len([c for c in self.calls if c[:2] == ["fetch", "record"]]), 2)
+        said = " ".join(t for k, t in events if k == "say")
+        self.assertIn("overcast", said)
+        self.assertIn("The Hindu: One.", said)
+        self.assertNotIn("I can only look up", said)       # the canned refusal
+        self.assertIsNone(ctl.pending)                     # and no offer to note a refusal down
+
+    def test_an_unknown_place_does_not_stop_the_other_lookup(self):
+        news = {"items": [{"source": "NDTV", "title": "Two", "time": ""}], "failed": [], "keyword": ""}
+        self.fetched = []
+
+        def fetcher(name, args):
+            self.fetched.append((name, list(args)))
+            return FetchResult(True, "", "x", 1, 1, news)
+
+        ctl = Controller(None, lambda a: Result(0), fetcher=fetcher)
+        events = self.say(ctl, "what's the weather in London and the news")
+        self.assertEqual(self.fetched, [("news", ["all"])])  # no weather lookup for an unsaved place
+        self.assertIn("I only know the weather for", " ".join(t for _, t in events))
+
+    def test_without_the_lookups_set_up_a_compound_request_gets_one_plain_answer(self):
+        ctl = Controller(None, lambda a: Result(0))
+        events = self.say(ctl, "tell me the weather and the news")
+        self.assertEqual([k for k, _ in events], ["say"])
+        self.assertIn("no network", events[0][1])
+
     def test_help_mentions_the_lookups_only_when_they_are_set_up(self):
         on = " ".join(t for _, t in self.say(self.make(None), "help"))
         off = " ".join(t for _, t in self.say(Controller(None, lambda a: Result(0)), "help"))
