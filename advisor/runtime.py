@@ -29,6 +29,43 @@ class OllamaClient:
     def _connect(self, timeout: float) -> http.client.HTTPConnection:
         return http.client.HTTPConnection(self.host, self.port, timeout=timeout)
 
+    def loaded(self) -> List[Dict[str, object]]:
+        """The models the server has loaded and how much of each sits in GPU memory (measured, from /api/ps)."""
+        try:
+            conn = self._connect(10)
+            try:
+                conn.request("GET", "/api/ps")
+                resp = conn.getresponse()
+                body = resp.read(MAX_LINE_BYTES)
+                if resp.status != 200:
+                    raise ModelUnavailable("model server answered %d" % resp.status)
+            finally:
+                conn.close()
+            models = json.loads(body.decode("utf-8")).get("models", [])
+            return [{"name": str(m.get("name", "")), "size": int(m.get("size", 0) or 0), "size_vram": int(m.get("size_vram", 0) or 0)} for m in models]
+        except ModelUnavailable:
+            raise
+        except (OSError, ValueError, TypeError, http.client.HTTPException) as exc:
+            raise ModelUnavailable("model server not reachable: %s" % type(exc).__name__) from exc
+
+    def unload(self, model: str) -> None:
+        """Ask the server to drop a loaded model (keep_alive 0), so the next request places it afresh."""
+        try:
+            conn = self._connect(30)
+            try:
+                conn.request("POST", "/api/generate", body=json.dumps({"model": model, "keep_alive": 0}).encode("utf-8"),
+                             headers={"Content-Type": "application/json"})
+                resp = conn.getresponse()
+                resp.read(MAX_LINE_BYTES)
+                if resp.status != 200:
+                    raise ModelUnavailable("model server answered %d" % resp.status)
+            finally:
+                conn.close()
+        except ModelUnavailable:
+            raise
+        except (OSError, http.client.HTTPException) as exc:
+            raise ModelUnavailable("model server not reachable: %s" % type(exc).__name__) from exc
+
     def tags(self) -> List[Dict[str, str]]:
         try:
             conn = self._connect(10)

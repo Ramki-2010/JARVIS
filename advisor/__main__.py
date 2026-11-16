@@ -2,8 +2,9 @@
 
 Reads the approved model list (RK's governance file), checks the model against
 it, then loops: one utterance in, intent layer first, conversation second.
-The model runs on the CPU by default (Setup A, RK decision 2026-11-13) so the
-cloned voice can have the GPU. With `--voice-root` each spoken sentence goes to
+The model's placement is chosen automatically (RK, 2026-11-16, refining Setup A of 2026-11-13): with `--voice-root` it
+runs on the CPU so the cloned voice can have the GPU; without voice nothing needs the GPU, so the server places the
+model there as far as memory allows (about four to five times faster here). `--num-gpu N` overrides. With `--voice-root` each spoken sentence goes to
 the voice worker as soon as it is complete; if the voice cannot start, the
 conversation simply continues in text. With `--listen` the utterance comes from
 the microphone while the push-to-talk key (Right Ctrl) is held. `--timing` prints
@@ -30,6 +31,47 @@ from interaction import child
 DEFAULT_MODEL = "qwen3.5:9b"
 
 
+def model_options(num_gpu, voice_root, num_thread) -> dict:
+    """The model-server options. An explicit --num-gpu always wins. Otherwise: voice on means the CPU (the voice needs the GPU);
+    voice off means no setting at all, so the server places the model on the GPU as far as memory allows and falls back
+    to the CPU for the rest, instead of failing when something else is using the GPU."""
+    options = {}
+    if num_gpu is not None:
+        options["num_gpu"] = num_gpu
+    elif voice_root:
+        options["num_gpu"] = 0
+    if num_thread and num_thread > 0:
+        options["num_thread"] = num_thread
+    return options
+
+
+def release_stale(client, model: str) -> bool:
+    """Without voice, drop a copy of the model that an earlier session loaded onto the CPU. The server reuses a loaded model
+    as it is, whatever is asked for now, so without this a text session after a voice session would stay on the CPU.
+    Returns True if it dropped one. A model already fully on the GPU is kept."""
+    try:
+        for m in client.loaded():
+            if m["name"] == model and m["size"] and m["size_vram"] < m["size"]:
+                client.unload(model)
+                return True
+    except ModelUnavailable:
+        pass
+    return False
+
+
+def placement(client, model: str, num_gpu, voice_root) -> str:
+    """Where the model really sits, measured from the server (never assumed), with the reason it was chosen."""
+    why = "chosen with --num-gpu" if num_gpu is not None else "automatic: the voice has the GPU" if voice_root else "automatic: no voice, so the GPU is free"
+    try:
+        for m in client.loaded():
+            if m["name"] == model:
+                share = round(100.0 * m["size_vram"] / m["size"]) if m["size"] else 0
+                return "%d%% of the model is in GPU memory (%s)" % (share, why)
+    except ModelUnavailable:
+        pass
+    return "not reported by the server (%s)" % why
+
+
 def _start_voice(root: str):
     from interaction.voice_child import VoiceRefused, VoiceWorker
     try:
@@ -49,7 +91,7 @@ def main(argv=None) -> int:
     ap.add_argument("--approved", help="approved model list (default: models.toml next to --config)")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--project", default="jarvis")
-    ap.add_argument("--num-gpu", type=int, default=0, help="model layers on the GPU (0 = CPU only, Setup A)")
+    ap.add_argument("--num-gpu", type=int, default=None, help="model layers on the GPU (0 = CPU only). Default: automatic - CPU when --voice-root is given (the voice has the GPU), otherwise the server decides and uses the GPU")
     ap.add_argument("--num-thread", type=int, default=0, help="CPU threads for the model (0 = the runtime's choice)")
     ap.add_argument("--port", type=int, default=11434)
     ap.add_argument("--voice-root", help="absolute path of the voice folder; omit for text only")
@@ -76,13 +118,15 @@ def main(argv=None) -> int:
     try:
         entries = approved.load(list_path)
         approved.check(entries, args.model, client.tags())
-        options = {"num_gpu": args.num_gpu}
-        if args.num_thread > 0:
-            options["num_thread"] = args.num_thread
+        options = model_options(args.num_gpu, args.voice_root, args.num_thread)
+        if args.num_gpu is None and not args.voice_root:
+            release_stale(client, args.model)   # automatic placement needs a fresh load, not a leftover CPU one
         conversation = Conversation(client, args.model, options, persona=(PERSONA_PLAIN if args.no_teasing else PERSONA_TEASING) + flavour(int(time.time())))
         t0 = time.perf_counter()
         greeting = conversation.warm("Hello. It is %s here." % daypart(time.localtime().tm_hour))
         print("the model is ready" if greeting else "the model did not load")
+        if greeting:
+            print("  model placement: " + placement(client, args.model, args.num_gpu, args.voice_root))
         if args.timing:
             print("  [model ready in %.1f s]" % (time.perf_counter() - t0))
     except (approved.NotApproved, ModelUnavailable) as exc:
