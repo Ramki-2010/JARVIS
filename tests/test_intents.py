@@ -189,12 +189,64 @@ class Lookups(unittest.TestCase):
 
 class Gaps(unittest.TestCase):
     def test_requests_the_beta_cannot_do_are_gaps(self):
-        for text in ("weather is nice today", "send an email to my landlord",
+        for text in ("google the best pizza near me", "send an email to my landlord",
                      "set a reminder for six", "order some pizza", "check the listing for that flat"):
             got = recognise(text)
             self.assertIsNotNone(got, text)
             self.assertEqual(got.kind, GAP, text)
             self.assertTrue(got.text)
+
+
+class NaturalSpeech(unittest.TestCase):
+    """RK's real spoken lines (2026-11-14 to 16, through the microphone): speech is not one tidy sentence."""
+
+    def kinds(self, text):
+        return [(i.kind.lower(), i.args) for i in intents.lookups(text)]
+
+    def test_rks_weather_and_headlines_in_one_breath(self):
+        self.assertEqual(self.kinds("What is the weather right now? And give me the headlines for the news."),
+                         [("weather", ("kumbakonam",)), ("news", ("all",))])
+
+    def test_what_can_you_look_up_runs_the_two_everyday_lookups(self):
+        for text in ("Go ahead, tell me whatever you can look up for.", "what can you look up", "tell me anything you can check"):
+            self.assertEqual(self.kinds(text), [("weather", ("kumbakonam",)), ("news", ("all",))], text)
+
+    def test_several_requests_in_any_order_and_wording(self):
+        self.assertEqual(self.kinds("tell me the weather and the news"), [("weather", ("kumbakonam",)), ("news", ("all",))])
+        self.assertEqual(self.kinds("How is the weather in Bangalore and what are the headlines"), [("weather", ("bangalore",)), ("news", ("all",))])
+        self.assertEqual(self.kinds("give me the headlines, then the weather in Chennai"), [("news", ("all",)), ("weather", ("chennai",))])
+        self.assertEqual(self.kinds("what is the news from the hindu and the weather"), [("news", ("hindu",)), ("weather", ("kumbakonam",))])
+        self.assertEqual(self.kinds("any news on hacker news"), [("hn", ())])
+        self.assertEqual(self.kinds("what is the news on hacker news"), [("hn", ())])
+
+    def test_a_request_is_not_repeated(self):
+        self.assertEqual(self.kinds("what's the weather and tell me the weather"), [("weather", ("kumbakonam",))])
+
+    def test_an_unknown_place_is_still_only_a_question_about_saved_places(self):
+        self.assertEqual(self.kinds("what's the weather in London and the news"), [("weather", ("?",)), ("news", ("all",))])
+
+    def test_talk_about_the_news_or_weather_is_conversation(self):
+        for text in ("I hate watching the news", "the weather is lovely", "good news", "no news is good news", "I read the news yesterday",
+                     "weather is nice today", "I understand why I am asking you for the weather only for the safe places they have to use",
+                     "I'm asking you to look up. Not just tell me you can't do it. I'm asking you to do it."):
+            self.assertEqual(intents.lookups(text), [], text)
+            got = recognise(text)
+            self.assertTrue(got is None or got.kind != GAP, text)  # never the canned "I can only look up..." refusal
+
+    def test_openers_people_really_use_do_not_hide_the_request(self):
+        self.assertEqual(recognise("All right, Jarvis, tell me a joke.").kind, intents.JOKE)
+        self.assertEqual(recognise("Alright jarvis what time is it").kind, intents.TIME)
+        for answer in ("yes please", "go ahead", "yes", "no", "ok"):  # real answers keep their meaning
+            self.assertIn(recognise(answer).kind, (intents.CONFIRM, intents.DENY), answer)
+
+    def test_nothing_the_speaker_says_can_become_an_argument(self):
+        from fetcher import keys
+        for text in ("what's the weather in <script>alert(1)</script> and the news about http://evil.example", "weather in ../../etc/passwd"):
+            for item in intents.lookups(text):
+                if item.kind == intents.WEATHER:
+                    self.assertTrue(item.args[0] in keys.PLACES or item.args == ("?",))
+                if item.kind == intents.NEWS:
+                    self.assertTrue(item.args[0] == "all" or item.args[0] in keys.NEWS)
 
 
 class Small(unittest.TestCase):
