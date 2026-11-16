@@ -115,7 +115,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._refuse(403, "host not allowed")
         if not self._origin_ok():
             return self._refuse(403, "origin not allowed")
-        if self.headers.get("Content-Length", "0") not in ("", "0"):
+        length = self.headers.get("Content-Length", "0")
+        if length not in ("", "0"):
+            if length.isascii() and length.isdigit() and self.headers.get("Transfer-Encoding") is None:
+                self.rfile.read(min(int(length), DRAIN_MAX))  # a small body is read and dropped so the 400 arrives cleanly
             return self._refuse(400, "no request body allowed")
         path = self.path.split("?", 1)[0]
         if not self._rate_ok(self._is_light(path)):
