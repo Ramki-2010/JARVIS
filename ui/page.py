@@ -192,7 +192,8 @@ async function panel(key) {
     b.className = "badge " + st; b.textContent = st; pre.textContent = res.text + (res.truncated ? "\n[output truncated]" : "");
   } catch (e) { b.className = "badge ERROR"; b.textContent = "ERROR"; pre.textContent = String(e.message); }
 }
-function openDrawer(open) { $("drawer").classList.toggle("open", open); if (open) $("dclose").focus(); else $("brec").focus(); }
+const drawerOpen = () => $("drawer").classList.contains("open");
+function openDrawer(open) { $("drawer").classList.toggle("open", open); if (open) { $("dclose").focus(); for (const [key] of PANELS) panel(key); } else $("brec").focus(); }
 $("brec").addEventListener("click", () => openDrawer(true));
 $("dclose").addEventListener("click", () => openDrawer(false));
 
@@ -214,16 +215,15 @@ function showRing() {
 }
 async function voiceTick() {
   if (document.hidden) return;
-  let s = "IDLE";
-  try { s = (await call("/api/voice")).state || "IDLE"; } catch (e) { s = "IDLE"; }
-  let b = false;   // INTERPRETING only while the server says a turn is really running
-  if (!chatKnown || chatOn) {
-    try { const c = await call("/api/chat"); chatKnown = true;
-      if (c.enabled !== chatOn) { chatOn = c.enabled; $("chat").classList.toggle("on", chatOn); }
-      b = chatOn && !!c.busy;
-      renderMic(chatOn ? c.mic : null);
-    } catch (e) { b = false; }
-  }
+  let s = "IDLE", b = false;   // INTERPRETING only while the server says a turn is really running
+  try {
+    const live = await call("/api/live");   // the voice signal and the chat state in one cheap request
+    s = (live.voice && live.voice.state) || "IDLE";
+    const c = live.chat; chatKnown = true;
+    if (c.enabled !== chatOn) { chatOn = c.enabled; $("chat").classList.toggle("on", chatOn); }
+    b = chatOn && !!c.busy;
+    renderMic(chatOn ? c.mic : null, !!c.occupied);
+  } catch (e) { s = "IDLE"; b = false; }
   if (s !== voiceNow || b !== chatBusy) { voiceNow = s; chatBusy = b; showRing(); }
 }
 
@@ -237,7 +237,12 @@ function logLine(cls, text) {
 async function waitTurn(n) {
   for (let i = 0; i < 260; i++) {   // about three minutes
     await new Promise((r) => setTimeout(r, 700));
-    let t; try { t = await call("/api/turn/" + n); } catch (e) { logLine("err", String(e.message)); return; }
+    let t;
+    try { t = await call("/api/turn/" + n); }
+    catch (e) {
+      if (e.status === 429 || !e.status) continue;   // a busy moment or a dropped request: ask again, never give up the reply
+      logLine("err", String(e.message)); return;
+    }
     if (t.state === "done") {
       for (const [kind, text] of t.events) logLine(kind === "error" ? "err" : "jarvis", text);
       if (!t.events.length) logLine("sys", "(no reply)");
@@ -250,7 +255,12 @@ async function say() {
   const box = $("cin"), text = box.value;
   if (!text.trim() || sending) return;
   sending = true; $("csend").disabled = true; box.value = ""; logLine("you", text);
-  try { await waitTurn((await call("/api/say", {text: text})).turn); }
+  try {
+    let sent;
+    try { sent = await call("/api/say", {text: text}); }
+    catch (e) { if (e.status !== 429) throw e; await new Promise((r) => setTimeout(r, 1500)); sent = await call("/api/say", {text: text}); }   // one patient retry
+    await waitTurn(sent.turn);
+  }
   catch (e) {
     if (e.status === 409) { logLine("sys", "JARVIS is in the middle of another turn. Please try again in a moment."); box.value = text; }
     else logLine("err", e.status ? "Refused: " + e.message : String(e.message));
@@ -261,12 +271,13 @@ async function say() {
 // and what is written on the button comes from the server's state, never from this page's guess.
 const MIC_STYLE = "hold";   // "hold": talk while pressed; "toggle": press to start, press again to stop
 let micState = "idle", micSeq = null, micHeld = false, micChain = Promise.resolve();
-function renderMic(m) {
+function renderMic(m, occupied) {
   const b = $("cmic"); b.hidden = !(m && m.enabled);
   if (b.hidden) return;
   micState = m.state; b.classList.toggle("live", m.state === "listening"); b.setAttribute("aria-pressed", String(m.state === "listening"));
-  const hold = MIC_STYLE === "hold";
-  b.textContent = m.state === "listening" ? (hold ? "Listening. Release to send" : "Listening. Press to send") : m.state === "finishing" ? "Hearing you out" : (hold ? "Hold to talk" : "Press to talk");
+  const hold = MIC_STYLE === "hold", wait = m.state === "idle" && !!occupied;   // JARVIS is replying or speaking: the server would refuse a press
+  b.disabled = wait;
+  b.textContent = wait ? "One moment" : m.state === "listening" ? (hold ? "Listening. Release to send" : "Listening. Press to send") : m.state === "finishing" ? "Hearing you out" : (hold ? "Hold to talk" : "Press to talk");
   if (micSeq === null) micSeq = m.seq;   // a result from before this page opened is not replayed
   else if (m.seq !== micSeq) { micSeq = m.seq; micResult(m); }
 }
@@ -276,7 +287,7 @@ function micResult(m) {
 }
 function micSend(action) {   // one request at a time, in order, so a quick release never overtakes its press
   micChain = micChain.then(async () => {
-    try { renderMic(await call("/api/mic", {action: action})); }
+    try { renderMic(await call("/api/mic", {action: action}), false); }
     catch (e) { if (action === "start") { micHeld = false; logLine("sys", "The microphone is not available: " + e.message + "."); } }
   });
 }
@@ -467,14 +478,14 @@ async function loadGalaxy() {
 
 // ---------------------------------------------------------------- refresh: everything every 15 s, ring and galaxy every 5 s
 let busy = false;
-async function refreshAll() { if (busy) return; busy = true; try { await ring(); loadGalaxy(); for (const [key] of PANELS) panel(key); } finally { busy = false; } }
+async function refreshAll() { if (busy) return; busy = true; try { await ring(); loadGalaxy(); if (drawerOpen()) for (const [key] of PANELS) panel(key); } finally { busy = false; } }   // each panel runs a command: only while it is on screen
 async function refreshLive() { if (busy || document.hidden) return; busy = true; try { await ring(); await loadGalaxy(); } finally { busy = false; } }
 $("brefresh").addEventListener("click", refreshAll);
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") openDrawer(false);
   if ((ev.key === "r" || ev.key === "R") && ev.target.tagName !== "INPUT") refreshAll(); });
 size(); requestAnimationFrame(frame); refreshAll();
-setInterval(refreshLive, 5000); setInterval(voiceTick, 800); setInterval(() => { if (!document.hidden) for (const [key] of PANELS) panel(key); }, 15000);
+setInterval(refreshLive, 5000); setInterval(voiceTick, 800); setInterval(() => { if (!document.hidden && drawerOpen()) for (const [key] of PANELS) panel(key); }, 15000);
 </script></body></html>
 """
 

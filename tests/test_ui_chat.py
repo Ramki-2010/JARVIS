@@ -271,6 +271,64 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(events, [("say", "ok"), ("show", QUIT_TEXT)])
 
 
+class PollingTests(Base):
+    """2026-11-15: RK saw 'too many requests' and lost replies. One tab idle-polling and replying peaked at 31 of the
+    40 requests allowed per 5 s (measured), so a second tab or a busy moment tipped it over."""
+
+    def raw_get(self, path, token=True):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        headers = {"Host": "127.0.0.1:%d" % self.port}
+        if token:
+            headers["X-JARVIS-Token"] = self.server.token
+        conn.request("GET", path, headers=headers)
+        resp = conn.getresponse()
+        data = resp.read()
+        conn.close()
+        return resp.status, data
+
+    def setUp(self):
+        super().setUp()
+        self.server.rate_hits.clear()
+        self.server.rate_light.clear()
+
+    def test_live_gives_the_voice_signal_and_the_chat_state_in_one_request(self):
+        self.assertEqual(self.raw_get("/api/live", token=False)[0], 403)
+        status, data = self.raw_get("/api/live")
+        body = json.loads(data)
+        self.assertEqual(status, 200)
+        self.assertEqual(set(body), {"voice", "chat"})
+        self.assertIn(body["voice"]["state"], ("IDLE", "LISTENING", "SPEAKING"))
+        self.assertEqual(body["chat"], self.get("/api/chat")[1])
+
+    def test_cheap_state_reads_do_not_use_up_the_tight_bound(self):
+        for i in range(150):   # far more than two tabs would ever poll in 5 s
+            self.assertEqual(self.raw_get("/api/live")[0], 200, i)
+            self.assertEqual(self.raw_get("/api/turn/1")[0], 404, i)   # unknown, but never 429
+        self.assertEqual(self.raw_get("/api/nope")[0], 404)            # the tight bound is still untouched
+
+    def test_the_tight_bound_for_everything_that_runs_a_command_is_unchanged(self):
+        from ui import server
+        self.assertEqual(server.RATE_MAX, 40)
+        codes = [self.raw_get("/api/nope")[0] for _ in range(server.RATE_MAX + 1)]
+        self.assertEqual(codes[:server.RATE_MAX], [404] * server.RATE_MAX)
+        self.assertEqual(codes[-1], 429)
+
+    def test_the_cheap_bound_is_still_a_bound(self):
+        from ui import server
+        codes = [self.raw_get("/api/live")[0] for _ in range(server.LIGHT_MAX + 1)]
+        self.assertEqual(codes[-1], 429)
+        self.assertEqual(set(codes[:-1]), {200})
+
+    def test_the_page_polls_one_combined_route_and_only_runs_panel_commands_while_they_are_on_screen(self):
+        html = page.html("n")
+        self.assertIn('call("/api/live")', html)
+        self.assertNotIn('call("/api/voice")', html)
+        self.assertNotIn('call("/api/chat")', html)
+        self.assertIn("if (!document.hidden && drawerOpen())", html)        # the 15 s refresh of the eight panels
+        self.assertIn("if (drawerOpen()) for (const [key] of PANELS)", html)
+        self.assertIn("e.status === 429 || !e.status) continue", html)       # a busy moment never gives up a reply
+
+
 class StaticTests(unittest.TestCase):
     def test_ui_adds_no_advisor_model_fetch_or_launch_import(self):
         for path in py_files("ui"):
