@@ -18,7 +18,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Callable, Iterator, List, Optional, Tuple
 
-from advisor import clock
+from advisor import clock, guard
 from advisor.conversation import Conversation
 from advisor.lines import Lines
 from advisor.runtime import ModelUnavailable
@@ -525,7 +525,7 @@ class Controller:
 
     def _converse(self, text: str) -> Iterator[Event]:
         try:
-            for sentence in sentences(self.conversation.stream_reply(text)):
+            for sentence in guard.filtered(sentences(self.conversation.stream_reply(text)), self.lines.say("deflect")):
                 yield ("say", sentence)
         except ModelUnavailable:
             yield ("error", UNAVAILABLE_TEXT)
