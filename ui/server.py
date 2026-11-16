@@ -37,6 +37,8 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 TOKEN_HEADER = "X-JARVIS-Token"
 RATE_WINDOW_S = 5.0
 RATE_MAX = 40
+LIGHT_MAX = 400  # the cheap state reads below, in their own bucket
+LIGHT_PATHS = ("/", "/api/live", "/api/voice", "/api/chat")
 TURN_RE = re.compile(r"^[0-9]{1,9}$")
 SAY_TYPE = "application/json"
 DRAIN_MAX = 8192  # at most this much of a request body is ever read
@@ -65,16 +67,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         given = self.headers.get(TOKEN_HEADER, "")
         return hmac.compare_digest(given.encode(), self.server.token.encode())
 
-    def _rate_ok(self) -> bool:
+    def _rate_ok(self, light: bool = False) -> bool:
+        """Two bounds (ADR-0011 D3.7). The tight one, RATE_MAX per window, covers everything that starts a command-line
+        check or changes something; it is the bound that protects the machine and it is not loosened. A separate, larger
+        one covers the page's cheap state reads (in memory or one tiny file, no process started), which the page polls."""
         with self.server.rate_lock:
             now = time.monotonic()
-            hits = self.server.rate_hits
+            hits = self.server.rate_light if light else self.server.rate_hits
             while hits and now - hits[0] > RATE_WINDOW_S:
                 hits.popleft()
-            if len(hits) >= RATE_MAX:
+            if len(hits) >= (LIGHT_MAX if light else RATE_MAX):
                 return False
             hits.append(now)
             return True
+
+    @staticmethod
+    def _is_light(path: str) -> bool:
+        return path in LIGHT_PATHS or path.startswith("/api/turn/")
+
+    def _chat_state(self) -> dict:
+        mic = self.server.mic.status() if self.server.mic is not None else {"enabled": False}
+        return {"enabled": self.server.turns.enabled, "busy": self.server.turns.busy(),
+                "occupied": self.server.turns.occupied(), "mic": mic}
 
     # ----- responses
     def _send(self, code: int, body: bytes, ctype: str, nonce: str = ""):
@@ -101,11 +115,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._refuse(403, "host not allowed")
         if not self._origin_ok():
             return self._refuse(403, "origin not allowed")
-        if self.headers.get("Content-Length", "0") not in ("", "0"):
+        length = self.headers.get("Content-Length", "0")
+        if length not in ("", "0"):
+            if length.isascii() and length.isdigit() and self.headers.get("Transfer-Encoding") is None:
+                self.rfile.read(min(int(length), DRAIN_MAX))  # a small body is read and dropped so the 400 arrives cleanly
             return self._refuse(400, "no request body allowed")
-        if not self._rate_ok():
-            return self._refuse(429, "too many requests")
         path = self.path.split("?", 1)[0]
+        if not self._rate_ok(self._is_light(path)):
+            return self._refuse(429, "too many requests")
         if path == "/":
             nonce = secrets.token_urlsafe(16)
             return self._send(200, page.html(nonce).encode("utf-8"), "text/html; charset=utf-8", nonce)
@@ -121,9 +138,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             audit = child.run(self.server.config, ["audit", "verify"])
             return self._json(200, ring.derive(tasks.code, tasks.text, audit.code))
         if len(parts) == 1 and parts[0] == "chat":
-            mic = self.server.mic.status() if self.server.mic is not None else {"enabled": False}
-            return self._json(200, {"enabled": self.server.turns.enabled, "busy": self.server.turns.busy(),
-                                    "occupied": self.server.turns.occupied(), "mic": mic})
+            return self._json(200, self._chat_state())
+        if len(parts) == 1 and parts[0] == "live":   # the voice signal and the chat state in one request: what the page polls
+            return self._json(200, {"voice": voicesignal.read(self.server.voice_path), "chat": self._chat_state()})
         if len(parts) == 2 and parts[0] == "turn":
             if not self.server.turns.enabled or not TURN_RE.match(parts[1]):
                 return self._refuse(404, "not found")
@@ -239,6 +256,7 @@ class DashboardServer(http.server.ThreadingHTTPServer):
         self.mic = mic if respond is not None else None  # an object with start(), stop(), status(); the advisor supplies it
         self.token = secrets.token_urlsafe(32)
         self.rate_hits = deque()
+        self.rate_light = deque()
         self.rate_lock = threading.Lock()
 
     @property
