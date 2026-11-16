@@ -122,7 +122,7 @@ class SayRouteTests(Base):
         self.assertEqual(status, 202)
         done = self.finish(body["turn"])
         self.assertEqual(done["events"], [["say", "You said: hello there"], ["show", "shown only"]])  # the quit event is not a page kind
-        self.assertEqual(self.get("/api/chat")[1], {"enabled": True, "busy": False})
+        self.assertEqual(self.get("/api/chat")[1], {"enabled": True, "busy": False, "occupied": False, "mic": {"enabled": False}})
 
     def test_bad_bodies_are_refused_and_never_reach_the_advisor(self):
         before = len(self.advisor.seen)
@@ -234,7 +234,7 @@ class ReadOnlyWithoutAdvisorTests(Base):
 
     def test_the_route_is_absent_and_the_page_is_told_so(self):
         self.assertEqual(self.post({"text": "a"})[0], 405)
-        self.assertEqual(self.get("/api/chat")[1], {"enabled": False, "busy": False})
+        self.assertEqual(self.get("/api/chat")[1], {"enabled": False, "busy": False, "occupied": False, "mic": {"enabled": False}})
         self.assertEqual(self.get("/api/turn/1")[0], 404)
 
 

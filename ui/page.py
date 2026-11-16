@@ -2,8 +2,9 @@
 
 An immersive view: the galaxy fills the window and a floating HUD sits over it. The page shows what the
 CLI printed and holds no logic that decides anything. When the advisor serves it (ADR-0011 Amendment 2) a text
-box sends one line to the same conversation as the terminal and shows exactly what comes back; otherwise the
-box is hidden and the page is read-only.
+box sends one line to the same conversation as the terminal and shows exactly what comes back; a microphone button
+(ADR-0011 Amendment 3) only asks the voice worker to listen, and is shown only when the advisor reports one.
+Otherwise both are hidden and the page is read-only.
 
 Truthfulness (ADR-0011 D4, D5). Two kinds of motion, kept apart:
   * Ambient motion (slow drift, a turning view, breathing glow, rotating ticks) is decoration. It means
@@ -84,6 +85,8 @@ body.calm .ringsvg,body.calm .ticks,body.calm .dots{animation:none}
 #cin::placeholder{color:var(--dim)}
 #csend{min-height:32px;border:0;border-radius:999px;padding:0 16px;background:rgba(94,231,255,.20);color:#f2f9ff;font:500 12px "Segoe UI",sans-serif;cursor:pointer}
 #csend:disabled{opacity:.45;cursor:default}#csend:focus-visible,#cclear:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#cmic{min-height:32px;border:0;border-radius:999px;padding:0 14px;background:rgba(255,255,255,.08);color:var(--text);font:500 12px "Segoe UI",sans-serif;cursor:pointer;touch-action:none;user-select:none}
+#cmic[hidden]{display:none}#cmic.live{background:rgba(242,193,78,.28);color:#fff;box-shadow:0 0 14px rgba(242,193,78,.45)}#cmic:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 #cclear{border:0;background:transparent;color:var(--dim);font:12px "Segoe UI",sans-serif;cursor:pointer;padding:0 6px}
 .drawer{position:fixed;left:0;top:0;bottom:0;width:min(580px,96vw);z-index:20;overflow:auto;padding:18px 20px 28px;border-radius:0 16px 16px 0;
 transform:translateX(-104%);visibility:hidden;transition:transform .25s ease,visibility 0s .25s}
@@ -136,7 +139,7 @@ pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consol
 
 <div class="hud chat" id="chat">
   <div class="glass" id="clog" role="log" aria-live="polite" aria-label="Conversation with JARVIS"></div>
-  <div class="glass cbar"><input id="cin" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Talk to JARVIS. Same advisor as the terminal." aria-label="Message to JARVIS"><button id="cclear" title="Clear what is shown here">Clear</button><button id="csend">Send</button></div>
+  <div class="glass cbar"><input id="cin" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Talk to JARVIS. Same advisor as the terminal." aria-label="Message to JARVIS"><button id="cmic" hidden aria-pressed="false">Hold to talk</button><button id="cclear" title="Clear what is shown here">Clear</button><button id="csend">Send</button></div>
 </div>
 
 <aside class="drawer glass" id="drawer" aria-label="Records">
@@ -158,9 +161,9 @@ const PARTIAL = {IDLE: 1, RUNNING: 1, WAITING: 1, DEFERRED: 1, INTERPRETING: 1};
 const KIND_NAMES = {project: "Projects", task: "Tasks", note: "Notes", result: "Relayed results", preview: "PREVIEW (not records)"};
 let ambient = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-async function call(path, line) {   // the one fetch helper: a GET, or (with a line) the single POST to /api/say
-  const post = line !== undefined;
-  const r = await fetch(path, post ? {method: "POST", headers: {"X-JARVIS-Token": token, "Content-Type": "application/json"}, body: JSON.stringify({text: line}), cache: "no-store"}
+async function call(path, payload) {   // the one fetch helper: a GET, or (with a payload) a POST to /api/say or /api/mic
+  const post = payload !== undefined;
+  const r = await fetch(path, post ? {method: "POST", headers: {"X-JARVIS-Token": token, "Content-Type": "application/json"}, body: JSON.stringify(payload), cache: "no-store"}
                                    : {headers: {"X-JARVIS-Token": token}, cache: "no-store"});
   const body = await r.json();
   if (!r.ok) { const e = new Error(body.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
@@ -218,6 +221,7 @@ async function voiceTick() {
     try { const c = await call("/api/chat"); chatKnown = true;
       if (c.enabled !== chatOn) { chatOn = c.enabled; $("chat").classList.toggle("on", chatOn); }
       b = chatOn && !!c.busy;
+      renderMic(chatOn ? c.mic : null);
     } catch (e) { b = false; }
   }
   if (s !== voiceNow || b !== chatBusy) { voiceNow = s; chatBusy = b; showRing(); }
@@ -246,13 +250,47 @@ async function say() {
   const box = $("cin"), text = box.value;
   if (!text.trim() || sending) return;
   sending = true; $("csend").disabled = true; box.value = ""; logLine("you", text);
-  try { await waitTurn((await call("/api/say", text)).turn); }
+  try { await waitTurn((await call("/api/say", {text: text})).turn); }
   catch (e) {
     if (e.status === 409) { logLine("sys", "JARVIS is in the middle of another turn. Please try again in a moment."); box.value = text; }
     else logLine("err", e.status ? "Refused: " + e.message : String(e.message));
   }
   finally { sending = false; $("csend").disabled = false; box.focus(); voiceTick(); refreshLive(); }
 }
+// The microphone button only asks the voice worker to listen. The ring's LISTENING comes from the worker's own live signal,
+// and what is written on the button comes from the server's state, never from this page's guess.
+const MIC_STYLE = "hold";   // "hold": talk while pressed; "toggle": press to start, press again to stop
+let micState = "idle", micSeq = null, micHeld = false, micChain = Promise.resolve();
+function renderMic(m) {
+  const b = $("cmic"); b.hidden = !(m && m.enabled);
+  if (b.hidden) return;
+  micState = m.state; b.classList.toggle("live", m.state === "listening"); b.setAttribute("aria-pressed", String(m.state === "listening"));
+  const hold = MIC_STYLE === "hold";
+  b.textContent = m.state === "listening" ? (hold ? "Listening. Release to send" : "Listening. Press to send") : m.state === "finishing" ? "Hearing you out" : (hold ? "Hold to talk" : "Press to talk");
+  if (micSeq === null) micSeq = m.seq;   // a result from before this page opened is not replayed
+  else if (m.seq !== micSeq) { micSeq = m.seq; micResult(m); }
+}
+function micResult(m) {
+  if (m.heard && m.turn !== null) { logLine("you", "(heard) " + m.heard); waitTurn(m.turn).then(() => voiceTick()); }
+  else logLine("sys", "I did not catch that" + (m.reason ? " (" + m.reason + ")" : "") + ".");
+}
+function micSend(action) {   // one request at a time, in order, so a quick release never overtakes its press
+  micChain = micChain.then(async () => {
+    try { renderMic(await call("/api/mic", {action: action})); }
+    catch (e) { if (action === "start") { micHeld = false; logLine("sys", "The microphone is not available: " + e.message + "."); } }
+  });
+}
+function micDown() { if (!micHeld && micState === "idle") { micHeld = true; micSend("start"); } }
+function micUp() { if (micHeld) { micHeld = false; micSend("stop"); } }
+const mb = $("cmic");
+mb.addEventListener("pointerdown", (ev) => { if (MIC_STYLE !== "hold" || ev.button !== 0) return; ev.preventDefault(); mb.setPointerCapture(ev.pointerId); micDown(); });
+mb.addEventListener("pointerup", () => { if (MIC_STYLE === "hold") micUp(); });
+mb.addEventListener("pointercancel", () => { if (MIC_STYLE === "hold") micUp(); });
+mb.addEventListener("keydown", (ev) => { if (MIC_STYLE === "hold" && (ev.key === " " || ev.key === "Enter") && !ev.repeat) { ev.preventDefault(); micDown(); } });
+mb.addEventListener("keyup", (ev) => { if (MIC_STYLE === "hold" && (ev.key === " " || ev.key === "Enter")) { ev.preventDefault(); micUp(); } });
+mb.addEventListener("click", () => { if (MIC_STYLE === "toggle") { if (micState === "idle") { micHeld = true; micSend("start"); } else if (micState === "listening") { micHeld = false; micSend("stop"); } } });
+mb.addEventListener("blur", micUp);
+document.addEventListener("visibilitychange", () => { if (document.hidden) micUp(); });
 $("csend").addEventListener("click", say);
 $("cclear").addEventListener("click", () => { $("clog").replaceChildren(); $("cin").focus(); });
 $("cin").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); say(); } });
