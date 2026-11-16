@@ -103,6 +103,19 @@ transform:translateX(-104%);visibility:hidden;transition:transform .25s ease,vis
 .SUCCESS{color:#3ddc97}.WARNING{color:#f2c14e}.ERROR{color:#ff6b79}.EMPTY,.LOADING{color:var(--dim)}
 pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consolas,monospace;color:var(--text);max-height:300px;overflow:auto}
 @media (max-width:900px){.ringbox{transform:translateY(-46%) scale(.7);right:0}.tr{width:170px}.tc{max-width:90vw;top:auto;bottom:16px}.chat{bottom:250px;width:calc(100vw - 200px)}}
+/* A phone in portrait (also used when the page is reached from one): a header, one row of controls, a compact inspector with the
+   ring beside it, the galaxy, the preview tray, and the conversation box along the bottom at a size a thumb can use. */
+@media (max-width:700px){
+.tl{left:12px;top:10px;width:calc(100vw - 24px);gap:4px}.tl h1{font-size:18px;letter-spacing:2px}.tl p{font-size:11px}
+.tc{left:12px;right:12px;top:56px;bottom:auto;transform:none;max-width:none;width:auto;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:6px;scrollbar-width:none}
+.tc .pill{flex:none;min-height:36px;padding:0 12px}
+.insp{margin-top:46px;width:calc(100vw - 150px);min-height:0;padding:8px 12px}.insp h2{font-size:13px}#ibd{max-height:54px;font-size:11px}
+.tr{display:none}
+.ringbox{top:100px;right:4px;bottom:auto;transform:scale(.5);transform-origin:top right}
+.chat{left:8px;right:8px;width:auto;transform:none;bottom:max(8px,env(safe-area-inset-bottom))}
+#clog{max-height:34vh}#cin{font-size:16px}.cbar{padding:5px 6px 5px 14px}#csend,#cmic{min-height:40px}
+.drawer{width:100vw;border-radius:0}
+}
 </style></head><body>
 <div id="gview" tabindex="0" role="group" aria-label="Galaxy view. Arrow keys rotate. The Records panel holds the same nodes as a list."><canvas id="gcanvas" aria-hidden="true"></canvas></div>
 
@@ -139,7 +152,7 @@ pre.rec{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 Consol
 
 <div class="hud chat" id="chat">
   <div class="glass" id="clog" role="log" aria-live="polite" aria-label="Conversation with JARVIS"></div>
-  <div class="glass cbar"><input id="cin" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Talk to JARVIS. Same advisor as the terminal." aria-label="Message to JARVIS"><button id="cmic" hidden aria-pressed="false">Hold to talk</button><button id="cclear" title="Clear what is shown here">Clear</button><button id="csend">Send</button></div>
+  <div class="glass cbar"><input id="cin" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Talk to JARVIS" aria-label="Message to JARVIS"><button id="cmic" hidden aria-pressed="false">Hold to talk</button><button id="cclear" title="Clear what is shown here">Clear</button><button id="csend">Send</button></div>
 </div>
 
 <aside class="drawer glass" id="drawer" aria-label="Records">
@@ -338,7 +351,7 @@ const GLYPHS = {"preview-memory": "M12 3L21 7.5L12 12L3 7.5Z M3 12L12 16.5L21 12
   "preview-evidence": "M12 3L19 6V11C19 15.5 16 19 12 21C8 19 5 15.5 5 11V6Z M8.5 12L11 14.5L15.5 9.5"};
 const GLYPH_PATHS = {}; for (const k of Object.keys(GLYPHS)) GLYPH_PATHS[k] = new Path2D(GLYPHS[k]);
 const GLOW = "94,231,255";
-function trayWidth() { return W < 900 ? Math.round(W * 0.56) : Math.min(560, W - 24); }
+function trayWidth() { return W < 700 ? Math.min(W - 24, 330) : W < 900 ? Math.round(W * 0.56) : Math.min(560, W - 24); }
 function trayShape(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 // PREVIEW dock: a frosted tray holding one glowing disc per later capability. Fixed, never drifts, never counted as a record.
 function drawDock(list) {
@@ -365,7 +378,7 @@ const DOCK = ["preview-memory", "preview-research", "preview-evidence"];
 function project3(n, t) {
   if (n.kind === "preview") {   // PREVIEW nodes are not part of the scene: fixed spot at the bottom centre, never drift, turn or overlap the ring
     const i = Math.max(0, DOCK.indexOf(n.id)), narrow = W < 900;
-    return {sx: (W / 2) + (i - 1) * (trayWidth() / 3.3), sy: H - (narrow ? 170 : 78), f: 1, z: 0, ph: 0};
+    return {sx: (W / 2) + (i - 1) * (trayWidth() / 3.3), sy: H - (W < 700 ? 134 : narrow ? 170 : 78), f: 1, z: 0, ph: 0};
   }
   const ph = phase(n.id), a = ambient ? 0.022 : 0;
   const x = n.x * VIEW + a * Math.sin(t / 1700 + ph), y = n.y * VIEW + a * Math.sin(t / 2100 + ph * 1.3), z = n.z * VIEW + a * Math.sin(t / 1900 + ph * 0.7);

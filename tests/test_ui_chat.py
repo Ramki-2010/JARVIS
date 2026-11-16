@@ -329,6 +329,22 @@ class PollingTests(Base):
         self.assertIn("e.status === 429 || !e.status) continue", html)       # a busy moment never gives up a reply
 
 
+class PhoneLayoutTests(unittest.TestCase):
+    """At phone width the text box had shrunk to a few letters and the controls sat on top of the preview tray."""
+
+    def test_the_page_has_a_phone_layout_with_a_box_a_thumb_can_use(self):
+        html = page.html("n")
+        self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', html)
+        self.assertIn("@media (max-width:700px)", html)
+        self.assertIn("#cin{font-size:16px}", html)          # below 16px a phone browser zooms the page when the box is focused
+        self.assertIn("min-height:40px", html)                # touch-sized Send and microphone buttons
+        self.assertIn("env(safe-area-inset-bottom)", html)    # clear of a phone's home bar
+        self.assertIn("W < 700 ? 134", html)                  # the preview tray rises above the box on a phone
+
+    def test_the_box_has_a_short_placeholder_that_fits_a_phone(self):
+        self.assertIn('placeholder="Talk to JARVIS"', page.html("n"))
+
+
 class StaticTests(unittest.TestCase):
     def test_ui_adds_no_advisor_model_fetch_or_launch_import(self):
         for path in py_files("ui"):
