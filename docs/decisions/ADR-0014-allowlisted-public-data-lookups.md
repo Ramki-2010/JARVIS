@@ -1,12 +1,12 @@
 # ADR-0014 — Allowlisted, Read-Only Lookups of Public Data (weather, tech news, Indian news)
 
-**STATUS: PROPOSED, approved by RK in chat on 2026-11-13** ("for others, yes, I give the approval for the ADR"). The chat approval is an input; it becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6. RK confirmed the feed list, the saved places and `tzdata` in chat on 2026-11-13 (Amendment 1).
+**STATUS: ACCEPTED (RK merged it: pull requests 69 and 71, 2026-11-13); approved by RK in chat on 2026-11-13** ("for others, yes, I give the approval for the ADR"). The chat approval is an input; it becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6. RK confirmed the feed list, the saved places and `tzdata` in chat on 2026-11-13 (Amendment 1).
 
 | Field | Value |
 |---|---|
 | ID | ADR-0014 |
 | Title | Allowlisted, read-only lookups of public data: weather, tech news and Indian news |
-| Status | PROPOSED |
+| Status | ACCEPTED (merged by RK, 2026-11-13) |
 | Drafted | 2026-11-13, by Local Claude, from RK's chat decision |
 | Authority class | USER AUTHORITY REQUIRED (G-05 for the firewall rule and the policy entry, G-13 for any install) |
 | Inputs | ADR-0006 (no network in the control plane). ADR-0011 D2, D3 (process and server rules). ADR-0012 (voice has no network). ADR-0013 Amendment 1 (model output is untrusted text). Beta plan BR-9, BU-5, B-13, D-13. Master Context section 30 (network access belongs to Phase 3, as amended by MCA-001) |
