@@ -305,9 +305,9 @@ Tests (no microphone, no model): the route's strictness and shared rules; 405 wi
 
 **Reversibility.** Run without `--voice-root` and there is no microphone button; the worker's new commands are unused by anything else.
 
-## Amendment 4 (PROPOSED, `USER AUTHORITY REQUIRED`; nothing in it is built or in force until RK decides and merges it): reaching the dashboard from a phone
+## Amendment 4 (A4.1 to A4.5 are the options record; A4.6 is RK's decision, in force since RK's merge of pull request 87 on 2026-11-19; nothing is built, installed or switched on): reaching the dashboard from a phone
 
-**Status: PROPOSED, options and a recommendation only. Merged to main on 2026-11-16 (pull request 82) as a record of the options; RK has chosen none, so nothing in it is built, installed or in force.** Drafted 2026-11-16 by Local Claude after RK asked, while away from the laptop, for the dashboard link to work in a phone browser (Chrome, Firefox and the like), with the phone's microphone, or failing that a text box. Matched triggers: G-05 (a new network surface), G-13 (installing software, RK's per-item approval), and D3.1 / D3.3 (loopback only; exact Host). **No code is written and nothing is installed or opened by this amendment.** RK decided on 2026-11-12 that LAN access stays excluded from the Beta; this proposal asks whether to change that, and how.
+**Status update (2026-11-19):** RK chose the options in chat on 2026-11-16 and merged A4.6 (pull request 87) on 2026-11-19, so A4.6 is the decision in force; this status line replaces the earlier one, and the original wording follows. Nothing is built, installed or switched on. **Original status (2026-11-16): PROPOSED, options and a recommendation only. Merged to main on 2026-11-16 (pull request 82) as a record of the options; RK had chosen none at that time, so nothing in it was built, installed or in force.** Drafted 2026-11-16 by Local Claude after RK asked, while away from the laptop, for the dashboard link to work in a phone browser (Chrome, Firefox and the like), with the phone's microphone, or failing that a text box. Matched triggers: G-05 (a new network surface), G-13 (installing software, RK's per-item approval), and D3.1 / D3.3 (loopback only; exact Host). **No code is written and nothing is installed or opened by this amendment.** RK decided on 2026-11-12 that LAN access stays excluded from the Beta; this proposal asks whether to change that, and how.
 
 ### A4.1 Why it cannot simply be switched on
 
@@ -343,7 +343,7 @@ The dashboard listens on `127.0.0.1` only (D3.1) and accepts only the exact Host
 
 **Not done / UNVERIFIED:** nothing is built; how a phone browser behaves with this page beyond an emulated 375 px width; whether the chosen private-network product meets A4.4 as described (it would be checked against its own documentation before any install is proposed).
 
-### A4.6 RK's decision of 2026-11-16, and the exact rules that follow from it (PROPOSED record, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds this section)
+### A4.6 RK's decision of 2026-11-16, and the exact rules that follow from it (decision record; RK merged the pull request that added it, pull request 87, on 2026-11-19, so it is in force as a decision; nothing is built)
 
 **What RK said.** On 2026-11-16 Local Claude put five numbered questions to RK in chat (the route, the phone's voice input, what a phone session may do, how the phone proves who it is, and keeping the laptop reachable), each with a recommendation. RK answered: *"I give you the approval to go ahead with the recommendations you have provided from 1 to 5."* Under ADR-0001 D6 that statement is input; the record is RK's merge of this section. Sections A4.1 to A4.5 above are left as merged. Where this section differs from them, this section governs.
 
