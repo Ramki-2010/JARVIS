@@ -333,3 +333,83 @@ class Entry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeSocket:
+    def __init__(self, address):
+        self.address = address
+
+    def getpeername(self):
+        return (self.address, 443)
+
+
+class PeerConnection(FakeConnection):
+    """A connection whose socket reached the given address."""
+
+    def __init__(self, address, response=None):
+        super().__init__(response)
+        self.sock = FakeSocket(address)
+
+
+class PublicAddressesOnly(unittest.TestCase):
+    """ADR-0014 Amendment 4: the address the connection really reached must be public, checked before anything is sent."""
+
+    def setUp(self):
+        FakeConnection.seen = []
+
+    NOT_PUBLIC = ("127.0.0.1", "::1", "10.0.0.5", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "100.100.100.200",
+                  "0.0.0.0", "224.0.0.1", "255.255.255.255", "fe80::1", "fe80::1%12", "fc00::1", "::", "::ffff:10.0.0.1", "::ffff:127.0.0.1",
+                  "64:ff9b::a00:1", "2002:0a00:0001::", "not-an-address", "")
+    PUBLIC = ("8.8.8.8", "93.184.216.34", "2606:4700:4700::1111", "::ffff:8.8.8.8")
+
+    def test_non_public_addresses_are_refused(self):
+        for address in self.NOT_PUBLIC:
+            with self.subTest(address=address):
+                with self.assertRaises(net.FetchFailed) as cm:
+                    net.require_public(address, "api.open-meteo.com")
+                self.assertEqual(cm.exception.code, "REFUSED")
+
+    def test_public_addresses_are_accepted(self):
+        for address in self.PUBLIC:
+            with self.subTest(address=address):
+                net.require_public(address)
+
+    def test_a_connection_that_reached_a_private_address_sends_nothing(self):
+        for address in ("10.1.2.3", "127.0.0.1", "100.64.9.9", "::ffff:192.168.0.1"):
+            with self.subTest(address=address):
+                FakeConnection.seen = []
+                with self.assertRaises(net.FetchFailed) as cm:
+                    net.get("api.open-meteo.com", "/v1/forecast?x=1", connection=lambda h, t, a=address: PeerConnection(a, FakeResponse(200, b"x")))
+                self.assertEqual(cm.exception.code, "REFUSED")
+                self.assertEqual(FakeConnection.seen, [])   # not even the request line was sent
+
+    def test_a_connection_that_reached_a_public_address_works(self):
+        body = net.get("api.open-meteo.com", "/v1/forecast?x=1", connection=lambda h, t: PeerConnection("93.184.216.34", FakeResponse(200, b"ok")))
+        self.assertEqual(body, b"ok")
+
+    def test_the_real_path_connects_first_and_fails_closed_without_a_socket(self):
+        from unittest import mock
+
+        class Real(FakeConnection):
+            sock = None
+
+            def __init__(self, host, port, timeout=None, context=None):
+                super().__init__(FakeResponse(200, b"real"))
+                self.connected = False
+
+            def connect(self):
+                self.connected = True
+                self.sock = self.__class__.next_socket
+
+        Real.next_socket = None
+        with mock.patch.object(net.http.client, "HTTPSConnection", Real):
+            with self.assertRaises(net.FetchFailed) as cm:
+                net.get("api.open-meteo.com", "/v1/forecast?x=1")
+            self.assertEqual(cm.exception.code, "REFUSED")
+            self.assertEqual(FakeConnection.seen, [])
+            Real.next_socket = FakeSocket("10.0.0.9")
+            with self.assertRaises(net.FetchFailed):
+                net.get("api.open-meteo.com", "/v1/forecast?x=1")
+            self.assertEqual(FakeConnection.seen, [])
+            Real.next_socket = FakeSocket("93.184.216.34")
+            self.assertEqual(net.get("api.open-meteo.com", "/v1/forecast?x=1"), b"real")

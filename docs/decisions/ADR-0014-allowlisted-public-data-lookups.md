@@ -108,3 +108,17 @@ Everything below narrows or fills in the decision above; nothing widens it.
 | `tzdata` | Installed 2026.6 into the control plane's Python 3.14 on RK's approval; `Asia/Kolkata` resolves. Time in other zones is built (Amendment 2): `advisor/clock.py`, a fixed table of 15 zones in `fetcher/keys.py`, answered offline with no audit record because nothing leaves the machine |
 | Tests | `tests/test_fetcher.py` (every D3 limit: wrong host, redirect, bad status, oversize by header and by count, slow reply, malformed and hostile RSS, hostile headline text), `tests/test_lookups.py` (control-plane commands, child helper, conversation flow), the static guard (three process sites; only `fetcher/` may import network modules, and nothing outside it imports `fetcher.net`, `fetcher.lookups` or `fetcher.rss`) |
 | Still `UNVERIFIED` | The publishers' terms for feed use; Windows FQDN firewall rules; behaviour when a feed changes format (it fails with a plain sentence, by design) |
+
+## 8. Amendment 4 (2026-11-20, PROPOSED, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds it): the address that was reached must be public
+
+**Why.** D3 fixes the host names, HTTPS and no redirects, but a name is only a label: a hijacked or misconfigured resolver could answer an allowed name with a loopback, home-network, shared-range or cloud-metadata address, and the fetcher would connect there. A comparison with another open-source project (`docs/architecture/openjarvis-lessons-2026-11-19.md`, Part 3) pointed this out; RK asked on 2026-11-20 for the lessons to be included ("go ahead include them"). Matched triggers (a claim for RK to confirm): G-05 (network behaviour). It **narrows** what the fetcher may do; it adds no host, route, process or permission.
+
+**Rule (adds to D3).** After the connection is made and before any request byte is sent, the address of the peer actually reached is checked. It must be globally routable. Refused, with the existing fixed code `REFUSED`: loopback, private, link-local, shared (carrier-grade NAT, which includes the private-network range), unspecified, multicast and reserved addresses, and an IPv6 form that hides one of those (IPv4-mapped, 6to4, Teredo, the NAT64 prefix); also any address that cannot be read, and a connection that exposes no socket to inspect (fail closed). The check is on the connected socket, not on a separate name lookup, so there is no gap between check and use. Nothing else about D3 changes; the lookups, hosts, limits and audit are as before.
+
+**What a person sees.** Where the check refuses, the lookup fails with the same plain "could not read that" sentence as any other refusal. If a home network, hotel Wi-Fi or captive portal answers with private addresses, weather and news stop working until the network is fixed; that is the intended behaviour.
+
+**Tests.** Twenty-one non-public forms refused, four public forms accepted, nothing sent when the reached address is private, the real connection path connects first and fails closed without a socket. `tests/test_fetcher.py`, class `PublicAddressesOnly`.
+
+**Measured on 2026-11-20 (`MEASURED`).** With the check in place, weather, Hacker News and the five news feeds all returned normally; each of the seven allowed hosts resolved on this machine to public addresses only (both IPv4 and IPv6 where offered).
+
+**Not done / `UNVERIFIED`.** Behaviour behind a corporate proxy or a VPN that rewrites addresses (not used here); behaviour on RK's phone-network route (lookups run on the laptop, so not affected).
