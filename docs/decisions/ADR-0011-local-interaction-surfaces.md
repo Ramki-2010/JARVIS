@@ -410,3 +410,22 @@ Remote off by default (no option, or no file: third Host refused, fixed port unu
 Nothing is installed and nothing is built. Not verified on this machine: that the free plan includes the proxy feature; the public feature's default state; whether the proxy keeps running in the background and across restarts; **which Host, Origin and identity headers the dashboard actually receives behind the proxy** (to be measured before the rules above are coded, and this section corrected by a further pull request if the measurement differs); behaviour of a real phone browser, including whether a bookmark keeps the fragment; how Smart App Control treats the installer.
 
 **Reversibility.** Start without the remote option, or remove the file: the dashboard is loopback-only again. Uninstalling the product and deleting the firewall rule are RK's acts.
+
+### A4.7 RK's answer of 2026-11-19: a phone session may add notes and to-dos (PROPOSED record, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds this section)
+
+**What RK said.** Asked whether a phone session may add to-do items and notes, RK answered in chat on 2026-11-19: *"Yes, phone can add notes and to-dos."* This settles the one question A4.6 recorded as off. Under ADR-0001 D6 the statement is input; the record is RK's merge of this section. A4.6 is left as merged; where this section differs, this section governs.
+
+**What changes in A4.6.3.** The refused list no longer includes proposing or confirming a note or a to-do. A remote session may, in the conversation:
+
+- add a note (the existing proposal, then a separate explicit confirmation turn);
+- add a to-do item, and mark one done or drop one (the same two-step confirmation; each is a normal `note add`, so policy checks and audit apply exactly as for a local line).
+
+**What stays refused for a remote session**, unchanged: cancelling a task, creating a task, any other Stage B write route, opening apps, folders, files and games, the microphone route, quitting, and speaking aloud on the laptop. Reading the to-do list and notes was already allowed.
+
+**One rule added, because the confirmation state is shared.** The conversation holds one pending proposal at a time. A proposal made by a remote line may be confirmed only by a remote line, and one made locally only by a local line; a "yes" from the other side does not confirm it and does not clear it by accident. Without this, a remote "yes" could confirm something proposed at the laptop, or the reverse. A remote proposal that is not confirmed in the next remote turn lapses, as a local one does.
+
+**Limits and record.** Remote note and to-do text is bounded exactly as local text is (the existing length limits), arrives as data and is never treated as an instruction, and is marked remote in the audit chain. The remote rate and size bounds of A4.6.2 apply.
+
+**Tests added to A4.6.8.** A remote line can propose and then confirm a note; the same for to-do add, done and drop; each is audited as remote; a remote "yes" does not confirm a local proposal and a local "yes" does not confirm a remote one; cancel and task create are still refused remotely, with a plain sentence; an unconfirmed remote proposal lapses.
+
+**Not done / UNVERIFIED.** Nothing is built. Whether a real phone browser's text box and dictation behave well for a two-step confirmation is unmeasured.
