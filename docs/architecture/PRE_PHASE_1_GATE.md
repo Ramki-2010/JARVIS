@@ -1,5 +1,7 @@
 # JARVIS Pre-Phase-1 Gate Package
 
+> **Historical record (added 2026-11-19).** This draft was written on 2026-10-07, before Phase 1, and is added to `main` for the record only. It is DRAFT, NON-AUTHORITATIVE and was never approved; merging it accepts nothing in it. Its statements such as "nothing is implemented" describe 2026-10-07 and are out of date. Read the accepted ADRs, MCAs and the Master Context for what is decided.
+
 **Status:** DRAFT FOR REVIEW. Not approved. Not an ADR.
 **Date:** 2026-10-07
 **Repository state when drafted:** `main` at `503381e9b671384e5e56177efb279ae3a9f19ec7` (PR #1 merged)
