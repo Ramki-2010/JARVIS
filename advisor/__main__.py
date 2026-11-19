@@ -124,6 +124,7 @@ def main(argv=None) -> int:
         seed = int(time.time())
         conversation = Conversation(client, args.model, options, persona=(PERSONA_PLAIN if args.no_teasing else PERSONA_TEASING) + flavour(seed), seed=seed)
         conversation.scrub = guard.scrub
+        conversation.daypart = lambda: daypart(time.localtime().tm_hour)
         t0 = time.perf_counter()
         greeting = conversation.warm("Hello. It is %s here." % daypart(time.localtime().tm_hour))
         print("the model is ready" if greeting else "the model did not load")

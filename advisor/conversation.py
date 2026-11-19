@@ -23,11 +23,13 @@ class Conversation:
                             **(options or {}))
         self.history: List[Dict[str, str]] = []
         self.turns = 0
+        self.daypart = None  # optional: a function giving the part of the day from the machine clock, told to the model each turn
         self.scrub = None  # optional: a function that cleans a reply before it is remembered (advisor.guard.scrub)
 
     def _messages(self, user_text: str) -> List[Dict[str, str]]:
         recent = [m["content"] for m in self.history if m["role"] == "assistant"]
-        msgs = [{"role": "system", "content": self.persona + style_bank.turn_hint(self.seed, self.turns, recent)}]
+        now = " It is %s here now (the machine's clock)." % self.daypart() if self.daypart else ""
+        msgs = [{"role": "system", "content": self.persona + now + style_bank.turn_hint(self.seed, self.turns, recent)}]
         msgs.extend(self.history[-2 * MAX_TURNS:])
         msgs.append({"role": "user", "content": user_text})
         return msgs
