@@ -81,3 +81,36 @@ By their pages: capability checks are open by default; the confirmation setting 
 ### Rejected for us
 
 Anonymous usage sharing and a public savings leaderboard (a prize for sharing data); training on usage; third-party skill import; a general shell tool for the model; wide scope for its own sake.
+
+## Part 3: a closer reading of the repository (added 2026-11-20)
+
+Read in addition to Parts 1 and 2: four of their workflow files (CI, the security scan, the Claude review job, the installer test, the auto-tag job), the release checklist, the pull-request template, the Dependabot file, their supply-chain policy (`.github/security/`), the roadmap, the open issues, the list of source modules and tests, and the opening of these modules: injection scanner, taint tracking, subprocess sandbox, SSRF guard, capability policy, host command and doctor. Still not read: the bodies of those modules beyond their openings, and any running behaviour. All of this is UNVERIFIED as to whether the code does what its names and comments say.
+
+### New facts
+
+- **Their CI is a gate in order.** A security job (a static scan with Bandit, a check of every locked Python and Rust dependency against public advisory databases, and a diff-based Semgrep scan) runs first; the lint job then fails unless the security result is exactly "success", so a skipped or cancelled scan cannot turn the check green. Tests run on Python 3.11 and 3.12 on Linux; installers are tested in fresh Ubuntu and Fedora containers and on macOS, nightly and on any change to the installer, ending with install, `doctor`, uninstall and a check that nothing is left behind.
+- **Supply-chain policy is written down.** Advisory exceptions are a reviewed file: exact package and version, exact advisory IDs, a reason, a link, and an expiry within 90 days; expired, duplicate, wildcard or malformed entries fail the build; a new advisory on an excepted package is still rejected. Unknown package sources fail. Dependency updates arrive weekly, grouped, at most two pull requests at a time.
+- **Their Claude review job is locked down:** it can be triggered only by owners, members and collaborators (not by outside commenters, who could otherwise reach the API key); it has least privilege on the repository; it reads the instructions from the checked-in `REVIEW.md`. They also note that their attempt to require the check by repository rule failed for lack of rights, so the rule exists as a prepared file. A reminder that a check not made mandatory is advice.
+- **Release checklist (manual, on real machines):** fresh account on each platform; install within 5 minutes; first reply within 2 seconds of start; `doctor` exits clean; running the installer twice changes nothing ("already done"); uninstall leaves nothing; one failure drill per release (cut the network mid-install, delete the config, delete the environment, run as root).
+- **Roadmap, honestly tagged:** each item is Ready, Design Needed or Research-Stage. Phone access is a named workstream: they chose message channels (iMessage and SMS through a paid relay, Slack) plus a browser tab, and say WhatsApp is blocked for unofficial clients.
+- **Open issues show real defects:** among them "the Rust fast path of the shell tool ignores timeout, environment cleaning and exit code" and a pending fix to "enforce filesystem allowlists in tools". Their security surface is large and still being closed. 96 issues open on a project of this size is not unusual, but it confirms that wide scope costs.
+- **Their guards worth comparing with ours:**
+  - an SSRF guard that refuses private, loopback, link-local and cloud-metadata addresses, including addresses hidden inside IPv6 forms, checked on the address a name resolves to;
+  - taint labels (personal, secret, private, external) with a table of which outbound tools may never receive which label;
+  - a sandboxed subprocess with a cleaned environment (only a short list of variables passed) and an output cap;
+  - prompt-injection patterns (override attempts, identity changes, exfiltration phrases, jailbreak names);
+  - a host check and a data-boundary report.
+
+### What we may have missed, by priority (each is a proposal, none adopted)
+
+1. **A check that a lookup's resolved address is public.** Our fetcher (ADR-0014) allows only listed hosts, HTTPS only, certificate checked, no redirect, no cookie. It does not check what address the host name resolves to. With only public hosts on the list the risk is small, but a resolved-address check is cheap and is the one concrete hardening their SSRF module suggests. Would be a small ADR-0014 amendment. UNVERIFIED whether our code already refuses private results; I found no such check.
+2. **Automatic dependency and secret scanning in the repository.** Secret scanning and push protection are already on for our repository. Dependency security alerts are disabled. Turning on alerts (not automatic upgrade pull requests, since pinned packages must not be upgraded) is a repository setting for RK. Our voice and fetcher environments live outside the repository, so an advisory check against their pinned list would be a script, not a setting.
+3. **A required-check gate.** If CI is ever added, add it to the existing ruleset only on RK's word, and copy their lesson: the later job must fail unless the scan result is exactly success.
+4. **A release drill list.** Their manual checklist maps to our B-10 clean-machine test: add "run the start script twice, second run changes nothing", "uninstall leaves nothing", "first reply time", and one failure drill (stop the model server mid-conversation; delete the models list; start with the voice folder missing) to the Beta rehearsal. Docs only.
+5. **Review file and pull-request template.** Already proposed in Part 2; the template is three lines of question (what, how tested, checklist) and costs nothing.
+6. **Injection patterns as a second, cheap layer for notes and remote lines.** We refuse instructions in data by design (the model's reply has no authority), so patterns are belt and braces. Worth considering only for ADR-0016 notes (an instruction inside a note) and for the phone profile, not as a main defence: pattern lists are easy to evade.
+7. **Taint idea, reduced:** keep it as one rule: text that came from the phone, from a lookup or from a note about sir is never passed to a launch request or a lookup query. This follows from decisions already made (ADR-0016 D7, A4.6) and could be written as a test.
+
+### Not worth copying
+
+Their wide capability list with open-by-default grants; opt-in guardrails; auto-approval of tools in the server and desktop modes; a paid relay for phone messages; telemetry sharing; the learning loop beyond the tiering idea in Part 2.
