@@ -1,12 +1,12 @@
 # ADR-0015 — Governed Local Launch: opening approved apps, folders, files and games by voice or text
 
-**STATUS: PROPOSED** (RK decided the scope in chat on 2026-11-13; this text becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6)
+**STATUS: ACCEPTED (RK merged it: pull request 73, 2026-11-13)** (RK decided the scope in chat on 2026-11-13; this text becomes ACCEPTED only when RK merges the pull request that adds it, ADR-0001 D6)
 
 | Field | Value |
 |---|---|
 | ID | ADR-0015 |
 | Title | Governed local launch: opening approved apps, folders, files and games |
-| Status | PROPOSED |
+| Status | ACCEPTED (merged by RK, 2026-11-13) |
 | Drafted | 2026-11-13, by Local Claude, from RK's chat decision |
 | Authority class | USER AUTHORITY REQUIRED (G-05 for the policy entry and the catalog file; G-03 for the new capability definition) |
 | Inputs | ADR-0003 (capability evaluation). ADR-0006 (the control plane starts no process). ADR-0011 D2 (named process-creating sites), D3 (localhost server rules). ADR-0013 Amendment 1 (model output is untrusted text). ADR-0014 (the third process site and the pattern of a catalog plus a capability plus an audit record). Beta plan BR-9. Master Context section 30 |

@@ -80,7 +80,9 @@ Needs the local model server running on 127.0.0.1:11434 and an **approved model 
 
 `py -3.14 -m advisor --config D:\JARVIS\governance\jarvis.toml --dashboard --voice-root D:\JARVIS\voice` runs the advisor as above and also serves the dashboard on this machine only; it prints the link (a new token each launch; keep that window open). The page then has a text box (same conversation as the terminal, one turn at a time) and, when the voice worker is running with speech recognition, a **Hold to talk** button (the same worker and push-to-talk path as Right Ctrl, a button standing in for the key; audio never goes through the browser and is never stored). Replies are spoken when the voice is on. Without `--voice-root` there is no microphone button and replies are text only. `python -m ui` on its own stays read-only. Rules: ADR-0011 Amendments 2 and 3. Needs the same model server and approved list as section 3.
 
-### 3b. The live dashboard (Stage A, read-only)
+To start everything in one step (close the programs on RK's list, make sure the model server runs, then the advisor) use `scripts/start-jarvis.cmd`; see `docs/beta/START_JARVIS.md`.
+
+### 3b. The live dashboard on its own (Stage A, read-only)
 
 `scripts\jarvis-ui.cmd` starts a read-only dashboard served on `127.0.0.1` only, on a random port, and prints one address with a per-launch token in the part after `#` (it is never sent in a query string). Open that address in a browser on this machine; the token is removed from the address bar once the page loads. Every panel is the exact output of one read-only CLI command (status, doctor, projects, tasks, task detail, notes, relayed-result metadata, audit, resume). The status ring shows only what the records say (ADR-0011 D4): IDLE, RUNNING, WAITING (blocked or deferred tasks), COMPLETED (never "verified"), CANCELLED, ERROR or AUDIT_FAULT. There are no write routes. Ctrl+C in its window stops it.
 

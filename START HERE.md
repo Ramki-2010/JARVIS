@@ -37,6 +37,7 @@ Continuity rules that add to it:
    ```
 3. Check what changed since the last gate: `git diff --stat phase-0-freeze..origin/main`. Run `git fetch` first: a clone restored from a backup or copied between machines can be behind `origin/main`, and repository state beats any local copy.
 4. Check the governance controls still in force: `gh api repos/{owner}/{repo}/rulesets`.
+   Then run the tests and the audit check, and compare with the latest evidence record: `py -3.14 -m unittest discover -s tests -t .` and `py -3.14 -m jarvis --config D:\JARVIS\governance\jarvis.toml audit verify` (read-only; the audit tail sequence only grows).
 5. Locate the Master Context and read the sections your task touches.
 6. Read the ADR register in `docs/decisions/README.md`, then any ADR or MCA relevant to the task.
 7. Verify anything material that is not in an accepted record. Treat what remains unresolved as UNKNOWN.
@@ -52,7 +53,11 @@ Continuity rules that add to it:
 | MCA records | `docs/decisions/MCA-*.md` | Authoritative once ACCEPTED |
 | Environment snapshot | `docs/environment/phase-0-2026-10-06.md` | Historical evidence |
 | Architecture draft | `docs/architecture/` | DRAFT — NON-AUTHORITATIVE. Merged to `main` in PR #5; it is absent at `phase-0-freeze`. Merging it accepted no decision in it. Verify with `git log -- docs/architecture/`. |
-| Phase 1 control plane | `jarvis/`, `tests/`, `policy/policy.toml` | Phase 1 control plane is built and merged; the Beta (target 2026-11-29) is being built on top of it (dashboard, voice, local model). Policy changes are RK's decision (G-03). Tests: `py -3.14 -m unittest discover -s tests -t .` |
+| Phase 1 control plane | `jarvis/`, `tests/`, `policy/policy.toml` | Phase 1 control plane is built and merged. Policy changes are RK's decision (G-03). Tests: `py -3.14 -m unittest discover -s tests -t .` |
+| Beta surfaces (target 2026-11-29) | `ui/` (dashboard, ring, galaxy, text box, microphone button), `advisor/` (conversation, intent use, persona, guard), `interaction/` (intents, launch, process helpers), `voice/` (voice worker), `fetcher/` (public-data lookups) | Built and merged on top of the control plane; each is governed by its ADR (0011 to 0015). None of them can change governance. |
+| Running JARVIS | `docs/beta/START_JARVIS.md`, `docs/beta/BETA_OPERATIONS.md`, `scripts/start-jarvis.cmd` | Non-authoritative how-to. `start-jarvis.cmd` is RK's own launcher: it runs `scripts/free_memory.py` (closes the programs on RK's list in the governance folder; JARVIS itself cannot close anything), makes sure the model server runs, then starts the advisor |
+| Release and security notes | `docs/beta/BETA_SECURITY_AND_RELEASE_NOTES.md` | Non-authoritative; states what the Beta enforces and its known limits |
+| Latest environment evidence | `docs/environment/beta-build-and-runtime-evidence-2026-11-16.md` | Dated evidence with MEASURED, RK OBSERVED and UNVERIFIED labels; read its section 6 for what has not been checked |
 | Source repository | `D:\J.A.R.V.I.S AI Assistant\` | Code and version-controlled documentation only |
 | External operational storage | `D:\JARVIS\` (`governance\`, `data\`) | Outside the repository, never a repository folder. Governed by ADR-0007. It exists per machine: verify live whether it exists on the machine you are on. Creation is RK's instruction; one record: `docs/environment/external-storage-lf14-2026-11-04.md` |
 | Governance controls | `.github/CODEOWNERS` and the GitHub ruleset | Verify live; do not rely on this file |
@@ -62,7 +67,7 @@ Continuity rules that add to it:
 - Tag: `phase-0-freeze`
 - Commit: `e919b7a2402a9a2364491e31fe4b25a12866f87e`
 - Phase 0 baseline: frozen at `phase-0-freeze`.
-- Phase 1: not started at the gate. It started later, on RK's instruction (2026-10-21). The Beta program followed (plan: `docs/plans/JARVIS_BETA_RELEASE_PLAN_2026-11-29.md`; latest build evidence: `docs/environment/new-laptop-beta-evidence-2026-11-13.md`; old-laptop next steps: `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md`). Read the current state from `git log` and the code, not from this file.
+- Phase 1: not started at the gate. It started later, on RK's instruction (2026-10-21). The Beta program followed (plan: `docs/plans/JARVIS_BETA_RELEASE_PLAN_2026-11-29.md`; latest build evidence: `docs/environment/beta-build-and-runtime-evidence-2026-11-16.md`, which continues `docs/environment/new-laptop-beta-evidence-2026-11-13.md`; old-laptop next steps: `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md`). Read the current state from `git log` and the code, not from this file.
 
 This records the gate only. Anything after it is discovered with the RESUME PROTOCOL, not read from here.
 

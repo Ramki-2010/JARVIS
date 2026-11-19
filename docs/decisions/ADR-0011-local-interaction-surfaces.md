@@ -203,7 +203,7 @@ The Beta gains a dashboard, a ring and a galaxy behind a cut line. B-13 must lis
 
 ## Amendment 2 (PROPOSED, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds it): a conversation box on the dashboard, and later a microphone button
 
-**Status: PROPOSED.** Drafted 2026-11-14 by Local Claude at RK's instruction ("build the text box first and the mic after"). Matched trigger: G-05 (a new write route on the localhost server). No code is written before RK merges this amendment. It extends D3 item 9; it does not replace it.
+**Status: ACCEPTED (RK merged pull request 76 on 2026-11-14 after choosing option H1 in chat; Phase 1 was built in pull request 77).** Drafted 2026-11-14 by Local Claude at RK's instruction ("build the text box first and the mic after"). Matched trigger: G-05 (a new write route on the localhost server). No code is written before RK merges this amendment. It extends D3 item 9; it does not replace it.
 
 **What RK asked for.** The dashboard (Stage A) can only look. RK wants a text box on the page to talk to JARVIS, and afterwards a microphone button.
 
@@ -262,7 +262,7 @@ No code. Not measured: how the page behaves while the CPU model takes many secon
 
 ## Amendment 3 (PROPOSED, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds it): the microphone button, the details of A2.5
 
-**Status: PROPOSED.** Drafted 2026-11-14 by Local Claude at RK's instruction ("start ollama and phase 2"). Matched trigger: G-05 (a second write route) and the voice worker's command set (ADR-0012 D2). It carries out A2.5 as outlined there and widens nothing beyond it. **Two choices below are Local Claude's defaults, not RK's decisions (A2.8 items 2 and 3 were left open); each is one line to change and is listed in A3.7.**
+**Status: ACCEPTED (RK merged pull request 78 on 2026-11-16, in a batch merge of the pending pull requests; the two defaults in A3.7, hold-to-talk and spoken replies, were not separately confirmed by RK in chat, and a real press of the button is UNVERIFIED).** Drafted 2026-11-14 by Local Claude at RK's instruction ("start ollama and phase 2"). Matched trigger: G-05 (a second write route) and the voice worker's command set (ADR-0012 D2). It carries out A2.5 as outlined there and widens nothing beyond it. **Two choices below are Local Claude's defaults, not RK's decisions (A2.8 items 2 and 3 were left open); each is one line to change and is listed in A3.7.**
 
 ### A3.1 What the button does
 
@@ -307,7 +307,7 @@ Tests (no microphone, no model): the route's strictness and shared rules; 405 wi
 
 ## Amendment 4 (PROPOSED, `USER AUTHORITY REQUIRED`; nothing in it is built or in force until RK decides and merges it): reaching the dashboard from a phone
 
-**Status: PROPOSED, options and a recommendation only.** Drafted 2026-11-16 by Local Claude after RK asked, while away from the laptop, for the dashboard link to work in a phone browser (Chrome, Firefox and the like), with the phone's microphone, or failing that a text box. Matched triggers: G-05 (a new network surface), G-13 (installing software, RK's per-item approval), and D3.1 / D3.3 (loopback only; exact Host). **No code is written and nothing is installed or opened by this amendment.** RK decided on 2026-11-12 that LAN access stays excluded from the Beta; this proposal asks whether to change that, and how.
+**Status: PROPOSED, options and a recommendation only. Merged to main on 2026-11-16 (pull request 82) as a record of the options; RK has chosen none, so nothing in it is built, installed or in force.** Drafted 2026-11-16 by Local Claude after RK asked, while away from the laptop, for the dashboard link to work in a phone browser (Chrome, Firefox and the like), with the phone's microphone, or failing that a text box. Matched triggers: G-05 (a new network surface), G-13 (installing software, RK's per-item approval), and D3.1 / D3.3 (loopback only; exact Host). **No code is written and nothing is installed or opened by this amendment.** RK decided on 2026-11-12 that LAN access stays excluded from the Beta; this proposal asks whether to change that, and how.
 
 ### A4.1 Why it cannot simply be switched on
 
