@@ -342,3 +342,71 @@ The dashboard listens on `127.0.0.1` only (D3.1) and accepts only the exact Host
 4. **RK's own acts, with RK at the laptop:** installing the private-network app on the laptop and the phone and signing in; approving any Windows Firewall prompt. After that, about one working session to build, test and review.
 
 **Not done / UNVERIFIED:** nothing is built; how a phone browser behaves with this page beyond an emulated 375 px width; whether the chosen private-network product meets A4.4 as described (it would be checked against its own documentation before any install is proposed).
+
+### A4.6 RK's decision of 2026-11-16, and the exact rules that follow from it (PROPOSED record, `USER AUTHORITY REQUIRED`; in force only when RK merges the pull request that adds this section)
+
+**What RK said.** On 2026-11-16 Local Claude put five numbered questions to RK in chat (the route, the phone's voice input, what a phone session may do, how the phone proves who it is, and keeping the laptop reachable), each with a recommendation. RK answered: *"I give you the approval to go ahead with the recommendations you have provided from 1 to 5."* Under ADR-0001 D6 that statement is input; the record is RK's merge of this section. Sections A4.1 to A4.5 above are left as merged. Where this section differs from them, this section governs.
+
+**The five decisions as recorded.**
+
+1. **Route: P1**, a private network between RK's own devices, using Tailscale and its HTTPS proxy (`serve`) in front of the loopback dashboard. P2 and P3 stay refused. The dashboard still binds to `127.0.0.1` only; D3.1's "never a LAN address" and the 2026-11-12 LAN exclusion are unchanged.
+2. **Voice from the phone: M1**, the phone keyboard's own dictation. Nothing is built for it. No audio reaches the laptop from the phone.
+3. **A remote profile**, rules below (A4.6.3).
+4. **Proof of identity:** the private network's login for RK **and** a long-lived remote token kept in a bookmark on the phone. This replaces A4.4 item 2 ("the token stays per-launch; RK would be given the link in chat") for remote requests only.
+5. **Keeping the laptop reachable** is RK's own arrangement (start JARVIS before leaving; power settings). Nothing is built for it; starting at sign-in is not part of this decision.
+
+**One question this record does not settle (RK to answer).** In chat, whether a phone session may add to-do items and notes (with the usual confirmation) was put as a yes-or-no question without a recommendation, while A4.4 item 3 had allowed notes. RK's answer covered recommendations, so it does not decide this. **This section records it as off**: a phone session cannot create or change anything. Turning it on later needs RK's word and an edit to A4.6.3.
+
+#### A4.6.1 Off unless switched on
+
+Remote access exists only when the advisor is started with an explicit remote option **and** RK's remote-access file is present and valid. Without both, the server behaves exactly as before this section: random port, two Host names, one per-launch token, no remote code path reachable.
+
+#### A4.6.2 Changes to D3, each limited to a launch with remote access on
+
+| D3 item | Before | With remote access on |
+|---|---|---|
+| D3.1 port | Random free port | One fixed port, named in RK's remote-access file, because the proxy needs a stable target. Still `127.0.0.1` only. If the port is taken the launch refuses remote access and says so; it does not pick another |
+| D3.2 token | One per-launch token | Unchanged for local use. In addition one **remote token** (A4.6.4) |
+| D3.3 Host and Origin | Two loopback Host names | Exactly three: the two loopback ones and the one private hostname in RK's file. For that hostname `Origin` must be exactly `https://<that hostname>` and is required on every POST |
+| D3.5 "no secret is ever read" | Nothing read | The server reads RK's remote-access file, which holds a **hash** of the remote token, never the token. Nothing else is read |
+| D3.7 "no state beyond the token" | Token only | Also a count of failed remote attempts (A4.6.4), in memory only |
+
+D3.4 (no CORS, strict CSP), D3.6 and the rate and size bounds apply to remote requests unchanged.
+
+#### A4.6.3 What counts as remote, and what a remote session may do
+
+- **Remote is decided by the request, never by its source address** (through the proxy every request arrives from `127.0.0.1`). A request is remote if its Host is the private hostname **or** it carries any forwarding or private-network identity header (`X-Forwarded-*`, `Forwarded`, `Tailscale-*`). A request with such a header and a loopback Host is refused outright.
+- **A remote request needs all of:** the exact private Host; the exact Origin where required; the remote token; and the proxy's login header equal to the one login in RK's file. The login header alone is never enough, because a program on the laptop could send a forged one straight to the loopback port; the proxy removes forged copies only from traffic that comes through it.
+- **The two tokens never cross.** The local per-launch token is refused on a remote request, and the remote token is refused on a local one. A remote token therefore never grants the local profile.
+- **Allowlist, everything else refused.** A remote session may: load the page; read the live state, chat state and turn results; use the read-only routes of D3.8; and send a line to the conversation (`POST /api/say`). In the conversation a remote line may get: conversation, weather and headlines (the audited lookups), status, and reading records.
+- **Refused for a remote session:** the microphone route (`/api/mic`), and the page does not offer the button; opening apps, folders, files and games; the Stage B write routes and anything in the conversation that proposes or confirms a task, note, cancel or other change; quitting JARVIS; and speaking aloud on the laptop (a remote turn's reply is text only, even when the voice is running). Refusals are plain sentences, not silence.
+- Remote lines pass through the same one-at-a-time turn lock, and are recorded in the audit chain like any other line, marked remote.
+
+#### A4.6.4 The remote token
+
+- At least 256 random bits, made by an operator script that RK runs (or Local Claude on RK's word). It is shown once, as a link whose fragment carries it (never a query string), for RK to open on the phone and bookmark. Only its SHA-256 hash is written to RK's remote-access file.
+- **Rotate:** run the script again; the old link stops working at the next launch. **Revoke:** remove the hash from the file, or start without the remote option.
+- Comparison is constant-time. Five failed remote attempts (bad token, wrong login, wrong Host or Origin) within one minute switch remote access off until JARVIS is restarted; local use is unaffected.
+- A bookmark is as safe as the phone's own lock. That is stated here as a known limit, and it is why the private-network login is also required.
+
+#### A4.6.5 The public feature (Funnel) must be off
+
+The private-network product also has a public-internet feature. JARVIS's own surfaces start no process (D2), so the check lives in RK's start script (`scripts/`), an operator tool: before it passes the remote option it asks the product for its serve and funnel status and **does not switch remote access on unless the public feature is reported off for the dashboard's port**. The check and its refusal are tested with recorded outputs.
+
+#### A4.6.6 Where the private details live
+
+The laptop's private hostname, the allowed login, the fixed port and the token hash live in one file in RK's governance folder outside the repository (ADR-0007). An example with placeholders is committed; the real values never are. JARVIS never edits that file; RK writes it, or Local Claude does on RK's explicit word.
+
+#### A4.6.7 RK's own acts (not delegated)
+
+Creating or choosing the account; approving each install, on the laptop and on the phone (G-13); giving the laptop a neutral name first, because HTTPS certificates publish machine names in public logs; enabling HTTPS in the product's console and confirming the public feature is off; allowing the product through the firewall (G-05); power settings. Smart App Control stays on.
+
+#### A4.6.8 Tests required before the build is merged
+
+Remote off by default (no option, or no file: third Host refused, fixed port unused); each D3 change above; forwarding header with loopback Host refused; remote request refused for each of: missing or wrong remote token, local token, missing or wrong login, wrong Host, wrong or missing Origin on POST; remote token refused locally; every refused remote action in A4.6.3 (microphone route, launching, write routes and proposals, quit, no speech); lockout after five failures and local use still working; token hash only in the file; the start script's Funnel check. All existing A2 and A3 tests unchanged.
+
+#### A4.6.9 Not done / UNVERIFIED at the time of writing
+
+Nothing is installed and nothing is built. Not verified on this machine: that the free plan includes the proxy feature; the public feature's default state; whether the proxy keeps running in the background and across restarts; **which Host, Origin and identity headers the dashboard actually receives behind the proxy** (to be measured before the rules above are coded, and this section corrected by a further pull request if the measurement differs); behaviour of a real phone browser, including whether a bookmark keeps the fragment; how Smart App Control treats the installer.
+
+**Reversibility.** Start without the remote option, or remove the file: the dashboard is loopback-only again. Uninstalling the product and deleting the firewall rule are RK's acts.
