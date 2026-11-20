@@ -52,5 +52,6 @@ ADRs are numbered records of architectural decisions. Each ADR records one meani
 | ADR-0014 | Allowlisted, read-only lookups of public data (weather, tech news, Indian news) | Accepted (RK approved it in chat 2026-11-13 and merged it with its build, PRs 69 and 71) | 2026-11-13 | [`ADR-0014-allowlisted-public-data-lookups.md`](ADR-0014-allowlisted-public-data-lookups.md) |
 | ADR-0015 | Governed local launch (open approved apps, folders, files and games) | Accepted (RK decided it in chat 2026-11-13 and merged it with its build, PR 73). Amendment 1 records the build; Amendment 2 (a title may be said in part, 2026-11-14) | 2026-11-13 | [`ADR-0015-governed-local-launch.md`](ADR-0015-governed-local-launch.md) |
 | MCA-003 | v0.1 Beta Sub-Context: Natural Conversation (one sentence) | Accepted | 2026-11-12 | [`MCA-003-v0.1-beta-conversation-sentence.md`](MCA-003-v0.1-beta-conversation-sentence.md) |
+| ADR-0016 | Notes about sir: short, confirmed, forgettable observations that tailor replies | PROPOSED (RK approved the shape in chat 2026-11-19; not in force until RK merges its acceptance) | not yet | [`ADR-0016-notes-about-sir.md`](ADR-0016-notes-about-sir.md) |
 
 The order of the rows is the acceptance order; Proposed rows come last and are not in force. Acceptance takes effect when RK merges the pull request that adds the records (ADR-0001 D6).
