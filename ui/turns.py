@@ -155,24 +155,26 @@ class Turns:
             return None
         return self.start_reserved(text)
 
-    def start_reserved(self, text: str, respond: Optional[Callable[[str], Iterable[Tuple[str, str]]]] = None) -> int:
-        """Run a turn under a lock the caller already holds via `reserve`; the turn releases it when it ends."""
+    def start_reserved(self, text: str, respond: Optional[Callable[[str], Iterable[Tuple[str, str]]]] = None,
+                       origin: str = "local", speak: bool = True) -> int:
+        """Run a turn under a lock the caller already holds via `reserve`; the turn releases it when it ends.
+        `origin` tags who asked ("local" or "remote", ADR-0011 A4.6.3); a remote turn never waits for speech (`speak=False`)."""
         run = respond or self.respond
         try:
             self._set("turn")
             with self._mu:
                 number = self._next
                 self._next += 1
-                self._table[number] = {"state": "running", "events": []}
+                self._table[number] = {"state": "running", "events": [], "origin": origin}
                 while len(self._table) > KEEP:
                     self._table.popitem(last=False)
-            threading.Thread(target=self._run, args=(number, text, run), daemon=True).start()
+            threading.Thread(target=self._run, args=(number, text, run, origin, speak), daemon=True).start()
         except BaseException:
             self.release()
             raise
         return number
 
-    def _run(self, number: int, text: str, run) -> None:
+    def _run(self, number: int, text: str, run, origin: str = "local", speak: bool = True) -> None:
         events: List[Tuple[str, str]] = []
         try:
             try:
@@ -183,9 +185,9 @@ class Turns:
                 events.append(clean("error", "That turn failed (%s)." % type(exc).__name__))
             with self._mu:
                 if number in self._table:
-                    self._table[number] = {"state": "done", "events": [list(e) for e in events]}
+                    self._table[number] = {"state": "done", "events": [list(e) for e in events], "origin": origin}
                 self._kind = "after"   # the replies are out; anything still happening is speech, not interpreting
-            if self.after is not None:
+            if self.after is not None and speak:
                 try:
                     self.after()
                 except Exception:

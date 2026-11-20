@@ -2,6 +2,7 @@
 rem Start JARVIS the usual way: free memory, make sure the model server is running, then run the advisor.
 rem Usage: scripts\start-jarvis.cmd --dashboard --voice-root D:\JARVIS\voice      (any advisor options are passed on)
 rem   set JARVIS_NO_FREE=1 before running to skip closing programs this time.
+rem   set JARVIS_REMOTE=1 before running to allow phone access this time (only if scripts\remote_gate.py agrees that nothing is public).
 rem Step 1 closes only the programs on RK's close list (see scripts\free_memory.py); if it fails, JARVIS still starts.
 setlocal
 pushd "%~dp0.."
@@ -22,7 +23,12 @@ if errorlevel 1 (
   echo the model server did not answer in time; the advisor will say so and carry on without conversation.
 )
 :ready
-py -3.14 -m advisor --config "%JARVIS_ROOT%\governance\jarvis.toml" %*
+set "REMOTE_ARG="
+if defined JARVIS_REMOTE (
+  py -3.14 scripts\remote_gate.py --file "%JARVIS_ROOT%\governance\remote.toml"
+  if errorlevel 1 (echo phone access stays off this time.) else set "REMOTE_ARG=--remote-file %JARVIS_ROOT%\governance\remote.toml"
+)
+py -3.14 -m advisor --config "%JARVIS_ROOT%\governance\jarvis.toml" %REMOTE_ARG% %*
 set JARVIS_EXIT=%ERRORLEVEL%
 popd
 exit /b %JARVIS_EXIT%

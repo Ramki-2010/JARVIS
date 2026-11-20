@@ -174,11 +174,14 @@ const PARTIAL = {IDLE: 1, RUNNING: 1, WAITING: 1, DEFERRED: 1, INTERPRETING: 1};
 const KIND_NAMES = {project: "Projects", task: "Tasks", note: "Notes", result: "Relayed results", preview: "PREVIEW (not records)"};
 let ambient = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+let linkDead = false;   // a refused token is final for this tab: it stops asking, so a stale tab can never hammer the server
 async function call(path, payload) {   // the one fetch helper: a GET, or (with a payload) a POST to /api/say or /api/mic
   const post = payload !== undefined;
+  if (linkDead) throw new Error("this link is no longer valid; open the current link");
   const r = await fetch(path, post ? {method: "POST", headers: {"X-JARVIS-Token": token, "Content-Type": "application/json"}, body: JSON.stringify(payload), cache: "no-store"}
                                    : {headers: {"X-JARVIS-Token": token}, cache: "no-store"});
   const body = await r.json();
+  if (r.status === 403 && !linkDead) { linkDead = true; logLine("err", "This link is no longer valid, so this page has stopped asking. Open the current link."); }
   if (!r.ok) { const e = new Error(body.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
   return body;
 }
