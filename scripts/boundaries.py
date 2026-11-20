@@ -13,6 +13,7 @@ It is not part of the control plane (`jarvis/` starts no process); it is an oper
 
 import argparse
 import ast
+import ipaddress
 import os
 import re
 import subprocess
@@ -80,6 +81,15 @@ def is_loopback(address):
     return address in ("127.0.0.1", "::1") or address.startswith("127.")
 
 
+def is_tailnet(address):
+    """Tailscale's own private range (100.64.0.0/10) and its IPv6 range. A listener on one is reachable only through the private network."""
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    return ip in ipaddress.ip_network("100.64.0.0/10") or ip in ipaddress.ip_network("fd7a:115c:a1e0::/48")
+
+
 def listeners_section(system):
     code, netstat = system.run(["netstat", "-ano", "-p", "tcp"])
     code2, tasks = system.run(["tasklist", "/FO", "CSV", "/NH"])
@@ -91,10 +101,13 @@ def listeners_section(system):
         who = names.get(pid, "pid %d" % pid)
         if port == MODEL_PORT:
             model_state = "loopback only" if is_loopback(address) else "OPEN to the network (%s)" % address
-        if not is_loopback(address) and any(w in who for w in WATCHED):
+        if is_tailnet(address) and "tailscale" in who:
+            rows.append((INFO, "%s listens on its own private-network address %s:%d (reachable only through the tailnet)." % (who, address, port)))
+        elif not is_loopback(address) and any(w in who for w in WATCHED):
             rows.append((ATTENTION, "%s listens on %s:%d, not loopback only." % (who, address, port)))
-    if not rows:
-        rows.append((OK, "No Python, model-server, Tailscale or JARVIS program listens beyond this machine."))
+    if not any(level == ATTENTION for level, _t in rows):
+        rows.append((OK, "No Python, model-server or JARVIS program listens beyond this machine%s." % (
+            ", and Tailscale only on its private-network address" if any(level == INFO for level, _t in rows) else "")))
     return rows, model_state
 
 

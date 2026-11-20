@@ -151,5 +151,33 @@ class Report(unittest.TestCase):
         self.assertEqual(bd.parse_tasklist(TASKS)[500], "ollama.exe")
 
 
+class TailnetAddress(unittest.TestCase):
+    """Tailscale listens on its own private-network address by design; that is information, not an alarm. Any other program
+    on that address, or Tailscale on an ordinary network address, is still flagged."""
+
+    TASKS = TASKS + '"tailscaled.exe","700","Services","0","20,000 K"\n'
+
+    def test_tailscale_on_its_own_private_address_is_information_only(self):
+        net = NETSTAT_LOCAL + "  TCP    100.79.68.118:52711    0.0.0.0:0              LISTENING       700\n"
+        fake = FakeSystem(netstat=net, tasks=self.TASKS)
+        rows = [(lvl, t) for title, lvl, t in flat(bd.report(fake)) if "Listening" in title]
+        self.assertEqual([lvl for lvl, _t in rows], [bd.INFO, bd.OK])
+        self.assertIn("private-network", rows[0][1])
+        self.assertEqual(bd.main([], fake), 0)
+
+    def test_python_on_a_private_network_address_is_still_flagged(self):
+        net = NETSTAT_LOCAL + "  TCP    100.79.68.118:8123     0.0.0.0:0              LISTENING       600\n"
+        self.assertIn(bd.ATTENTION, levels(bd.report(FakeSystem(netstat=net)), "Listening"))
+
+    def test_tailscale_on_an_ordinary_network_address_is_still_flagged(self):
+        net = NETSTAT_LOCAL + "  TCP    192.168.1.5:41641      0.0.0.0:0              LISTENING       700\n"
+        self.assertIn(bd.ATTENTION, levels(bd.report(FakeSystem(netstat=net, tasks=self.TASKS)), "Listening"))
+
+    def test_the_real_wording_of_a_quiet_tailscale_is_read_as_not_published(self):
+        ts = r"C:\Program Files\Tailscale\tailscale.exe"
+        rows = [t for title, _l, t in flat(bd.report(FakeSystem(tailscale=ts, ts_out={"serve": (0, "No serve config"), "funnel": (0, "No serve config")}))) if "Tailscale" in title]
+        self.assertTrue(any("No serve config" in t for t in rows))
+
+
 if __name__ == "__main__":
     unittest.main()
