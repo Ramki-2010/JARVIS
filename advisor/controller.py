@@ -35,13 +35,14 @@ HELP_TEXT = ("I can show the status, run the health check, list projects, tasks 
              "I can note something down if you ask and then confirm. Beyond that we can simply talk, sir.")
 TODO_PREFIX = "[todo"
 TODO_LINE = re.compile(r"^(\d+)  (\S+)  (.*)$")
+REMOTE_MARK = " [remote]"   # a to-do written from the phone ends with this, so the audit record shows where it came from
 TODO_ITEM = re.compile(r"^\[todo\] (.+)$")
-TODO_MARK = re.compile(r"^\[todo-(done|drop) (\d+)\]$")
+TODO_MARK = re.compile(r"^\[todo-(done|drop) (\d+)\](?: \[remote\])?$")
 ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10}
 MAX_SPOKEN_ITEMS = 6
 PROJECT_LINE = re.compile(r"^(\S+)\s+(.+?)\s+\[([^\]]+)\]$")  # the state can hold spaces, e.g. [no root registered]
 NOTE_LINE = re.compile(r"^\s+#(\d+)\s+(\S+)\s+(\S+)\s+(\S+Z)\s+(.*)$")
-TAG = re.compile(r"^\[(?:typed|spoken)\]\s*")
+TAG = re.compile(r"^\[(?:typed|spoken|remote)\]\s*")
 MAX_SPOKEN_NOTE = 220
 GAP_TEXT = ("I have no network, browser or phone access in this version, sir, so I cannot do that. "
             "Shall I note it down for you instead?")
@@ -53,17 +54,26 @@ UNAVAILABLE_TEXT = "The conversation model is unavailable, sir. The rest of JARV
 MAX_SHOWN = 6000
 
 
+REMOTE_REFUSED = {
+    intents.LAUNCH: "I cannot open apps, files or games from the phone, sir. That is for the laptop.",
+    intents.QUIT: "I cannot end the session from the phone, sir. That is for the laptop.",
+}
+REMOTE_ALLOWED = frozenset({intents.READ, intents.BRIEF, intents.CAPTURE, intents.GAP, intents.JOKE, intents.TIME, intents.DATE,
+                            intents.WEATHER, intents.HN, intents.NEWS, intents.HELP, intents.CONFIRM, intents.DENY,
+                            intents.TODO_LIST, intents.TODO_ADD, intents.TODO_DONE, intents.TODO_DROP})
+
 NL = chr(10)
 TEASE_AT = 6  # open items before the list is gently teased about
 
 
 class Controller:
     def __init__(self, conversation: Conversation, runner: Callable, project: str = "jarvis", spoken: bool = False, line_seed: Optional[int] = None, tease: bool = True, fetcher: Optional[Callable] = None,
-                 launcher: Optional[Callable] = None, catalog_source: Optional[Callable] = None):
+                 launcher: Optional[Callable] = None, catalog_source: Optional[Callable] = None, remote: bool = False):
         self.conversation = conversation
         self.runner = runner
         self.project = project
-        self.provenance = "spoken" if spoken else "typed"
+        self.remote = remote  # the phone's conversation (ADR-0011 A4.6.3): no launching, no quitting, lines marked remote
+        self.provenance = "remote" if remote else ("spoken" if spoken else "typed")
         self.pending: Optional[str] = None  # a note text awaiting the confirmation turn
         self.pending_todo: Optional[Tuple[str, int, str]] = None  # ("add"|"done"|"drop", note seq or 0, item text)
         self.lines = Lines(line_seed)
@@ -83,6 +93,9 @@ class Controller:
 
     def respond(self, text: str) -> Iterator[Event]:
         intent = intents.recognise(text)
+        if self.remote and intent is not None and intent.kind not in REMOTE_ALLOWED:   # default deny: only REMOTE_ALLOWED kinds ever run from the phone
+            yield ("say", REMOTE_REFUSED.get(intent.kind, "I cannot do that from the phone, sir. That is for the laptop."))
+            return
 
         if self.pending_choice is not None:
             matches, self.pending_choice = self.pending_choice, None
@@ -182,7 +195,7 @@ class Controller:
             seq, body = int(m.group(1)), m.group(3)
             item, mark = TODO_ITEM.match(body), TODO_MARK.match(body)
             if item:
-                items[seq] = item.group(1)
+                items[seq] = item.group(1)[:-len(REMOTE_MARK)] if item.group(1).endswith(REMOTE_MARK) else item.group(1)
             elif mark and int(mark.group(2)) in items:
                 closed.add(int(mark.group(2)))
         return [(seq, items[seq]) for seq in sorted(items) if seq not in closed]
@@ -242,6 +255,8 @@ class Controller:
 
     def _write_todo(self, action: str, seq: int, text: str) -> Event:
         body = "[todo] " + text if action == "add" else "[todo-%s %d]" % (action, seq)
+        if self.remote:
+            body += REMOTE_MARK
         res = self.runner(["note", "add", "--project", self.project, "--text", body])
         if res.code != 0:
             return ("error", "I could not update your list, sir. Nothing was written.")

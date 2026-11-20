@@ -1,0 +1,13 @@
+# Example only: placeholders. The real file lives in your governance folder, outside the repository (ADR-0011 A4.6.6).
+# Copy it there as remote.toml and fill it in; JARVIS only reads it, and only when started with --remote-file
+# (scripts\start-jarvis.cmd does that when JARVIS_REMOTE is set and scripts\remote_gate.py agrees).
+
+[remote]
+# The one private hostname the phone uses: your device's name on your private network, in lower case, ending in .ts.net, no port.
+hostname = "laptop-name.your-tailnet.ts.net"
+# The one login the private network must report for the phone (its Tailscale-User-Login header).
+login = "your-login@provider"
+# A fixed port for the dashboard on this machine (127.0.0.1 only) while phone access is on. 1024 to 65535.
+port = 47000
+# SHA-256 (hex) of the remote token. Leave empty; scripts\make_remote_token.py fills it in. Never put the token itself here.
+token_sha256 = ""

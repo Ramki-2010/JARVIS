@@ -22,9 +22,10 @@ HEARD_WAIT_S = 120.0   # longer than the worker's own longest listen plus recogn
 
 
 def page_responder(ctl, voice=None, spoken: bool = False) -> Callable[[str], Iterator[Tuple[str, str]]]:
+    """For the phone, pass a controller made with `remote=True` and no voice: its lines are marked remote and never spoken aloud."""
     def respond(text: str) -> Iterator[Tuple[str, str]]:
         saved = ctl.provenance
-        ctl.provenance = "spoken" if spoken else "typed"
+        ctl.provenance = "remote" if getattr(ctl, "remote", False) else ("spoken" if spoken else "typed")
         try:
             for kind, out in ctl.respond(text):
                 if kind == "quit":

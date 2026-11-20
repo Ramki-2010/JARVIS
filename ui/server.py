@@ -20,7 +20,7 @@ import types
 from collections import deque
 
 from interaction import child
-from ui import galaxy, page, ring, turns, voicesignal
+from ui import galaxy, page, remote, ring, turns, voicesignal
 
 ROUTES = {
     "status": ["status"],
@@ -67,13 +67,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         given = self.headers.get(TOKEN_HEADER, "")
         return hmac.compare_digest(given.encode(), self.server.token.encode())
 
-    def _rate_ok(self, light: bool = False) -> bool:
+    def _rate_ok(self, light: bool = False, remote_bucket: bool = False) -> bool:
         """Two bounds (ADR-0011 D3.7). The tight one, RATE_MAX per window, covers everything that starts a command-line
         check or changes something; it is the bound that protects the machine and it is not loosened. A separate, larger
         one covers the page's cheap state reads (in memory or one tiny file, no process started), which the page polls."""
         with self.server.rate_lock:
             now = time.monotonic()
-            hits = self.server.rate_light if light else self.server.rate_hits
+            if remote_bucket:   # the phone has its own buckets, so it can never use up the laptop's
+                hits = self.server.rate_remote_light if light else self.server.rate_remote
+            else:
+                hits = self.server.rate_light if light else self.server.rate_hits
             while hits and now - hits[0] > RATE_WINDOW_S:
                 hits.popleft()
             if len(hits) >= (LIGHT_MAX if light else RATE_MAX):
@@ -110,7 +113,117 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(code, {"error": reason})
 
     # ----- methods
+    def _profile(self):
+        """Who is asking (ADR-0011 A4.6.3): "local", "remote", or None after a refusal was sent. With remote access off there is
+        no remote profile at all and every request is local, exactly as before. With it on, a loopback Host without any proxy
+        header is local; the private hostname, or any proxy header, is remote; a proxy header with a loopback Host is refused."""
+        gate = self.server.remote_gate
+        if gate is None:
+            return "local"
+        if len(self.headers.get_all("Host") or []) != 1:
+            self._drain_body()
+            self._refuse(400, "bad request")
+            return None
+        host = self.headers.get("Host", "")
+        proxied = remote.has_proxy_headers(self.headers)
+        if host in self._allowed_hosts():
+            if proxied:
+                self._drain_body()
+                self._refuse(403, "not allowed")
+                return None
+            return "local"
+        if host == gate.hostname or proxied:
+            if gate.locked:
+                self._drain_body()
+                self._refuse(403, "remote access is switched off")
+                return None
+            return "remote"
+        return "local"   # an unknown Host: the local checks refuse it exactly as before
+
+    def _drain_body(self) -> None:
+        """Read and drop a small request body, so a refusal sent before the body is read still reaches the client cleanly."""
+        length = self.headers.get("Content-Length", "")
+        if length.isascii() and length.isdigit() and self.headers.get("Transfer-Encoding") is None:
+            self.rfile.read(min(int(length), DRAIN_MAX))
+
+    def _remote_chat_state(self) -> dict:
+        return {"enabled": self.server.remote_respond is not None, "busy": self.server.turns.busy(),
+                "occupied": self.server.turns.occupied(), "mic": {"enabled": False}}
+
+    def _remote_get(self):
+        """The phone's allowlist (A4.6.3), everything else refused: the page, the live and chat state, this phone's own turn
+        results, and the read-only routes of D3.8. The laptop's microphone and its turns are never shown."""
+        gate = self.server.remote_gate
+        length = self.headers.get("Content-Length", "0")
+        if length not in ("", "0"):
+            if length.isascii() and length.isdigit() and self.headers.get("Transfer-Encoding") is None:
+                self.rfile.read(min(int(length), DRAIN_MAX))
+            return self._refuse(400, "no request body allowed")
+        path = self.path.split("?", 1)[0]
+        is_api = path.startswith("/api/")
+        if not gate.check(self.headers, post=False, need_token=is_api):   # the page loads on the login alone: a fragment never reaches the server
+            gate.fail()
+            return self._refuse(403, "not allowed")
+        if not self._rate_ok(self._is_light(path), remote_bucket=True):
+            return self._refuse(429, "too many requests")
+        if path == "/":
+            nonce = secrets.token_urlsafe(16)
+            return self._send(200, page.html(nonce).encode("utf-8"), "text/html; charset=utf-8", nonce)
+        if not is_api:
+            return self._refuse(404, "not found")
+        parts = path[len("/api/"):].split("/")
+        if len(parts) == 1 and parts[0] in ROUTES:
+            return self._json(200, self._run(ROUTES[parts[0]]))
+        if len(parts) == 1 and parts[0] == "ring":
+            tasks = child.run(self.server.config, ["task", "list"])
+            audit = child.run(self.server.config, ["audit", "verify"])
+            return self._json(200, ring.derive(tasks.code, tasks.text, audit.code))
+        if len(parts) == 1 and parts[0] == "chat":
+            return self._json(200, self._remote_chat_state())
+        if len(parts) == 1 and parts[0] == "live":
+            return self._json(200, {"voice": {"state": "IDLE"}, "chat": self._remote_chat_state()})
+        if len(parts) == 2 and parts[0] == "turn":
+            if self.server.remote_respond is None or not TURN_RE.match(parts[1]):
+                return self._refuse(404, "not found")
+            entry = self.server.turns.get(int(parts[1]))
+            if not entry or entry.get("origin") != "remote":
+                return self._refuse(404, "unknown turn")
+            return self._json(200, {k: v for k, v in entry.items() if k != "origin"})
+        if len(parts) == 1 and parts[0] == "galaxy":
+            return self._json(200, self._galaxy())
+        if len(parts) == 2 and parts[0] in DETAIL:
+            if not ID_RE.match(parts[1]):
+                return self._refuse(400, "invalid id")
+            return self._json(200, self._run(DETAIL[parts[0]] + [parts[1]]))
+        return self._refuse(404, "not found")   # default deny: the voice signal, the laptop's microphone and anything unnamed
+
+    def _remote_post(self):
+        """`POST /api/say` only. The microphone route, and every other POST, is refused for the phone."""
+        if self.path == "/api/mic":
+            raw = self._post_gate(remote_profile=True)
+            if raw is not None:
+                self._refuse(403, "the microphone is not available from the phone")
+            return
+        if self.path != "/api/say" or self.server.remote_respond is None:
+            return self._method_not_allowed()
+        raw = self._post_gate(remote_profile=True)
+        if raw is None:
+            return
+        try:
+            text = turns.parse_say(raw)
+        except turns.BadRequest as exc:
+            return self._refuse(400, str(exc))
+        if not self.server.turns.reserve("turn"):
+            return self._refuse(409, "busy: JARVIS is already working on something")
+        number = self.server.turns.start_reserved(text, self.server.remote_respond, origin="remote", speak=False)
+        self._json(202, {"turn": number})
+
     def do_GET(self):
+        profile = self._profile()
+        if profile is None:
+            return
+        if profile == "remote":
+            return self._remote_get()
         if not self._host_ok():
             return self._refuse(403, "host not allowed")
         if not self._origin_ok():
@@ -145,7 +258,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self.server.turns.enabled or not TURN_RE.match(parts[1]):
                 return self._refuse(404, "not found")
             entry = self.server.turns.get(int(parts[1]))
-            return self._json(200, entry) if entry else self._refuse(404, "unknown turn")
+            return self._json(200, {k: v for k, v in entry.items() if k != "origin"}) if entry else self._refuse(404, "unknown turn")
         if len(parts) == 1 and parts[0] == "voice":
             return self._json(200, voicesignal.read(self.server.voice_path))
         if len(parts) == 1 and parts[0] == "galaxy":
@@ -181,6 +294,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         """`POST /api/say` (when the advisor supplied `respond`) and `POST /api/mic` (when it supplied a microphone).
         Every other POST stays 405 (ADR-0011 Amendments 2 and 3)."""
+        profile = self._profile()
+        if profile is None:
+            return
+        if profile == "remote":
+            return self._remote_post()
         if self.path == "/api/say" and self.server.turns.enabled:
             handler = self._say
         elif self.path == "/api/mic" and self.server.mic is not None:
@@ -191,7 +309,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if raw is not None:
             handler(raw)
 
-    def _post_gate(self):
+    def _post_gate(self, remote_profile: bool = False):
         """The rules every mutation shares. Returns the (bounded) body, or None after sending a refusal."""
         # Read a small, bounded amount first so every refusal below reaches the browser as a clean 4xx
         # (answering before the body is read can reset the connection). The size rule is still checked before parsing.
@@ -199,12 +317,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         valid = length.isascii() and length.isdigit()
         raw = self.rfile.read(min(int(length), DRAIN_MAX)) if valid and self.headers.get("Transfer-Encoding") is None else b""
         refusal = None
-        if not self._host_ok():
+        if remote_profile:   # one generic refusal for the phone: host, login, origin and token are all checked, none is named
+            if not self.server.remote_gate.check(self.headers, post=True, need_token=True):
+                self.server.remote_gate.fail()
+                refusal = (403, "not allowed")
+        elif not self._host_ok():
             refusal = (403, "host not allowed")
         elif self.headers.get("Origin") is None or not self._origin_ok():  # Origin is required on every mutation
             refusal = (403, "origin not allowed")
         elif not self._token_ok():
             refusal = (403, "token required")
+        if refusal:
+            pass
         elif self.headers.get("Content-Type", "") != SAY_TYPE:
             refusal = (415, "content type must be application/json")
         elif self.headers.get("Transfer-Encoding") is not None:
@@ -213,7 +337,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             refusal = (411, "content length required")
         elif int(length) > turns.MAX_BODY:
             refusal = (413, "body too large")
-        elif not self._rate_ok():
+        elif not self._rate_ok(remote_bucket=remote_profile):
             refusal = (429, "too many requests")
         if refusal:
             self._refuse(*refusal)
@@ -247,8 +371,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class DashboardServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, config: str, voice_path: str = "", respond=None, after=None, mic=None):
-        super().__init__(("127.0.0.1", 0), Handler)
+    allow_reuse_address = False   # a fixed port that is already taken must fail to bind, never be shared (ADR-0011 A4.6.2)
+
+    def __init__(self, config: str, voice_path: str = "", respond=None, after=None, mic=None,
+                 port: int = 0, remote_gate=None, remote_respond=None):
+        super().__init__(("127.0.0.1", port), Handler)
         child.command(config, [])  # refuse a relative config or a wrong interpreter at start
         self.config = config
         self.voice_path = voice_path or voicesignal.default_path(config)
@@ -257,6 +384,10 @@ class DashboardServer(http.server.ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(32)
         self.rate_hits = deque()
         self.rate_light = deque()
+        self.rate_remote = deque()
+        self.rate_remote_light = deque()
+        self.remote_gate = remote_gate          # None: remote access is off and every request is local
+        self.remote_respond = remote_respond if remote_gate is not None else None   # the phone's own conversation
         self.rate_lock = threading.Lock()
 
     @property
