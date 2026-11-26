@@ -39,6 +39,10 @@ The Beta is JARVIS as a governed, human-in-the-loop project assistant (Beta plan
 - **Voice and model software depend on pinned older library builds** because Smart App Control blocks the newest unsigned builds (INFERRED). Upgrading a pinned package needs a re-test.
 - **The outbound firewall rules cover three programs by path** (a private Python copy, the voice launcher, `ollama.exe`), applied by RK on 2026-11-13. They are not a general network sandbox. Reversible by RK as administrator.
 - **The cloned voice's sample provenance is UNVERIFIED** (RK described it in two ways; ADR-0012 Amendment 1).
+- **Weather and news stop on a network that answers with private addresses** (home router quirks, hotel or captive-portal Wi-Fi), by design: the fetcher refuses any non-public address (ADR-0014 Amendment 4). Behind a proxy or an address-rewriting VPN it is `UNVERIFIED`.
+- **The time-zone data package is a test and runtime dependency.** `tzdata` (pinned 2026.6) is not part of Python on Windows. A clean machine without it fails 21 tests in `tests/test_clock.py` and cannot answer the time in other zones (seen on the old laptop, 2026-11-26). Installing it is RK's per-item approval (G-13); the B-10 and B-02 clean-machine runs must say whether it was installed.
+- **Unit tests run on every pull request as an advisory check**, not a required one; the ruleset is unchanged (#94).
+- **Notes about sir (ADR-0016) are proposed and not built.**
 - **Planner is minimal**: fixed action per capability, reads before writes.
 
 ## 4. Implementation deviations for Gate 6 decision
