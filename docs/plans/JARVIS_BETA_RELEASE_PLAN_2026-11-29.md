@@ -1,4 +1,6 @@
-# JARVIS Beta Release Plan — target 2026-11-29
+# JARVIS Beta Release Plan — target 2026-11-29 (MOVED to the first week of December 2026: see section 14, Amendment 4)
+
+**The file name keeps the original date so that every link to it stays valid. The date in force is in section 14.**
 
 **Status:** PROPOSED. NON-AUTHORITATIVE until RK merges it (ADR-0001 D6). Not an ADR. Documentation only.
 **Drafted:** 2026-10-30, by Local Claude, from RK's instruction of the same day.
@@ -396,4 +398,44 @@ If the date is at risk, **BR-15 is cut first and BR-19 second**, before Stage B 
 | BU-11 | To-do tests pass: add, read, tick off and drop each need a confirmation turn; a hostile item cannot close another; a failed write is reported and changes nothing |
 | BU-12 | Every limit in ADR-0015 D2 to D5 has a test (path escape, forbidden extension, forged catalog entry, denied policy means no open, a failed start changes nothing, no file name in the audit record); the static test names the four process-creating sites |
 | B-13 (extended again) | Release notes state: no browsing and no arbitrary web address; three named read-only lookups, audited; a to-do list is a list of notes (closed, not edited or deleted) and JARVIS cannot nudge RK because it has no alarms; JARVIS opens only what RK's catalog lists and cannot close, control, install or type commands |
+
+## 14. Amendment 4 (ACCEPTED, effective only when RK merges the pull request that adds it): the Beta moves to the first week of December 2026
+
+**Status: ACCEPTED (2026-11-26), effective only when RK merges this change (ADR-0001 D6).** RK's chat instruction of 2026-11-26: "due to some circumstances and delay, we are moving the beta launch to the first week of next month. Update everything needed accordingly and patch it to main." The reasons are RK's; no further reason is recorded here. Matched trigger: **G-15** (it changes when the Beta ships). This block is a claim by the drafting session; RK's merge confirms or corrects it. Section 12.5 already says that if the date cannot hold, the date moves and it is reported the same day; this is that report. It is not a silent extension.
+
+### 14.1 What changes
+
+| Item | Was | Now |
+|---|---|---|
+| Beta target (Gate 8) | 29 Nov 2026 | **The first week of December 2026 (1 to 7 Dec).** RK's word names a week, not a day |
+| Gate 6, security and release validation | 26 Nov | 3 Dec (PROPOSED) |
+| Gate 7, release candidate frozen | 28 Nov | 5 Dec (PROPOSED) |
+| Gate 8, tag on RK's instruction | 29 Nov | 6 Dec (PROPOSED) |
+| B-10 clean install on the old laptop (at the freeze) | 26 Nov | 3 Dec (PROPOSED) |
+| B-11 first audit anchor, D-7 | 24 to 26 Nov | by 3 Dec (PROPOSED) |
+| D-8 final release instruction | 29 Nov | the Gate 8 day RK chooses |
+
+The proposed days for Gates 6 to 8 are the old days moved by seven, which keeps their spacing and the weekdays. They are the drafting session's proposal, not RK's word. RK may name any day from 1 to 7 Dec for Gate 8, and any day in that week satisfies the instruction; the gates before it then move with it.
+
+### 14.2 What does not change
+
+- **Scope.** Nothing is added and nothing is removed. The extra week is not a licence to add scope. BR-12, BR-13 and BR-14 stay not cuttable; the cut order in 12.5 and 13.3 stands (BR-15 first, BR-19 second, then Stage B task create). **Scope is cut, never acceptance criteria.**
+- **Acceptance.** B-01 to B-13 and BU-1 to BU-12 are unchanged, and every item still needs its own evidence. A criterion not run is NOT VERIFIED.
+- **Gates 1 to 5.** Their dates stay as written. This amendment does not assess whether they were met: the evidence notes under `docs/environment/` and the merged pull requests are the record. If a gate was missed, it was not reported as missed by this change.
+- **Accepted ADRs and MCAs.** ADR-0014 (cut trigger "29 Nov") and MCA-002 (definition of the Beta, "target 2026-11-29") are not edited. Read their "29 Nov" as the Gate 8 date in force, which is the one in 14.1. The dated evidence notes under `docs/environment/` are history and are not edited.
+- **The audit anchor path, the ruleset and the governance files.** Untouched. The ruleset `updated_at` stays `2026-10-11T23:37:01.214+05:30`.
+
+### 14.3 Open points that this amendment does not decide
+
+- **Phone access (ADR-0011 Amendment 4, open pull request 99).** It is not Beta-required by anything in this plan. Whether it joins the Beta is RK's decision (G-15) and is UNKNOWN; the extra week does not decide it.
+- **The exact Gate 8 day** (1 to 7 Dec), and whether RK wants any gate before it to move differently from the proposal in 14.1.
+- **A rehearsal of the full Beta** (voice, model and dashboard together) and the drills in `docs/beta/BETA_RELEASE_PROCEDURE.md` section D: the run before the tag is still required. No earlier result is claimed here.
+
+### 14.4 Documents changed with this amendment
+
+`CHANGELOG.md`, `START HERE.md`, `docs/beta/BETA_SECURITY_AND_RELEASE_NOTES.md`, `docs/beta/BETA_RELEASE_PROCEDURE.md` and `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md`: forward-looking dates only. The copies of the old-laptop notes in the shared folder are non-authoritative and are not updated by this change; the repository copy wins.
+
+### 14.5 What this section does not do
+
+It changes no code, policy, ruleset, CODEOWNERS or governance file, enables nothing, installs nothing, tags nothing, and makes no anchor. Tagging stays RK's act.
 
