@@ -7,9 +7,11 @@ All notable changes to JARVIS, newest first. Format: [Keep a Changelog](https://
 ### Decided (documents only)
 - The Beta date moves from 2026-11-29 to the first week of December 2026, on RK's word of 2026-11-26. Scope and acceptance are unchanged (Beta plan Amendment 4).
 - Phone access over a private network, phone keyboard dictation, a remote allowlist profile, a login plus a long-lived token, and (A4.7) notes and to-dos from the phone, with confirmations bound to the side that proposed them (ADR-0011 Amendment 4, #82, #87, #88, #90). Nothing is built yet.
+- ADR-0016, notes about sir, is in the register as PROPOSED (#93); nothing of it is built. Whether it is accepted is RK's decision.
 - Register, START HERE, release notes and evidence brought up to date (#86); the pre-Phase-1 gate draft kept as a historical record (#89).
 
 ### Added
+- Fetcher refuses any connection that reached a non-public address, checked on the connected socket before a request is sent (ADR-0014 Amendment 4, #95). `scripts/boundaries.py`, a read-only report of what can leave or reach into this machine (#96). Unit tests run on every pull request, advisory only (#94). Review checklist, pull-request template, changelog, release procedure with drills and an ideas list (#98). A test that data (model replies, headlines, notes) never becomes a launch or lookup request (#97).
 - Dashboard text box (#77), microphone button, hold to talk (#78), phone-sized layout (#81).
 - Several lookups in one request, such as the weather and the headlines together (#79).
 - `scripts/free_memory.py` and `scripts/start-jarvis.cmd`: close the programs on RK's own list before JARVIS starts (#84).
@@ -20,6 +22,7 @@ All notable changes to JARVIS, newest first. Format: [Keep a Changelog](https://
 - `sync_project_notes` (#70); a read-only wrapper and skill for Claude Code (#54); a static HTML snapshot (#53).
 
 ### Changed
+- Persona no longer denies time, notes or weather, and the model is told the part of the day each turn (#92).
 - Persona v2: opinions instead of disclaimers, a guard for "your kind" and "as an AI", a wider vocabulary (#83).
 
 ### Fixed
