@@ -147,9 +147,9 @@ Owners: **LC** = Local Claude (implements, tests, opens PRs). **CC** = Cloud Cla
 | 23–26 Nov | Security validation | Focused review: new reading and intake code, injection tests, guard coverage of every new module, secret-location tests; a code-review pass | Gate 5 | B-03, B-04, B-05, B-12; findings fixed or listed | **High**: late finding | LC (review by a fresh session), CC if asked | **PR-15** fixes |
 | 24–26 Nov | RK action | First audit anchor (BR-11); decide or defer U-6 | ADR-0009 | B-11 | Medium: RK | RK | anchor PR by RK |
 | **26 Nov** | **Gate 6** | Security, integration and release validation | PR-14, PR-15 | B-01 to B-12 evidence drafted | | | |
-| 26–28 Nov | Release | Beta evidence note; documentation; release notes (B-13); release candidate branch; final full-suite run on a fresh clone | Gate 6 | B-02, B-13 | Medium | LC | **PR-16** docs |
+| 26–28 Nov (moved: 3 to 5 Dec, PROPOSED, section 14) | Release | Beta evidence note; documentation; release notes (B-13); release candidate branch; final full-suite run on a fresh clone | Gate 6 | B-02, B-13 | Medium | LC | **PR-16** docs |
 | **28 Nov** | **Gate 7** | Release candidate frozen | PR-16 | Only blocker fixes after this point; each is a PR | | | |
-| **29 Nov** | **Gate 8** | **Beta release**: tag, release notes | Gate 7, RK's explicit instruction | RK merges and tags; `main` equals the candidate | | RK | release PR, RK-gated |
+| **29 Nov** (moved: first week of December 2026, section 14) | **Gate 8** | **Beta release**: tag, release notes | Gate 7, RK's explicit instruction | RK merges and tags; `main` equals the candidate | | RK | release PR, RK-gated |
 
 **Slack.** Gate dates are fixed. Slack comes only from dropping BS items and from RK responding quickly. The two items with no slack are **PR-2 acceptance (3 Nov)** and **PR-9 (bounded reading)**. If PR-2 is not accepted by 5 Nov, BR-2 to BR-5 are re-planned that day and the Beta is cut to BR-1, BR-6 to BR-10: a hardened control plane with project context and `doctor`. That is the fallback, not the plan.
 
@@ -162,9 +162,9 @@ Owners: **LC** = Local Claude (implements, tests, opens PRs). **CC** = Cloud Cla
 | 3 | 13 Nov | ADR-0010 and policy v2 accepted; notes and `resume` merged; restart test green. |
 | 4 | 19 Nov | Reading, briefs and relayed results merged; RK has used them on one real project. |
 | 5 | 23 Nov | B-06 end-to-end test green; RK ran the path by hand. |
-| 6 | 26 Nov | Security review done; B-01 to B-12 have recorded evidence; anchor made. |
-| 7 | 28 Nov | Release candidate frozen; fresh-clone run passes. |
-| 8 | 29 Nov | Beta tagged on RK's instruction. |
+| 6 | 26 Nov (moved: 3 Dec, PROPOSED, section 14) | Security review done; B-01 to B-12 have recorded evidence; anchor made. |
+| 7 | 28 Nov (moved: 5 Dec, PROPOSED, section 14) | Release candidate frozen; fresh-clone run passes. |
+| 8 | 29 Nov (moved: first week of December 2026, section 14) | Beta tagged on RK's instruction. |
 
 A missed gate is reported the same day with the cut proposed. The date is not extended silently.
 
@@ -196,7 +196,7 @@ A missed gate is reported the same day with the cut proposed. The date is not ex
 | D-5 | Backup location | 20 Nov | A second local drive. Cloud would be a G-06/G-08 decision. |
 | D-6 | `gh` credential-access: decide or knowingly defer | 20 Nov | Decide before the anchor. |
 | D-7 | Make the first audit anchor | 26 Nov | |
-| D-8 | Final release instruction | 29 Nov | |
+| D-8 | Final release instruction | 29 Nov (moved: the Gate 8 day RK chooses, section 14) | |
 
 ## 10. What this plan does not do
 
@@ -342,7 +342,7 @@ No estimate exists until the benchmark measures the models and speech on the rea
 | 16 to 22 Nov | Galaxy, minimal | |
 | 20 to 24 Nov | Stage B notes, then task create | After Stage A security tests |
 | 22 to 25 Nov | Cross-surface tests; security review of `ui/`, `voice/`, `advisor/` | |
-| Gates 2 to 8 | Unchanged: 23 Nov end-to-end, 26 Nov Gate 6, 28 Nov freeze, 29 Nov Beta | If these cannot hold, report and propose |
+| Gates 2 to 8 | Unchanged: 23 Nov end-to-end, 26 Nov Gate 6, 28 Nov freeze, 29 Nov Beta (Gates 6 to 8 moved by section 14) | If these cannot hold, report and propose |
 
 ### 12.8 Decisions that still need RK
 

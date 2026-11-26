@@ -76,7 +76,7 @@ The control plane's Python has no time-zone database on this machine (`MEASURED`
 | BU-5 | Voice still has no outbound connection |
 | New acceptance | BU-10: every limit in D3 has a test (wrong host, redirect, oversize, slow, malformed and hostile RSS, hostile headline text); the three process-creating sites are named by the static test; `FETCH_PUBLIC_DATA` denied means no lookup; firewall rule absent means a plain failure sentence |
 | Cut order | The lookups are added scope. They are cut **first** if the date is at risk (before Stage B task create), not the conversation, galaxy or voice |
-| Date | Not changed by this ADR. If the build threatens 29 Nov, the cut above is applied and reported the same day |
+| Date | Not changed by this ADR. If the build threatens the Beta date (29 Nov when written; the first week of December 2026 since Beta plan Amendment 4), the cut above is applied and reported the same day |
 
 ## 6. Consequences and unknowns
 - **Gain:** weather and news by voice with a small, auditable, switch-off-able attack surface.
