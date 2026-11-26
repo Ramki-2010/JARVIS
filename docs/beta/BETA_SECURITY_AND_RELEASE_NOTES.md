@@ -1,6 +1,6 @@
 # JARVIS Beta: security notes and release notes
 
-**Status:** release documentation, drafted 2026-10-30 for the 2026-11-29 Beta. Non-authoritative: the accepted ADRs and the Master Context govern. It records facts and open items so they can be decided at Gate 6 (26 Nov).
+**Status:** release documentation, drafted 2026-10-30 for the Beta (target moved on 2026-11-26 from 2026-11-29 to the first week of December 2026, plan Amendment 4). Non-authoritative: the accepted ADRs and the Master Context govern. It records facts and open items so they can be decided at Gate 6 (proposed 3 Dec).
 **Labels:** `IMPLEMENTED`, `TESTED`, `OBSERVED` (on the real install, dated), `PLANNED`, `RK DECISION`.
 
 ## 1. Scope
@@ -65,8 +65,8 @@ These are recorded as facts. The accepted ADR and the implementation are unchang
 | B-07 kill at each commit boundary | `TESTED` |
 | B-08 doctor healthy / seeded faults | `OBSERVED` healthy on the real install 2026-10-30 (one warning: no registry); seeded faults `TESTED` |
 | B-09 backup then restore | `TESTED`; first real backup taken 2026-11-13 (`E:\JARVIS-BACKUPS6-11-13`); restore drill on the real install `PLANNED` |
-| B-10 clean install runs doctor | `PLANNED`; runbook written; to be run on the old laptop at release-candidate freeze (target 26 Nov), see `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md` |
-| B-11 first audit anchor | `RK DECISION`, scheduled 26 Nov |
+| B-10 clean install runs doctor | `PLANNED`; runbook written; to be run on the old laptop at release-candidate freeze (proposed 3 Dec; was 26 Nov), see `docs/plans/OLD_LAPTOP_NEXT_STEPS_2026-11-13.md` |
+| B-11 first audit anchor | `RK DECISION`, scheduled by 3 Dec (was 26 Nov) |
 | B-12 ruleset unchanged; no ADR amended to ease implementation | ruleset: `OBSERVED` unchanged (`updated_at` 2026-10-11T23:37:01.214+05:30, checked 2026-11-13). ADR text: see the note below the table. |
 | B-13 release notes list every limitation | this document, to be finalised at Gate 7 |
 

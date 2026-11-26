@@ -1,10 +1,11 @@
 # Changelog
 
-All notable changes to JARVIS, newest first. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). No release has been cut: the Beta target is 2026-11-29 and tagging it is RK's act (`docs/beta/BETA_RELEASE_PROCEDURE.md`). Numbers are pull requests. Built from the list of merged pull requests on 2026-11-20, not from memory.
+All notable changes to JARVIS, newest first. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). No release has been cut: the Beta target moved on 2026-11-26 from 2026-11-29 to the first week of December 2026 (Beta plan Amendment 4) and tagging it is RK's act (`docs/beta/BETA_RELEASE_PROCEDURE.md`). Numbers are pull requests. Built from the list of merged pull requests on 2026-11-20, not from memory.
 
-## [Unreleased] (towards the Beta, 2026-11-29)
+## [Unreleased] (towards the Beta, first week of December 2026)
 
 ### Decided (documents only)
+- The Beta date moves from 2026-11-29 to the first week of December 2026, on RK's word of 2026-11-26. Scope and acceptance are unchanged (Beta plan Amendment 4).
 - Phone access over a private network, phone keyboard dictation, a remote allowlist profile, a login plus a long-lived token, and (A4.7) notes and to-dos from the phone, with confirmations bound to the side that proposed them (ADR-0011 Amendment 4, #82, #87, #88, #90). Nothing is built yet.
 - Register, START HERE, release notes and evidence brought up to date (#86); the pre-Phase-1 gate draft kept as a historical record (#89).
 

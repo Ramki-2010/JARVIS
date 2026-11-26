@@ -31,7 +31,7 @@ certutil -hashfile jarvis-0.1.0-beta.1.zip SHA256
 
 Verify by hashing a second, independent archive of the same tag: the two hashes must match.
 
-## D. Rehearsal drills (run on a fresh Windows account or a clean snapshot, before 23 Nov and again before the tag)
+## D. Rehearsal drills (run on a fresh Windows account or a clean snapshot, before Gate 6 (proposed 3 Dec; was 23 Nov) and again before the tag)
 
 Adapted from a practice of testing on real machines, not only automated ones. Each drill has a pass line; write the result, not an impression.
 
