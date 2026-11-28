@@ -4,6 +4,9 @@ All notable changes to JARVIS, newest first. Format: [Keep a Changelog](https://
 
 ## [Unreleased] (towards the Beta, first week of December 2026)
 
+### Added (not merged yet, towards the phone)
+- Phone access over the private network: a remote profile with an allowlist, its own conversation, a fixed port, login plus token, a lockout, `scripts/make_remote_token.py`, `scripts/remote_gate.py`, `JARVIS_REMOTE=1` in the start script (ADR-0011 A4.6, A4.7, A4.8).
+
 ### Decided (documents only)
 - The Beta date moves from 2026-11-29 to the first week of December 2026, on RK's word of 2026-11-26. Scope and acceptance are unchanged (Beta plan Amendment 4).
 - Phone access over a private network, phone keyboard dictation, a remote allowlist profile, a login plus a long-lived token, and (A4.7) notes and to-dos from the phone, with confirmations bound to the side that proposed them (ADR-0011 Amendment 4, #82, #87, #88, #90). Nothing is built yet.

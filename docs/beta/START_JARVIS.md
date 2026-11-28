@@ -33,3 +33,14 @@ Per program: `images` (its name in Task Manager's Details tab, without `.exe`), 
 ## What it is worth (measured 2026-11-16, before this script existed)
 
 With nothing closed, the 9B model decoded at 10.8 tokens per second on the CPU, the same as the 10.7 measured at install; the CPU was about 98% idle and Windows was not swapping. So on that day the listed programs were not slowing the model, and closing them freed about 2.5 GB (mostly Zen) without a measurable change in speed. The model on the GPU decoded at 45 to 58 tokens per second (about four to five times faster) but fills the GPU, so it cannot be used while the voice is on. This script mainly helps when memory is genuinely short, for example loading the model on a busy day; the measured before and after is printed every time.
+
+## Phone access (private network; RK's own steps, after the build is merged)
+
+Off unless you ask for it. The phone reaches the dashboard only through your private network (Tailscale), only as your login, and with a token. Nothing is opened to the internet.
+
+1. One-time: the settings file in your governance folder (see `docs/examples/remote.example.toml` for the shape; the real file holds your device's private name, your login and a fixed port, and is never committed).
+2. Make the token and the phone link (run it yourself; the link is shown once and not stored): `py -3.14 scripts\make_remote_token.py --file D:\JARVIS\governance\remote.toml`. Open the link on the phone once and bookmark it. Run it again to rotate (the old link stops at the next launch); add `--revoke` to switch phone access off.
+3. Publish the dashboard to your own devices only (your act; it persists until you switch it off): `tailscale serve --bg --https=443 http://127.0.0.1:<the fixed port>`. To stop publishing: `tailscale serve --https=443 off`.
+4. Start with phone access: `set JARVIS_REMOTE=1` then `scripts\start-jarvis.cmd --dashboard ...`. The start script first runs `scripts\remote_gate.py`, which refuses (and starts JARVIS without phone access) unless Tailscale reports nothing published publicly (Funnel). `py -3.14 scripts\boundaries.py` shows the whole picture.
+
+What the phone can do: talk, ask for the weather, headlines and the time, read status and records, add notes and to-dos and tick them off or drop them (each with the usual "yes"). It cannot open apps, files or games, use the microphone, quit JARVIS, or hear JARVIS speak on the laptop. Five wrong attempts in a minute switch phone access off until JARVIS restarts. The laptop must stay awake with JARVIS running.
